@@ -22,6 +22,7 @@ export class AudioEngine {
   private startedAt = 0;
   private offset = 0;
   private mode: ListenMode = { room: true, fixes: false };
+  private playToken = 0; // bumped by pause() so a play() still waiting for the context to resume gives up
 
   constructor() {
     const nav = navigator as Navigator & { audioSession?: { type: string } };
@@ -57,7 +58,9 @@ export class AudioEngine {
 
   async play(): Promise<void> {
     if (!this.song || this.source) return;
+    const token = ++this.playToken;
     await this.ctx.resume();
+    if (token !== this.playToken || this.source || !this.song) return;
     const source = new AudioBufferSourceNode(this.ctx, { buffer: this.song, loop: true });
     source.connect(this.input);
     source.start(0, this.offset);
@@ -66,6 +69,7 @@ export class AudioEngine {
   }
 
   pause(): void {
+    this.playToken++;
     if (!this.source || !this.song) return;
     this.offset = (this.ctx.currentTime - this.startedAt) % this.song.duration;
     this.source.stop();
