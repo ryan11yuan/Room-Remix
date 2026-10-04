@@ -87,8 +87,12 @@ export function Player() {
       engine.pause();
       setPlaying(false);
     } else {
-      await engine.play();
-      setPlaying(true);
+      try {
+        await engine.play();
+      } catch {
+        setError("Couldn't start playback. Try picking the song again.");
+      }
+      setPlaying(engine.playing);
     }
   }
 

@@ -12,12 +12,21 @@ export default function RoomPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    const code = window.location.hash.slice(1);
-    if (!code) return;
-    void decodeRoom(code).then((room) => {
-      if (room) setRoom(room);
-      else setNotice("This link couldn't be fully loaded, so you're starting from a default room.");
-    });
+    const load = () => {
+      const code = window.location.hash.slice(1);
+      if (!code) return;
+      void decodeRoom(code).then((room) => {
+        if (room) {
+          setRoom(room);
+          setNotice(null);
+        } else {
+          setNotice("This link couldn't be fully loaded.");
+        }
+      });
+    };
+    load();
+    window.addEventListener('hashchange', load);
+    return () => window.removeEventListener('hashchange', load);
   }, [setRoom]);
 
   return (

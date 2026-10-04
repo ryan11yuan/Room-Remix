@@ -168,50 +168,60 @@ export function RoomForm() {
             + Panel
           </button>
         </div>
-        {room.fixes.map((fix, i) => (
-          <div key={i} className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={fix.on} onChange={(e) => setFix(i, { on: e.target.checked })} />
-              {fix.kind === 'rug' ? 'Rug' : 'Panel'}
-            </label>
-            {fix.kind === 'rug' ? (
-              <>
-                <select
-                  value={fix.size}
-                  onChange={(e) => setFix(i, { size: e.target.value as RugSize })}
-                  className={inputClass}
-                >
-                  {(['S', 'M', 'L'] as const).map((s) => (
-                    <option key={s} value={s}>
-                      {RUG_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-                <NumberField label="Centre x" value={fix.x} onChange={(v) => setFix(i, { x: v })} />
-                <NumberField label="Centre z" value={fix.z} onChange={(v) => setFix(i, { z: v })} />
-              </>
-            ) : (
-              <>
-                <select
-                  value={fix.wall}
-                  onChange={(e) => setFix(i, { wall: e.target.value as WallId })}
-                  className={inputClass}
-                >
-                  {WALL_IDS.map((w) => (
-                    <option key={w} value={w}>
-                      {SURFACE_LABELS[w]}
-                    </option>
-                  ))}
-                </select>
-                <NumberField label="Along wall" value={fix.u} onChange={(v) => setFix(i, { u: v })} />
-                <NumberField label="Height" value={fix.v} onChange={(v) => setFix(i, { v })} />
-              </>
-            )}
-            <button onClick={() => removeFix(i)} className="text-sm text-red-400">
-              Remove
-            </button>
-          </div>
-        ))}
+        {room.fixes.map((fix, i) => {
+          const rowLabel =
+            fix.kind === 'rug' ? 'Rug' : `Panel ${room.fixes.slice(0, i + 1).filter((f) => f.kind === 'panel').length}`;
+          return (
+            <div key={i} className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={fix.on} onChange={(e) => setFix(i, { on: e.target.checked })} />
+                {rowLabel}
+              </label>
+              {fix.kind === 'rug' ? (
+                <>
+                  <select
+                    aria-label="Rug size"
+                    value={fix.size}
+                    onChange={(e) => setFix(i, { size: e.target.value as RugSize })}
+                    className={inputClass}
+                  >
+                    {(['S', 'M', 'L'] as const).map((s) => (
+                      <option key={s} value={s}>
+                        {RUG_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                  <NumberField label={`${rowLabel} centre x`} value={fix.x} onChange={(v) => setFix(i, { x: v })} />
+                  <NumberField label={`${rowLabel} centre z`} value={fix.z} onChange={(v) => setFix(i, { z: v })} />
+                </>
+              ) : (
+                <>
+                  <select
+                    aria-label={`${rowLabel} wall`}
+                    value={fix.wall}
+                    onChange={(e) => setFix(i, { wall: e.target.value as WallId })}
+                    className={inputClass}
+                  >
+                    {WALL_IDS.map((w) => (
+                      <option key={w} value={w}>
+                        {SURFACE_LABELS[w]}
+                      </option>
+                    ))}
+                  </select>
+                  <NumberField label={`${rowLabel} along wall`} value={fix.u} onChange={(v) => setFix(i, { u: v })} />
+                  <NumberField label={`${rowLabel} height`} value={fix.v} onChange={(v) => setFix(i, { v })} />
+                </>
+              )}
+              <button
+                onClick={() => removeFix(i)}
+                aria-label={`Remove ${rowLabel.toLowerCase()}`}
+                className="text-sm text-red-400"
+              >
+                Remove
+              </button>
+            </div>
+          );
+        })}
       </Section>
 
       {errors.length > 0 && (
