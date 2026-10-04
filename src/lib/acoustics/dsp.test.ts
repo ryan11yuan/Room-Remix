@@ -72,7 +72,10 @@ describe('bandNoise', () => {
     }
   });
 
-  it('is deterministic for a seed', () => {
-    expect(bandNoise(500, 16000, 11)[2]).toEqual(bandNoise(500, 16000, 11)[2]);
+  it('is deterministic for a seed and differs between seeds', () => {
+    const a = createRng(11);
+    const b = createRng(11);
+    expect(Array.from({ length: 5 }, () => a())).toEqual(Array.from({ length: 5 }, () => b()));
+    expect(bandNoise(500, 16000, 11)[2]).not.toEqual(bandNoise(500, 16000, 12)[2]);
   });
 });
