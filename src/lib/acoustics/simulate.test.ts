@@ -76,6 +76,26 @@ describe('simulateRoom', () => {
     expect(calibrated).toBeLessThan(0.55 * base);
   });
 
+  it('lets calibration change the early reflections, not just the tail', () => {
+    const early = (factor: number) => {
+      const room: RoomState = { ...defaultRoom(), calibration: { factor } };
+      const { ir } = simulateRoom(room, FS);
+      const from = Math.ceil((directSamples(room, FS) / FS + 0.002) * FS);
+      return energy(ir.left, from, 0.05 * FS) + energy(ir.right, from, 0.05 * FS);
+    };
+    expect(early(2)).toBeLessThan(0.8 * early(1));
+  });
+
+  it('lets furnishing change the early reflections, not just the tail', () => {
+    const early = (furnishing: RoomState['furnishing']) => {
+      const room: RoomState = { ...defaultRoom(), furnishing };
+      const { ir } = simulateRoom(room, FS);
+      const from = Math.ceil((directSamples(room, FS) / FS + 0.002) * FS);
+      return energy(ir.left, from, 0.05 * FS) + energy(ir.right, from, 0.05 * FS);
+    };
+    expect(early('full')).toBeLessThan(early('bare'));
+  });
+
   it('returns at most 200 ray paths, strongest first, starting with the direct path', () => {
     const { paths } = simulateRoom(defaultRoom(), FS);
     expect(paths.length).toBeGreaterThan(0);

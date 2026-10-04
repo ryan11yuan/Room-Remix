@@ -1,10 +1,10 @@
 import type { RoomState, Vec3 } from '@/lib/room/types';
 import { absorptionArea, makeSurfaceLookup } from './absorption';
-import { NUM_BANDS, SPEED_OF_SOUND, type Bands } from './bands';
+import { mapBands, NUM_BANDS, SPEED_OF_SOUND, type Bands } from './bands';
 import { earResponse, listenerYaw } from './binaural';
 import { applyBandMasks, bandMasks, bandNoise, nextPow2 } from './dsp';
 import { computeImageSources, pathEnergy, type Arrival } from './imageSource';
-import { eyring, midRt60, roomVolume, totalSurfaceArea } from './reverbTime';
+import { eyring, MAX_MEAN_ALPHA, midRt60, roomVolume, totalSurfaceArea } from './reverbTime';
 
 export const MAX_IR_SECONDS = 4;
 export const IR_MAX_ORDER = 10;
@@ -31,8 +31,24 @@ export function simulateBoth(room: RoomState, sampleRate: number) {
   return { now: simulateRoom(withoutFixes(room), sampleRate), withFixes: simulateRoom(room, sampleRate) };
 }
 
+/**
+ * Furnishing and calibration are diffuse absorption the walls in the image model don't carry.
+ * This per-bounce factor makes image-source decay match the Eyring tail's mean absorption.
+ */
+function diffuseBounceFactor(room: RoomState): Bands {
+  const area = totalSurfaceArea(room.dims);
+  const total = absorptionArea(room);
+  const surfaceOnly = absorptionArea({ ...room, furnishing: 'bare', calibration: { factor: 1 } });
+  return mapBands((b) => {
+    const meanTotal = Math.min(total[b] / area, MAX_MEAN_ALPHA);
+    const meanSurface = Math.min(surfaceOnly[b] / area, MAX_MEAN_ALPHA);
+    return Math.sqrt((1 - meanTotal) / (1 - meanSurface));
+  });
+}
+
 export function simulateRoom(room: RoomState, sampleRate: number): AcousticsResult {
   const rt60 = predictRt60(room);
+  const bounce = diffuseBounceFactor(room);
   const arrivals = computeImageSources({
     dims: room.dims,
     source: room.speaker,
@@ -43,7 +59,13 @@ export function simulateRoom(room: RoomState, sampleRate: number): AcousticsResu
 
   let transition = MAX_TRANSITION_SECONDS;
   for (const a of arrivals) if (a.order === IR_MAX_ORDER) transition = Math.min(transition, a.delay);
-  const early = arrivals.filter((a) => a.delay < transition);
+  // Scale gains without mutating the arrivals; a path never reflects more than 100 % (calibration < 1).
+  const early = arrivals
+    .filter((a) => a.delay < transition)
+    .map((a) => ({
+      ...a,
+      gains: a.gains.map((g, b) => g * Math.min(bounce[b] ** a.order, 1 / a.reflection[b])),
+    }));
 
   const seconds = Math.min(MAX_IR_SECONDS, transition + 1.5 * Math.max(...rt60.bands));
   const length = Math.ceil(seconds * sampleRate);
