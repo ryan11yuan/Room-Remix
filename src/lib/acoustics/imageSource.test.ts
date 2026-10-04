@@ -39,12 +39,35 @@ describe('computeImageSources', () => {
   });
 
   it('orders bounce points from the source to the listener', () => {
+    // image x = 2·4 + 1 = 9: source → wall at x = 0 → wall at x = length → listener
     const arrival = computeImageSources({ dims, source, listener, maxOrder: 2, lookup: plain }).find(
-      (a) => a.hitSurfaces.join() === 'wallX0,wallX1',
+      (a) => a.order === 2 && a.image.x === 9,
     )!;
-    // source → wall at x = 0 → wall at x = length → listener
+    expect(arrival.hitSurfaces).toEqual(['wallX0', 'wallX1']);
     expect(arrival.points[1].x).toBe(0);
     expect(arrival.points[2].x).toBe(4);
+  });
+
+  it('builds every path as a polyline of the arrival distance ending in the arrival direction', () => {
+    const src = { x: 0.7, y: 1.3, z: 2.1 };
+    const lis = { x: 3.2, y: 0.9, z: 0.6 };
+    const arrivals = computeImageSources({ dims, source: src, listener: lis, maxOrder: 4, lookup: plain });
+    for (const a of arrivals) {
+      expect(a.points).toHaveLength(a.order + 2);
+      expect(a.hitSurfaces).toHaveLength(a.order);
+      let length = 0;
+      for (let i = 1; i < a.points.length; i++) {
+        const p = a.points[i - 1];
+        const q = a.points[i];
+        length += Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+      }
+      expect(length).toBeCloseTo(a.distance, 9);
+      const last = a.points[a.points.length - 2];
+      const d = Math.hypot(last.x - lis.x, last.y - lis.y, last.z - lis.z);
+      expect(a.direction.x).toBeCloseTo((last.x - lis.x) / d, 9);
+      expect(a.direction.y).toBeCloseTo((last.y - lis.y) / d, 9);
+      expect(a.direction.z).toBeCloseTo((last.z - lis.z) / d, 9);
+    }
   });
 
   it('flags paths that bounce off a fix and uses its absorption', () => {
