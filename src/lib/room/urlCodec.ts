@@ -14,6 +14,8 @@ import {
 } from './types';
 
 const PREFIX = 'v1.';
+const MAX_CODE_LENGTH = 4096; // a real room encodes to well under 1 000 characters
+const MAX_JSON_BYTES = 16 * 1024; // a real room is about 1.3 KB of JSON
 
 export async function encodePayload(value: unknown): Promise<string> {
   const json = new TextEncoder().encode(JSON.stringify(value));
@@ -23,9 +25,10 @@ export async function encodePayload(value: unknown): Promise<string> {
 export const encodeRoom = (room: RoomState) => encodePayload(room);
 
 export async function decodeRoom(code: string): Promise<RoomState | null> {
-  if (!code.startsWith(PREFIX)) return null;
+  if (!code.startsWith(PREFIX) || code.length > MAX_CODE_LENGTH) return null;
   try {
-    const bytes = await pipe(fromBase64Url(code.slice(PREFIX.length)), new DecompressionStream('deflate-raw'));
+    const bytes = await inflateCapped(fromBase64Url(code.slice(PREFIX.length)), MAX_JSON_BYTES);
+    if (!bytes) return null;
     return migrate(JSON.parse(new TextDecoder().decode(bytes)));
   } catch {
     return null;
@@ -109,6 +112,30 @@ function vec(raw: unknown): Vec3 | null {
   const y = num(raw.y);
   const z = num(raw.z);
   return x === null || y === null || z === null ? null : { x, y, z };
+}
+
+/** Inflates, giving up as soon as the output passes `limit` bytes so a tiny link can't expand into a huge payload. */
+async function inflateCapped(bytes: Uint8Array<ArrayBuffer>, limit: number): Promise<Uint8Array | null> {
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 async function pipe(bytes: Uint8Array<ArrayBuffer>, transform: CompressionStream | DecompressionStream) {

@@ -48,4 +48,11 @@ describe('share-link codec', () => {
     const decoded = await decodeRoom(await encodePayload({ ...defaultRoom(), evil: '<script>' }));
     expect(decoded).toEqual(defaultRoom());
   });
+
+  it('rejects links that are too long or inflate past the size cap', async () => {
+    expect(await decodeRoom(`v1.${'A'.repeat(5000)}`)).toBeNull();
+    const bomb = await encodePayload({ ...defaultRoom(), name: 'x'.repeat(100_000) });
+    expect(bomb.length).toBeLessThan(4096);
+    expect(await decodeRoom(bomb)).toBeNull();
+  });
 });
