@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { applyBandMasks, bandMasks, bandNoise, createRng, fft, gaussian, nextPow2 } from './dsp';
+
+describe('nextPow2', () => {
+  it('rounds up to a power of two', () => {
+    expect(nextPow2(1000)).toBe(1024);
+    expect(nextPow2(1024)).toBe(1024);
+  });
+});
+
+describe('fft', () => {
+  it('transforms an impulse into a flat spectrum', () => {
+    const re = new Float64Array(8);
+    const im = new Float64Array(8);
+    re[0] = 1;
+    fft(re, im);
+    for (let k = 0; k < 8; k++) {
+      expect(re[k]).toBeCloseTo(1, 12);
+      expect(im[k]).toBeCloseTo(0, 12);
+    }
+  });
+
+  it('round-trips through the inverse', () => {
+    const rng = createRng(3);
+    const original = Float64Array.from({ length: 64 }, () => rng() - 0.5);
+    const re = Float64Array.from(original);
+    const im = new Float64Array(64);
+    fft(re, im);
+    fft(re, im, true);
+    original.forEach((v, i) => expect(re[i]).toBeCloseTo(v, 10));
+  });
+});
+
+describe('bandMasks', () => {
+  const masks = bandMasks(1024, 16000); // bin spacing 15.625 Hz
+
+  it('sums to exactly one at every bin and is never negative', () => {
+    for (let k = 0; k <= 512; k++) {
+      const sum = masks.reduce((s, m) => s + m[k], 0);
+      expect(sum).toBeCloseTo(1, 12);
+      masks.forEach((m) => expect(m[k]).toBeGreaterThanOrEqual(0));
+    }
+  });
+
+  it('puts 1 kHz fully in the 1 kHz band and 4 kHz in the top band', () => {
+    expect(masks[3][64]).toBeCloseTo(1, 12); // 1000 Hz
+    expect(masks[5][256]).toBeCloseTo(1, 12); // 4000 Hz
+    expect(masks[3][256]).toBeCloseTo(0, 12);
+  });
+});
+
+describe('applyBandMasks', () => {
+  it('passes an impulse through unchanged when every band has the same gain', () => {
+    const bands = Array.from({ length: 6 }, () => {
+      const s = new Float64Array(256);
+      s[10] = 1;
+      return s;
+    });
+    const out = applyBandMasks(bands, bandMasks(256, 16000));
+    out.forEach((v, i) => expect(v).toBeCloseTo(i === 10 ? 1 : 0, 9));
+  });
+});
+
+describe('bandNoise', () => {
+  it('splits seeded white noise into bands that sum back to it', () => {
+    const rng = createRng(7);
+    const white = Array.from({ length: 1000 }, () => gaussian(rng));
+    const bands = bandNoise(1000, 16000, 7);
+    expect(bands).toHaveLength(6);
+    for (let i = 0; i < 1000; i++) {
+      expect(bands.reduce((s, b) => s + b[i], 0)).toBeCloseTo(white[i], 4);
+    }
+  });
+
+  it('is deterministic for a seed', () => {
+    expect(bandNoise(500, 16000, 11)[2]).toEqual(bandNoise(500, 16000, 11)[2]);
+  });
+});
