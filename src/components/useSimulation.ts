@@ -28,11 +28,15 @@ export function useSimulation(room: RoomState, sampleRate: number | null): SimSt
   }, []);
 
   useEffect(() => {
-    if (sampleRate === null || validateRoom(room).length > 0) return;
+    if (sampleRate === null) return;
+    const valid = validateRoom(room).length === 0;
     let cancelled = false;
     const timer = setTimeout(() => {
       const client = clientRef.current;
-      if (!client) return;
+      if (!valid || !client) {
+        setState((s) => (s.status === 'running' ? { ...s, status: s.result ? 'ready' : 'idle' } : s));
+        return;
+      }
       setState((s) => ({ ...s, status: 'running' }));
       client.simulate(room, sampleRate).then(
         (result) => {
