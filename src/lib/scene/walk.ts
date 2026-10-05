@@ -1,5 +1,6 @@
 import { listenerYaw } from '@/lib/acoustics/binaural';
 import { LIMITS } from '@/lib/room/constants';
+import { GEOMETRY_EPS } from '@/lib/room/geometry';
 import { clampPosition } from '@/lib/room/placement';
 import type { Dims, RoomState, Vec3 } from '@/lib/room/types';
 
@@ -32,6 +33,9 @@ const KEY_AXES = new Map<string, { forward: number; right: number }>([
 ]);
 export const WALK_KEYS: ReadonlySet<string> = new Set(KEY_AXES.keys());
 
+/** A frame's time, capped at MAX_DT; anything that isn't a finite positive number stands still. */
+const frameTime = (dt: number): number => (Number.isFinite(dt) ? Math.min(Math.max(dt, 0), MAX_DT) : 0);
+
 /** How far, across the floor, the listener's head must stay from the speaker so the two are at least 0.5 m apart in 3D. */
 function keepOutRadius(room: RoomState): number {
   const dy = room.listener.y - room.speaker.y;
@@ -47,7 +51,7 @@ function inWalls(room: RoomState, p: FloorPoint): FloorPoint {
 /** Whether the listener may stand here: inside the walls and outside the speaker's keep-out ring. */
 function allowed(room: RoomState, p: FloorPoint, radius: number): boolean {
   const w = inWalls(room, p);
-  return w.x === p.x && w.z === p.z && Math.hypot(p.x - room.speaker.x, p.z - room.speaker.z) >= radius - ON_RING;
+  return Math.abs(w.x - p.x) <= GEOMETRY_EPS && Math.abs(w.z - p.z) <= GEOMETRY_EPS && Math.hypot(p.x - room.speaker.x, p.z - room.speaker.z) >= radius - ON_RING; // validateRoom's tolerance: a point computed onto a wall line may land a hair past it
 }
 
 /** The unit floor vector from the speaker toward `p` (+x if `p` is right above or below the speaker). */
@@ -103,7 +107,7 @@ export function walkStep(room: RoomState, goal: FloorPoint, dt: number): FloorPo
     const free = walkTarget(room, p);
     return free ? { ...free, done: false } : { ...p, done: true };
   }
-  const step = WALK_SPEED * Math.min(Math.max(dt, 0), MAX_DT);
+  const step = WALK_SPEED * frameTime(dt);
   if (step === 0) return { ...p, done: false };
   const togo = Math.hypot(goal.x - p.x, goal.z - p.z);
   if (togo <= step) return allowed(room, goal, radius) ? { ...goal, done: true } : { ...p, done: true };
@@ -156,6 +160,7 @@ export function keyDirection(keys: ReadonlySet<string>, forward: FloorPoint): Fl
       right += axes.right;
     }
   }
+  ahead = Math.sign(ahead); right = Math.sign(right); // W and the up arrow together count once
   const length = Math.hypot(forward.x, forward.z);
   if (length < 1e-9) return null;
   const f = { x: forward.x / length, z: forward.z / length };
@@ -177,10 +182,10 @@ export function advanceWalk(
   dt: number,
 ): { to: FloorPoint | null; goal: FloorPoint | null } {
   // Keys aim one step ahead, so walking into a wall at an angle slides along it only as fast as the keys point along it.
-  const reach = WALK_SPEED * Math.min(Math.max(dt, 0), MAX_DT);
+  const reach = WALK_SPEED * frameTime(dt);
   const target = direction
     ? walkTarget(room, { x: room.listener.x + direction.x * reach, z: room.listener.z + direction.z * reach })
-    : goal;
+    : goal && walkTarget(room, goal); // the speaker or the walls may have moved onto the goal since it was tapped
   if (!target) return { to: null, goal: null };
   const step = walkStep(room, target, dt);
   const moved = step.x !== room.listener.x || step.z !== room.listener.z;

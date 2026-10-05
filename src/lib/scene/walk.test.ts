@@ -40,6 +40,20 @@ function walkAll(start: RoomState, goal: FloorPoint, maxFrames = 2000): { room: 
   throw new Error(`still walking after ${maxFrames} frames`);
 }
 
+/** Walk with advanceWalk (tapped goal, no keys) until the goal is dropped; every frame's room must be valid. */
+function walkGoal(start: RoomState, goal: FloorPoint, maxFrames = 600): { room: RoomState; frames: number } {
+  let room = start;
+  let current: FloorPoint | null = goal;
+  for (let frame = 1; frame <= maxFrames; frame++) {
+    const result = advanceWalk(room, current, null, FRAME);
+    if (result.to) room = moveListener(room, result.to);
+    expect(validateRoom(room)).toEqual([]);
+    current = result.goal;
+    if (!current) return { room, frames: frame };
+  }
+  throw new Error(`goal still kept after ${maxFrames} frames`);
+}
+
 describe('walkTarget', () => {
   const room = defaultRoom(); // speaker (0.6, 1.0, 1.4), listener at 1.1 m
 
@@ -113,7 +127,7 @@ describe('walkStep', () => {
     const narrow = { length: 4, width: 1.5, height: 2.6 };
     const start = roomWith({ x: 2, y: 1.1, z: 0.75 }, { x: 1, y: 1.1, z: 0.75 }, narrow);
     const { room: end, frames } = walkAll(start, { x: 3, z: 0.75 });
-    expect(end.listener.x).toBeLessThan(2); // still on the near side
+    expect(end.listener.x).toBeCloseTo(2 - 0.51, 6); // stopped on the keep-out ring, on the near side
     expect(frames).toBeLessThan(200);
   });
 
@@ -143,6 +157,36 @@ describe('walkStep', () => {
     expect(validateRoom(start)).not.toEqual([]);
     const step = walkStep(start, { x: 3.5, z: 1.75 }, FRAME);
     expect(validateRoom(moveListener(start, step))).toEqual([]);
+  });
+
+  it('(a) walks round a speaker standing on the wall clearance line to a spot on that line', () => {
+    const start = roomWith({ x: 0.3, y: 1.1, z: 0.9 }, { x: 2, y: 1.1, z: 1.75 });
+    const goal = walkTarget(start, { x: -0.5, z: 0.853 })!;
+    expect(goal.x).toBe(0.3);
+    const { room: end } = walkAll(start, goal);
+    expect(end.listener).toMatchObject(goal);
+  });
+
+  it('arrives exactly, going round the speaker, whenever both ways round are open', () => {
+    let seed = 11;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const between = (lo: number, hi: number) => lo + (hi - lo) * random();
+    for (let trial = 0; trial < 300; trial++) {
+      // The speaker stands at least 1.4 m from every wall: the ring (0.51 m) plus the wall clearance (0.3 m) leaves both ways open.
+      const dims = { length: between(3, 8), width: between(3, 8), height: 2.6 };
+      const speaker = { x: between(1.4, dims.length - 1.4), y: 1.1, z: between(1.4, dims.width - 1.4) };
+      const angle = between(0, 2 * Math.PI);
+      const d = between(0.6, 1);
+      const start = roomWith(speaker, { x: speaker.x + Math.cos(angle) * d, y: 1.1, z: speaker.z + Math.sin(angle) * d }, dims);
+      expect(validateRoom(start)).toEqual([]);
+      const goal = walkTarget(start, { x: speaker.x - Math.cos(angle) * d, z: speaker.z - Math.sin(angle) * d })!; // straight through the speaker
+      const { room: end } = walkAll(start, goal, 2000);
+      expect(end.listener).toMatchObject(goal);
+    }
+  });
+
+  it('stands still for a frame time that is not a number', () => {
+    expect(walkStep(room, { x: 3, z: 3 }, Number.NaN)).toEqual({ x: 3, z: 1.9, done: false });
   });
 });
 
@@ -177,6 +221,10 @@ describe('keyDirection', () => {
     expect(keyDirection(new Set(['KeyW', 'KeyS']), { x: 0, z: -1 })).toBeNull();
     expect(keyDirection(new Set(['KeyQ', 'Space']), { x: 0, z: -1 })).toBeNull();
     expect(keyDirection(new Set(['KeyW']), { x: 0, z: 0 })).toBeNull();
+  });
+
+  it('counts W and the up arrow held together once', () => {
+    expect(keyDirection(new Set(['KeyW', 'ArrowUp', 'KeyD']), { x: 0, z: -1 })).toEqual(keyDirection(new Set(['KeyW', 'KeyD']), { x: 0, z: -1 }));
   });
 });
 
@@ -215,6 +263,19 @@ describe('advanceWalk', () => {
 
   it('does nothing with no goal and no keys', () => {
     expect(advanceWalk(room, null, null, 0.1)).toEqual({ to: null, goal: null });
+  });
+
+  it('(b) walks to the nearest free spot when the speaker was dragged onto the goal, and then drops it', () => {
+    const start = roomWith({ x: 2.6, y: 1.1, z: 1.75 }, { x: 1, y: 1.1, z: 1.75 });
+    const { room: end } = walkGoal(start, { x: 2.5, z: 1.75 }); // inside the speaker's keep-out ring
+    expect(Math.hypot(end.listener.x - 2.5, end.listener.z - 1.75)).toBeLessThan(0.6);
+  });
+
+  it('(c) walks to the wall when the room shrank past the goal, and then drops it', () => {
+    const start = roomWith({ x: 0.6, y: 1.0, z: 1.4 }, { x: 2, y: 1.1, z: 1.75 }, { length: 3, width: 3.5, height: 2.6 });
+    const { room: end } = walkGoal(start, { x: 3.5, z: 1.75 }); // beyond the wall at x = 3
+    expect(end.listener.x).toBeCloseTo(2.7, 9);
+    expect(end.listener.z).toBeCloseTo(1.75, 9);
   });
 });
 
