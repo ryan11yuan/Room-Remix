@@ -11,8 +11,19 @@ export type Alignment = {
 
 export const IDENTITY_ALIGNMENT: Alignment = { level: [0, 0, 0, 1], scale: 1, yaw: 0, offset: { x: 0, y: 0, z: 0 } };
 
-/** A tap that can't be used, with a message for the user. */
-export class AlignError extends Error {}
+/**
+ * A tap that can't be used, with a message for the user. `retry`, when set, is the state to carry on from
+ * (the caller decides whether to use it; `alignTap` never changes the state it was given).
+ */
+export class AlignError extends Error {
+  constructor(
+    message: string,
+    readonly retry?: AlignState,
+  ) {
+    super(message);
+    this.name = 'AlignError';
+  }
+}
 
 const UP = new THREE.Vector3(0, 1, 0);
 const vec = (p: Vec3) => new THREE.Vector3(p.x, p.y, p.z);
@@ -31,15 +42,21 @@ export function toRoom(a: Alignment, p: Vec3): Vec3 {
   return plain(vec(p).applyMatrix4(alignmentMatrix(a)));
 }
 
-/** Rotation that levels the floor through three tapped points; "up" is the side the camera (viewer) was on. */
-export function levelFromFloor(points: [Vec3, Vec3, Vec3], viewer: Vec3): Alignment['level'] {
+/**
+ * Rotation that levels the floor through three tapped points. `inside` is a point inside the room
+ * (e.g. the scan's bounding-box centre); the floor normal is turned toward it.
+ */
+export function levelFromFloor(points: [Vec3, Vec3, Vec3], inside: Vec3): Alignment['level'] {
   const [a, b, c] = points.map(vec);
-  const normal = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a));
-  if (normal.lengthSq() < 1e-12 * Math.max(1, b.distanceToSquared(a) * c.distanceToSquared(a))) {
+  const u = b.clone().sub(a);
+  const v = c.clone().sub(a);
+  const normal = new THREE.Vector3().crossVectors(u, v);
+  // |u × v|² = |u|²|v|² sin²θ, so this refuses sin θ ≤ 0.01 (about 0.6°), which is unusable for levelling at any scale.
+  if (normal.lengthSq() <= 1e-4 * u.lengthSq() * v.lengthSq()) {
     throw new AlignError('Those floor points are in a line. Tap three spots spread out across the floor.');
   }
   normal.normalize();
-  if (normal.dot(vec(viewer).sub(a)) < 0) normal.negate();
+  if (normal.dot(vec(inside).sub(a)) < 0) normal.negate();
   const q = new THREE.Quaternion().setFromUnitVectors(normal, UP);
   return [q.x, q.y, q.z, q.w];
 }
@@ -85,19 +102,30 @@ export type AlignState =
 
 export const startAlign = (): AlignState => ({ step: 'floor', floor: [] });
 
-/** Take one tap on the scan. Throws AlignError (state unchanged) when the tap can't be used. */
-export function alignTap(state: AlignState, point: Vec3, viewer: Vec3, dims: Dims): AlignState {
+/**
+ * Take one tap on the scan; `inside` is a point inside the room (see `levelFromFloor`).
+ * Throws AlignError (the given state is not changed) when the tap can't be used.
+ */
+export function alignTap(state: AlignState, point: Vec3, inside: Vec3, dims: Dims): AlignState {
   switch (state.step) {
     case 'floor': {
       const floor = [...state.floor, point];
       if (floor.length < 3) return { step: 'floor', floor };
-      const level = levelFromFloor([floor[0], floor[1], floor[2]], viewer);
+      const level = levelFromFloor([floor[0], floor[1], floor[2]], inside);
       return { step: 'corners', level, floorPoint: floor[0], corners: [] };
     }
     case 'corners': {
       const corners = [...state.corners, point];
       if (corners.length < 2) return { ...state, corners };
-      return { step: 'nudge', alignment: alignFromCorners(state.level, state.floorPoint, corners[0], corners[1], dims) };
+      const alignment = alignFromCorners(state.level, state.floorPoint, corners[0], corners[1], dims);
+      // The room lies on +z of its right wall. If the inside landed on the other side, the wall or the tap order was wrong.
+      if (toRoom(alignment, inside).z <= 0) {
+        throw new AlignError("The room came out on the wrong side. Tap the right wall's front corner first, then its back corner.", {
+          ...state,
+          corners: [],
+        });
+      }
+      return { step: 'nudge', alignment };
     }
     case 'nudge':
       return state;
