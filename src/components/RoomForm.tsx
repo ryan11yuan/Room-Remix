@@ -2,6 +2,7 @@
 
 import { MATERIALS } from '@/lib/acoustics/materials';
 import { LIMITS } from '@/lib/room/constants';
+import { surfaceSize } from '@/lib/room/geometry';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 import {
@@ -83,10 +84,15 @@ export function RoomForm() {
       fixes: [...r.fixes, { kind: 'rug', size: 'M', x: r.dims.length / 2, z: r.dims.width / 2, on: true }],
     }));
   const addPanel = () =>
-    update((r) => ({
-      ...r,
-      fixes: [...r.fixes, { kind: 'panel', wall: 'wallZ1', u: r.dims.length / 2, v: 1.2, on: true }],
-    }));
+    update((r) => {
+      // Next free spot along each wall in turn: 0.6 m panels, 0.1 m apart, u = 0.5 + 0.7·k (in tenths, so 2.6 not 2.5999…).
+      const spots = (['wallZ1', 'wallZ0', 'wallX1', 'wallX0'] as const).map((wall) => {
+        const k = r.fixes.filter((f) => f.kind === 'panel' && f.wall === wall).length;
+        return { wall, u: (5 + 7 * k) / 10 };
+      });
+      const spot = spots.find((s) => s.u + 0.3 <= surfaceSize(r.dims, s.wall).u) ?? spots[0];
+      return { ...r, fixes: [...r.fixes, { kind: 'panel', wall: spot.wall, u: spot.u, v: 1.2, on: true }] };
+    });
 
   return (
     <div className="flex flex-col gap-8">
