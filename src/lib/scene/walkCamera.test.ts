@@ -97,6 +97,22 @@ describe('followHead', () => {
     // a short view, but a finite one.
     expect([...draw.position.toArray(), ...draw.quaternion.toArray(), ...camera.position.toArray()].every(Number.isFinite)).toBe(true);
   });
+
+  it("keeps the orbit's view direction when the pull lands right on the target", () => {
+    const small = { length: 2.5, width: 3.5, height: 2.6 };
+    const { camera, controls, draw } = start(small);
+    camera.position.set(3.4, 1.4, 1.9); // behind a head that is outside the back wall (further +x), looking toward the front
+    controls.update();
+    followHead(camera, controls, draw, small, { x: 3, y: 1.1, z: 1.9 });
+    expectInside(draw.position, small);
+    expect(draw.position.distanceTo(controls.target)).toBeLessThan(1e-6); // the pull collapsed onto the target
+    const look = (c: THREE.Camera) => new THREE.Vector3(0, 0, -1).applyQuaternion(c.quaternion);
+    const drawn = look(draw);
+    const orbit = look(camera);
+    expect(drawn.dot(orbit)).toBeGreaterThan(0);
+    expect(drawn.clone().cross(orbit).length()).toBeLessThan(1e-9); // the sine of the angle between them
+    expect([...draw.position.toArray(), ...draw.quaternion.toArray(), ...camera.position.toArray()].every(Number.isFinite)).toBe(true);
+  });
 });
 
 describe('drawFrom', () => {

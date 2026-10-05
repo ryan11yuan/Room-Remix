@@ -253,8 +253,9 @@ export class RoomScene {
     this.controls.enablePan = false; // the orbit stays centred on the head
     this.controls.minDistance = WALK_ZOOM.min;
     this.controls.maxDistance = WALK_ZOOM.max;
-    const { x, y, z } = this.room.listener;
-    if ([x, y, z].every(Number.isFinite)) this.moveCamera(walkView(this.room)); // a cleared position field leaves no head to look from: keep the view
+    const view = walkView(this.room);
+    // A cleared position field can leave no head to look from: keep the current view then.
+    if ([view.position.x, view.position.y, view.position.z, view.target.x, view.target.y, view.target.z].every(Number.isFinite)) this.moveCamera(view);
     this.walk = { goal: null };
     this.updateDrawCamera(); // taps before the first frame aim from what is drawn
     window.addEventListener('keydown', this.onKeyDown);

@@ -222,7 +222,8 @@ export function pullInside(dims: Dims, head: Vec3, camera: Vec3): Vec3 {
  * above and CAMERA_SIDE to the right of it, so the speaker shows beside the head and the floor ahead is in view.
  */
 export function walkView(room: RoomState): { position: Vec3; target: Vec3 } {
-  const yaw = listenerYaw(room.listener, room.speaker);
+  const faced = listenerYaw(room.listener, room.speaker);
+  const yaw = Number.isFinite(faced) ? faced : 0; // an unfinished speaker position: face the front wall until it is typed in
   const target = clampInside(room.dims, { x: room.listener.x, y: room.listener.y, z: room.listener.z });
   const facing = { x: Math.cos(yaw), z: Math.sin(yaw) };
   const right = { x: -facing.z, z: facing.x }; // the same rule as keyDirection

@@ -22,6 +22,6 @@ export function drawFrom(camera: THREE.PerspectiveCamera, target: THREE.Vector3,
   draw.copy(camera);
   const inside = pullInside(dims, target, camera.position);
   draw.position.set(inside.x, inside.y, inside.z);
-  draw.lookAt(target);
+  if (draw.position.distanceToSquared(target) > 1e-12) draw.lookAt(target); // pulled right onto the target: keep the orbit's direction
   draw.updateMatrixWorld();
 }

@@ -360,6 +360,13 @@ describe('walkView', () => {
     expect((position.x - target.x) * right.x + (position.z - target.z) * right.z).toBeGreaterThan(0);
   });
 
+  it('gives a finite view while the speaker position is unfinished (a blank field), looking at the head', () => {
+    const room = roomWith({ x: Number.NaN, y: 1.0, z: 1.4 }, { x: 3, y: 1.1, z: 1.9 });
+    const { position, target } = walkView(room);
+    expect([position.x, position.y, position.z, target.x, target.y, target.z].every(Number.isFinite)).toBe(true);
+    expect(target).toEqual({ x: 3, y: 1.1, z: 1.9 });
+  });
+
   it('stays inside the smallest room, at the walls and the ceiling', () => {
     const small = { length: 1.5, width: 1.5, height: 2 };
     const room = roomWith({ x: 1.2, y: 1.0, z: 1.2 }, { x: 0.3, y: 1.6, z: 0.3 }, small);
