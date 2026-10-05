@@ -13,6 +13,8 @@ import { alignmentMatrix, type Alignment } from './alignment';
 const CROP_MARGIN = 0.3; // metres of scan kept beyond the room box (walls are rarely captured exactly flat)
 
 const plain = (v: THREE.Vector3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
+const isFiniteBox = (box: THREE.Box3): boolean =>
+  [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite);
 
 /** A phone scan of the room drawn by Spark inside the three.js scene. Browser only. */
 export class SplatLayer {
@@ -20,6 +22,9 @@ export class SplatLayer {
   private readonly spark: SparkRenderer;
   private mesh: SplatMesh | null = null;
   private crop: SplatEdit | null = null;
+  private alignment: Alignment | null = null; // remembered so a scan loaded after setAlignment still gets it
+  private loadId = 0; // bumped by every load(); a load that finds it changed has been superseded
+  private disposed = false;
 
   constructor(renderer: THREE.WebGLRenderer) {
     this.spark = new SparkRenderer({ renderer });
@@ -27,21 +32,31 @@ export class SplatLayer {
     this.group.add(this.spark);
   }
 
-  /** Parse a scan file kept on this device. Rejects if Spark can't read it; nothing is left behind on failure. */
+  /**
+   * Parse a scan file kept on this device. Rejects if Spark can't read the file or it has no splats, or if a newer
+   * load() or dispose() came first; in every case the current scan, if any, stays and nothing is left behind.
+   */
   async load(bytes: ArrayBuffer, fileName: string): Promise<{ count: number; min: Vec3; max: Vec3 }> {
-    this.removeMesh();
+    const id = ++this.loadId;
     const mesh = new SplatMesh({ fileBytes: bytes, fileName, raycastable: true });
     mesh.matrixAutoUpdate = false; // the alignment matrix is set directly
+    let count: number;
+    let box: THREE.Box3;
     try {
       await mesh.initialized;
+      if (this.disposed || id !== this.loadId) throw new Error('Scan load superseded');
+      count = mesh.packedSplats?.numSplats ?? 0;
+      box = mesh.getBoundingBox(true);
+      if (count === 0 || !isFiniteBox(box)) throw new Error('Scan has no splats'); // an empty box is ±Infinity
     } catch (error) {
       mesh.dispose();
       throw error;
     }
+    this.removeMesh(); // swap only now that the new scan is good
     this.mesh = mesh;
+    this.applyAlignment();
     this.group.add(mesh);
-    const box = mesh.getBoundingBox(true);
-    return { count: mesh.packedSplats?.numSplats ?? 0, min: plain(box.min), max: plain(box.max) };
+    return { count, min: plain(box.min), max: plain(box.max) };
   }
 
   get targets(): THREE.Object3D[] {
@@ -49,13 +64,13 @@ export class SplatLayer {
   }
 
   setAlignment(alignment: Alignment | null): void {
-    if (!this.mesh) return;
-    this.mesh.matrix.copy(alignment ? alignmentMatrix(alignment) : new THREE.Matrix4());
-    this.mesh.matrixWorldNeedsUpdate = true;
+    this.alignment = alignment;
+    this.applyAlignment();
   }
 
   /** Hide splats outside the room box plus a margin: outdoor views through windows, stray floaters. */
   setCrop(dims: Dims | null): void {
+    if (dims && ![dims.length, dims.width, dims.height].every((d) => Number.isFinite(d) && d > 0)) return; // mid-edit: keep the last good crop
     if (this.crop) {
       this.group.remove(this.crop);
       this.crop = null;
@@ -78,10 +93,17 @@ export class SplatLayer {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.removeMesh();
     this.setCrop(null);
     this.spark.dispose();
     this.group.removeFromParent();
+  }
+
+  private applyAlignment(): void {
+    if (!this.mesh) return;
+    this.mesh.matrix.copy(this.alignment ? alignmentMatrix(this.alignment) : new THREE.Matrix4());
+    this.mesh.matrixWorldNeedsUpdate = true;
   }
 
   private removeMesh(): void {
