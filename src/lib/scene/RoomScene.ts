@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { RayPath } from '@/lib/acoustics/rays';
-import type { DragTarget } from '@/lib/room/placement';
+import { applyDrag, type DragTarget } from '@/lib/room/placement';
 import type { RoomState, Vec3, WallId } from '@/lib/room/types';
 import { boxView, cameraPreset, type CameraPreset } from './layout';
 import {
@@ -15,6 +15,7 @@ import {
   type Handle,
 } from './objects';
 import { RaysObject } from './RaysObject';
+import { advanceWalk, keyDirection, pullInside, walkLook, walkTarget, walkView, WALK_KEYS, WALK_ZOOM, type FloorPoint } from './walk';
 
 /** What a tap on the canvas does: nothing, place a panel on a wall, or pick a point on the room scan. */
 export type TapMode = 'none' | 'panel' | 'scan';
@@ -31,6 +32,13 @@ export type SceneCallbacks = {
 const TAP_SLOP_PX = 6;
 const GRAZING = 0.1; // ~6°: below this, pixels map to metres too coarsely to drag
 const FORWARD = new THREE.Vector3(0, 0, 1);
+const FLOOR = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const LISTENER: DragTarget = { kind: 'listener' };
+
+/** Keys typed into a form field are for the field, not for walking. */
+function isTyping(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName));
+}
 
 /** The 3D room: draws the shell, handles, fixes and rays, and turns pointer input into drags, wall taps and scan taps. */
 export class RoomScene {
@@ -59,6 +67,11 @@ export class RoomScene {
   private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number; offset: { x: number; z: number } } | null = null;
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
   private extraPointer = false; // another finger or button joined the press, so it's a gesture, not a tap
+  private room: RoomState | null = null; // the last room with usable dimensions
+  // Walk mode: where the orbit wants the camera (it is drawn pulled inside the room) and the floor spot being walked to.
+  private walk: { wanted: THREE.Vector3; goal: FloorPoint | null } | null = null;
+  private readonly keys = new Set<string>(); // walk keys held down (KeyboardEvent.code)
+  private lastFrame = 0; // ms: the previous frame's time
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -85,7 +98,10 @@ export class RoomScene {
     this.visibility.observe(canvas);
     this.webgl.setAnimationLoop((time) => {
       if (!this.onScreen) return; // scrolled out of view: don't spend the GPU on a canvas nobody can see
-      this.controls.update();
+      const dt = (time - this.lastFrame) / 1000; // long gaps (off-screen, a background tab) are capped by walkStep
+      this.lastFrame = time;
+      if (this.walk) this.stepWalk(this.walk, dt);
+      else this.controls.update();
       this.rays.tick(time / 1000);
       this.webgl.render(this.scene, this.camera);
     });
@@ -108,6 +124,7 @@ export class RoomScene {
   setRoom(room: RoomState): void {
     const { length, width, height } = room.dims;
     if (![length, width, height].every((d) => Number.isFinite(d) && d > 0)) return; // mid-edit: keep showing the last good room
+    this.room = room;
     const shellKey = JSON.stringify([room.dims, room.surfaces]);
     if (shellKey !== this.shellKey) {
       if (this.shell) {
@@ -135,7 +152,8 @@ export class RoomScene {
     const dimsKey = JSON.stringify(room.dims);
     if (dimsKey !== this.dimsKey) {
       this.dimsKey = dimsKey;
-      if (!this.userMoved) this.setCameraPreset(room, this.preset); // re-frame for a new or resized room unless the user has taken over the camera
+      // Re-frame for a new or resized room, unless the user has taken over the camera or walk mode is following the listener.
+      if (!this.userMoved && !this.walk) this.setCameraPreset(room, this.preset);
     }
   }
 
@@ -195,6 +213,78 @@ export class RoomScene {
     this.userMoved = true; // the scan view isn't a room preset: a room-size edit mustn't snap back to one
   }
 
+  /**
+   * Walk mode: the camera rides over the listener's shoulder, and a tap on the floor (or WASD / the arrow keys) walks them.
+   * Turning it off leaves the camera where it is. The caller turns walk mode off before choosing another view.
+   */
+  setWalking(on: boolean): void {
+    if (on === (this.walk !== null)) return;
+    if (!on) {
+      this.walk = null;
+      this.keys.clear();
+      window.removeEventListener('keydown', this.onKeyDown);
+      window.removeEventListener('keyup', this.onKeyUp);
+      window.removeEventListener('blur', this.onBlur);
+      this.controls.enablePan = true;
+      this.controls.minDistance = 0;
+      this.controls.maxDistance = Infinity;
+      this.userMoved = true; // the camera stays where the walk left it, so a room-size edit mustn't snap it to a preset
+      return;
+    }
+    if (!this.room) return;
+    this.controls.enablePan = false; // the orbit stays centred on the head
+    this.controls.minDistance = WALK_ZOOM.min;
+    this.controls.maxDistance = WALK_ZOOM.max;
+    this.moveCamera(walkView(this.room));
+    this.walk = { wanted: this.camera.position.clone(), goal: null };
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('blur', this.onBlur);
+  }
+
+  /** One walk-mode frame: step the listener (held keys win over a tapped goal), then carry the camera along inside the room. */
+  private stepWalk(walk: { wanted: THREE.Vector3; goal: FloorPoint | null }, dt: number): void {
+    const room = this.room;
+    if (room && this.roomItemsOn && this.tapMode === 'none' && !this.dragging) {
+      const forward = { x: this.controls.target.x - this.camera.position.x, z: this.controls.target.z - this.camera.position.z };
+      const step = advanceWalk(room, walk.goal, keyDirection(this.keys, forward), dt);
+      walk.goal = step.goal;
+      if (step.to) {
+        const point = { x: step.to.x, y: room.listener.y, z: step.to.z };
+        this.room = applyDrag(room, LISTENER, point); // ahead of React, so the next frame steps on from here
+        placeListener(this.listener, this.room);
+        this.callbacks.onDrag(LISTENER, point);
+      }
+    }
+    // Carry the orbit along with the head, then let OrbitControls apply the user's turn and zoom.
+    const head = this.listener.position;
+    const look = walkLook(head);
+    this.camera.position.copy(walk.wanted).sub(this.controls.target).add(look);
+    this.controls.target.set(look.x, look.y, look.z);
+    this.controls.update();
+    walk.wanted.copy(this.camera.position);
+    // Draw from inside the room. The camera stays there until the next frame, so taps aim from what is on screen.
+    if (this.room) {
+      const inside = pullInside(this.room.dims, head, this.camera.position);
+      this.camera.position.set(inside.x, inside.y, inside.z);
+    }
+  }
+
+  private readonly onKeyDown = (event: KeyboardEvent) => {
+    if (!WALK_KEYS.has(event.code) || event.altKey || event.ctrlKey || event.metaKey || isTyping(event.target)) return;
+    this.keys.add(event.code);
+    event.preventDefault(); // the arrow keys mustn't scroll the page while walking
+  };
+
+  private readonly onKeyUp = (event: KeyboardEvent) => {
+    this.keys.delete(event.code);
+  };
+
+  /** A key let go while another window had focus never sends keyup. */
+  private readonly onBlur = () => {
+    this.keys.clear();
+  };
+
   private moveCamera({ position, target }: { position: Vec3; target: Vec3 }): void {
     this.userMoved = false; // choosing a view hands framing back to the app
     // With damping off, update() applies and clears any leftover orbit momentum, so the new view doesn't keep drifting.
@@ -214,6 +304,7 @@ export class RoomScene {
 
   dispose(): void {
     this.webgl.setAnimationLoop(null);
+    this.setWalking(false); // removes the window key listeners
     this.visibility.disconnect();
     this.canvas.removeEventListener('pointerdown', this.onPointerDown, { capture: true });
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
@@ -247,7 +338,9 @@ export class RoomScene {
     if (this.tapMode !== 'none' || !this.roomItemsOn) return;
     this.aim(event);
     const rugs = this.fixes?.children.filter((c) => (c.userData.handle as Handle).kind === 'rug') ?? [];
-    const hit = this.raycaster.intersectObjects([this.speaker, this.listener, ...rugs], true)[0];
+    // In walk mode the camera rides on the listener's head, so dragging the listener would chase itself: tap the floor instead.
+    const grabbable = this.walk ? [this.speaker, ...rugs] : [this.speaker, this.listener, ...rugs];
+    const hit = this.raycaster.intersectObjects(grabbable, true)[0];
     const handle = hit?.object.userData.handle as Handle | undefined;
     if (!hit || !handle || handle.kind === 'panel') return;
     const height = handle.kind === 'speaker' ? this.speaker.position.y : handle.kind === 'listener' ? this.listener.position.y : 0;
@@ -284,9 +377,17 @@ export class RoomScene {
     this.down = null;
     this.extraPointer = false;
     const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
-    if (wasDragging || extra || this.tapMode === 'none' || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
+    if (wasDragging || extra || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
 
     this.aim(event);
+    if (this.tapMode === 'none') {
+      // Walk mode: walk to where the tap meets the floor. A tap above the horizon never meets it.
+      if (!this.walk || !this.room || !this.roomItemsOn) return;
+      const floor = this.raycaster.ray.intersectPlane(FLOOR, new THREE.Vector3());
+      const goal = floor && walkTarget(this.room, { x: floor.x, z: floor.z });
+      if (goal) this.walk.goal = goal;
+      return;
+    }
     if (this.tapMode === 'scan') {
       const scanHit = this.raycaster.intersectObjects(this.scanTargets, true)[0];
       if (scanHit) this.callbacks.onScanTap({ x: scanHit.point.x, y: scanHit.point.y, z: scanHit.point.z });

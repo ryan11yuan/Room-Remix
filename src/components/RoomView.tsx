@@ -121,6 +121,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const scanRef = useRef<ScanController | null>(null);
   const [raysOn, setRaysOn] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const [walking, setWalking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<ScanStatus>({ kind: 'none' });
   const [alignStep, setAlignStep] = useState<{ step: ScanUiStep; taps: number; hint: string | null }>({
@@ -202,6 +203,16 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   }, [room, webgl]);
 
   useEffect(() => {
+    sceneRef.current?.setWalking(walking); // after setRoom above: walk mode starts from the scene's room
+  }, [walking, webgl]);
+
+  /** Leave walk mode now, not after the re-render: otherwise the next frame pulls the camera back to the listener's head. */
+  const stopWalking = () => {
+    setWalking(false);
+    sceneRef.current?.setWalking(false);
+  };
+
+  useEffect(() => {
     sceneRef.current?.setPaths(paths);
   }, [paths, webgl]);
 
@@ -229,7 +240,11 @@ export function RoomView({ mode }: { mode: ListenMode }) {
         <canvas
           ref={canvasRef}
           className="block h-full w-full touch-none"
-          aria-label="Your room in 3D. Drag the speaker, listener or rug to move them."
+          aria-label={
+            walking
+              ? 'Your room in 3D, walking. Tap the floor to walk the listener there.'
+              : 'Your room in 3D. Drag the speaker, listener or rug to move them.'
+          }
         />
         {placing && (
           <p className="pointer-events-none absolute inset-x-0 top-2 text-center text-sm text-amber-200">
@@ -270,12 +285,18 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           <button
             key={preset}
             disabled={picking}
-            onClick={() => sceneRef.current?.setCameraPreset(room, preset)}
+            onClick={() => {
+              stopWalking();
+              sceneRef.current?.setCameraPreset(room, preset);
+            }}
             className={buttonClass}
           >
             {PRESET_LABELS[preset]}
           </button>
         ))}
+        <button aria-pressed={walking} disabled={aligning} onClick={() => setWalking((v) => !v)} className={buttonClass}>
+          {walking ? 'Stop walking' : 'Walk'}
+        </button>
         <button aria-pressed={raysOn} onClick={() => setRaysOn((v) => !v)} className={buttonClass}>
           {raysOn ? 'Hide rays' : 'Show rays'}
         </button>
@@ -327,6 +348,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           <>
             <button
               onClick={() => {
+                stopWalking(); // alignment frames the scan, and its floor taps aren't for walking
                 setPlacing(false); // placing a panel and picking scan points both want the taps
                 setMessage(null);
                 scanRef.current?.startAlignment();
@@ -356,7 +378,9 @@ export function RoomView({ mode }: { mode: ListenMode }) {
         {largeScanWarning}
       </p>
       <p className="text-xs text-neutral-500">
-        Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.
+        {walking
+          ? 'Tap the floor to walk the listener there, or use WASD or the arrow keys. Drag to look around them; pinch to zoom. You can still drag the speaker and the rug.'
+          : 'Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.'}{' '}
         Rays show the room as you&apos;re hearing it.
       </p>
       {message && (
