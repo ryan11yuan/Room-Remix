@@ -2,6 +2,7 @@
 
 **Date:** 2026-10-04
 **Status:** Approved design, pending spec review
+**Revised:** 2026-10-05: walk mode added (§2, §8, §12)
 
 ## 1. Purpose
 
@@ -25,6 +26,7 @@ Room Remix lets people hear how their room will sound, and how fixes would chang
 - A/B "Dry ↔ In your room"
 - Presets: cathedral and parking garage from real recorded impulse responses
 - 3D view: room box with animated sound rays
+- Walk mode: tap the floor to walk the listener around the room, with an over-the-shoulder camera and live rays
 - Optional Gaussian splat view of the user's room, loaded from a local file and aligned to the box
 - One hosted demo room (the author's bedroom) with a pre-aligned splat
 - Sharing by URL; "My rooms" saved in the browser
@@ -157,6 +159,16 @@ The worker computes two results per change: **Now** (fixes off) and **With fixes
 - **Box view (always):** translucent walls tinted by material, edge lines, floor grid. Touch: one finger orbit, two fingers zoom/pan. Camera buttons: Top, Corner, Listener's view.
 - **Gizmos:** speaker and listener dragged on the floor plane (raycast), clamped 0.3 m from walls; height slider (desk, stand, seated, standing). Rug dragged on the floor; panels placed by tapping a wall. Side list toggles/removes fixes.
 - **Rays:** draw the `paths` as glowing pulses travelling from speaker to listener at ~1/200 of real speed; brightness follows remaining energy, so pulses dim on hitting a rug or panel. Rendered as a single batched line geometry with a custom shader. Rays toggle on/off.
+- **Walk mode:** a **Walk** button beside the camera buttons. It works with or without a splat; with one, you walk around your real room.
+  - **Camera:** over the listener's shoulder, 1 m behind and 0.3 m above the head, on the speaker → listener line extended past the listener (the speaker is ahead, beyond the head). Drag orbits the head; pinch zooms 0.6–3 m. The camera is always pulled at least 0.1 m inside the box, so it never shows the back of the scan.
+  - **Walking:** tap bare floor and the listener walks there at 1.4 m/s; tapping again re-targets. On a computer, WASD / arrow keys walk relative to the camera. The listener keeps facing the speaker, so moving changes the room's sound, not left/right.
+  - **Staying valid:** targets are clamped 0.3 m from walls and outside the speaker's 0.5 m zone. The walk goes around the speaker, never through it, so the room is valid on every frame.
+  - **Taps:** a tap is < 8 px of movement in < 300 ms. It is intersected with the floor plane y = 0, so tapping the splat's floor lands where you'd expect and taps above the horizon do nothing. Place panel mode, then presses on the speaker or rug, take priority over walking.
+  - **Rays and audio:** rays recompute every frame while walking and arrive at the listener's head. The IR re-renders 150 ms after the walk stops (the existing debounce), then crossfades in.
+  - **Leaving:** pressing Walk again or any camera button exits walk mode and stops any walk in progress.
+  - **Saving:** walk mode and the camera angle aren't saved or shared; the listener's final position is saved like a drag.
+  - **Limit:** the sound model is an empty box with materials. Furniture in the splat has no acoustic effect, and the listener can walk through it.
+  - **Built as:** a pure `scene/walk.ts` (`walkTarget`, `walkStep` with `dt` capped at 0.1 s, `followCamera`, `keyDirection`), plus `RoomScene.setWalking(on)` and an `onListenerMove` callback that updates the store the same way a listener drag does. It ships as the first task of Plan 4, before the splat layer, so it can be tried in the box view before any scan exists.
 - **Splat layer (optional):**
   - Load `.ply` / `.splat` / `.spz`; store the file in IndexedDB keyed by room id.
   - Alignment wizard: (1) tap 3 floor points → fit plane, level the scan; (2) tap the two floor corners at the ends of the x=0..length wall → origin, yaw, and scale = typed length ÷ tapped distance; (3) box outline overlaid, nudge rotate / scale / offset until it fits.
@@ -200,6 +212,7 @@ The worker computes two results per change: **Now** (fixes off) and **With fixes
 - **acoustics (Vitest):** Sabine/Eyring vs closed form; image-source arrival times and energies vs pyroomacoustics fixtures; rug/panel hit detection; calibration hits target RT60 within 2%.
 - **measure (Vitest):** synthetic exponential decays with known RT60 plus noise are recovered within 10%; each failure case is detected.
 - **state (Vitest):** URL round-trip; migration; corrupted-link handling; validation bounds.
+- **walk (Vitest):** targets respect wall and speaker clearance; no step exceeds 1.4 m/s × `dt`; the walk arrives exactly at the target; walking straight through the speaker's position goes around it, keeps 0.5 m on every step and still arrives; every step's room passes `validateRoom`; the camera starts behind the head and stays inside the box at walls, corners and in a 1.5 m room; keys map relative to the camera.
 - **E2E (Playwright, Chromium + WebKit):** load preset → play → toggle → open setup → add rug → share link → reopen link restores room; no console errors.
 - **Manual on iPhone 13 Safari before each release:** mic capture, silent switch behaviour, demo splat frame rate, headphone listening check that rug and panels are clearly audible.
 
