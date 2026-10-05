@@ -504,6 +504,18 @@ describe('RoomSession and scans', () => {
     }
   });
 
+  it("doesn't prune on a later start either, once the unreadable rooms are only in the backup", async () => {
+    const storage = fakeStorage();
+    storage.items.set(ROOMS_KEY, JSON.stringify({ v: 2, rooms: [{ id: 'x', updatedAt: 1, state: {} }], currentId: 'x' }));
+    const first = setup({ storage });
+    await first.session.start();
+    useRoomStore.setState({ roomId: null, room: defaultRoom(), rooms: [], notice: null }); // a new page
+    const second = setup({ storage });
+    await second.session.start();
+    expect(first.pruned).toEqual([]);
+    expect(second.pruned).toEqual([]);
+  });
+
   it('still prunes when nothing is stored yet', async () => {
     const t = setup();
     await t.session.start();

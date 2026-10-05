@@ -165,9 +165,13 @@ export function newRoomId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Whether the stored rooms are safe to treat as complete: nothing stored, or a file this build can read. */
+/**
+ * Whether the stored rooms are safe to treat as complete: nothing stored, or a file this build can read. Never while a
+ * backup of an unreadable file exists: rooms then exist that this build can't list, and their scans must stay.
+ */
 export function roomsReadable(storage: RoomsStorage): boolean {
   try {
+    if (storage?.getItem(ROOMS_BACKUP_KEY)) return false;
     const stored = storage?.getItem(ROOMS_KEY) ?? null;
     return !stored || readFile(stored) !== null;
   } catch {

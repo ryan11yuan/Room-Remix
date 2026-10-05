@@ -330,6 +330,13 @@ describe('roomsReadable', () => {
     expect(roomsReadable(broken)).toBe(false);
     expect(roomsReadable(fakeStorage(true))).toBe(false);
   });
+
+  it('is false while a backup of unreadable rooms exists, even when the stored file is readable', () => {
+    const storage = fakeStorage();
+    saveRooms({ rooms: [{ id: 'a', updatedAt: 1, state: named('A') }], currentId: 'a' }, storage);
+    storage.setItem(ROOMS_BACKUP_KEY, '{"v":2}');
+    expect(roomsReadable(storage)).toBe(false);
+  });
 });
 
 describe('loadRooms and saveRooms', () => {

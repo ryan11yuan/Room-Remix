@@ -80,8 +80,8 @@ export class RoomSession {
         // the address bar can't be changed here (a sandboxed frame): the link stays, and opens the same room again
       }
     }
+    const readable = roomsReadable(this.env.storage); // first: a save or write below can replace what is stored
     this.save();
-    const readable = roomsReadable(this.env.storage); // before the write below replaces what is stored
     let file = this.read();
     let target: string | null = null;
     if (linked) {
