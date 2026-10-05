@@ -12,6 +12,7 @@ import {
   newRoomId,
   parseRooms,
   removeRoom,
+  roomsReadable,
   roomIds,
   ROOMS_BACKUP_KEY,
   ROOMS_KEY,
@@ -308,6 +309,26 @@ describe('stateKey', () => {
     expect(stateKey({ ...room, furnishing: 'bare' })).not.toBe(stateKey(room));
     const midEdit = { ...room, dims: { ...room.dims, length: Number.NaN } };
     expect(stateKey(midEdit)).not.toBe(stateKey(room));
+  });
+});
+
+describe('roomsReadable', () => {
+  it('is true when nothing is stored, or a readable file', () => {
+    const storage = fakeStorage();
+    expect(roomsReadable(storage)).toBe(true);
+    expect(roomsReadable(null)).toBe(true);
+    saveRooms({ rooms: [{ id: 'a', updatedAt: 1, state: named('A') }], currentId: 'a' }, storage);
+    expect(roomsReadable(storage)).toBe(true);
+  });
+
+  it('is false for a value it cannot read, or when reading throws', () => {
+    const newer = fakeStorage();
+    newer.setItem(ROOMS_KEY, JSON.stringify({ v: 2, rooms: [], currentId: null }));
+    expect(roomsReadable(newer)).toBe(false);
+    const broken = fakeStorage();
+    broken.setItem(ROOMS_KEY, '{broken');
+    expect(roomsReadable(broken)).toBe(false);
+    expect(roomsReadable(fakeStorage(true))).toBe(false);
   });
 });
 

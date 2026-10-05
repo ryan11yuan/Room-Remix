@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Player } from '@/components/Player';
 import { RoomForm } from '@/components/RoomForm';
 import { RoomsMenu } from '@/components/RoomsMenu';
@@ -10,6 +10,7 @@ import { useRoomSession } from '@/components/useRoomSession';
 import { DEFAULT_SAMPLE_RATE, useSimulation } from '@/components/useSimulation';
 import type { ListenMode } from '@/lib/audio/mix';
 import { useRoomStore } from '@/lib/room/store';
+import type { RoomState } from '@/lib/room/types';
 
 export default function RoomPage() {
   useRoomSession();
@@ -41,7 +42,13 @@ function RoomWorkspace() {
   const update = useRoomStore((s) => s.update);
   const [sampleRate, setSampleRate] = useState(DEFAULT_SAMPLE_RATE);
   const [mode, setMode] = useState<ListenMode>({ room: true, fixes: false });
-  const sim = useSimulation(room, sampleRate);
+  // The simulation hears the room, not its name: renaming keeps the same object, so it isn't re-run.
+  const { v, dims, surfaces, furnishing, speaker, listener, fixes, calibration } = room;
+  const acoustic = useMemo<RoomState>(
+    () => ({ v, name: '', dims, surfaces, furnishing, speaker, listener, fixes, calibration }), // every field but the name: TypeScript checks it
+    [v, dims, surfaces, furnishing, speaker, listener, fixes, calibration],
+  );
+  const sim = useSimulation(acoustic, sampleRate);
 
   return (
     <>

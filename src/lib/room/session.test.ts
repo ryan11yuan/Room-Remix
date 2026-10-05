@@ -38,6 +38,7 @@ function setup(
     decode?: SessionEnv['decode'];
     tabRoom?: string;
     stuckLink?: boolean;
+    pruneScans?: SessionEnv['pruneScans'];
   } = {},
 ) {
   const storage = options.storage === undefined ? fakeStorage() : options.storage;
@@ -62,7 +63,7 @@ function setup(
       tab = id;
     },
     dropScan: (roomId) => void dropped.push(roomId),
-    pruneScans: (roomIds) => void pruned.push([...roomIds].sort()),
+    pruneScans: options.pruneScans ?? ((roomIds) => void pruned.push([...roomIds].sort())),
   };
   return {
     session: new RoomSession(env),
@@ -490,6 +491,34 @@ describe('RoomSession and scans', () => {
     const t = setup({ storage: fakeStorage(true) });
     await t.session.start();
     expect(t.pruned).toEqual([]);
+  });
+
+  it("doesn't prune when the stored rooms couldn't be read", async () => {
+    for (const stored of [JSON.stringify({ v: 2, rooms: [{ id: 'x', updatedAt: 1, state: {} }], currentId: 'x' }), '{broken']) {
+      const storage = fakeStorage();
+      storage.items.set(ROOMS_KEY, stored);
+      const t = setup({ storage });
+      await t.session.start();
+      expect(store().roomId).not.toBeNull(); // a fresh room is made, the old file is backed up
+      expect(t.pruned).toEqual([]);
+    }
+  });
+
+  it('still prunes when nothing is stored yet', async () => {
+    const t = setup();
+    await t.session.start();
+    expect(t.pruned).toHaveLength(1);
+  });
+
+  it('opens a room even when scan cleanup throws', async () => {
+    const t = setup({
+      storage: storageWith('a', ['a', 100, 'Studio']),
+      pruneScans: () => {
+        throw new Error('idb');
+      },
+    });
+    await t.session.start();
+    expect(store().roomId).toBe('a');
   });
 });
 

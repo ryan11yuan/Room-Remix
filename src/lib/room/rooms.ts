@@ -165,6 +165,16 @@ export function newRoomId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Whether the stored rooms are safe to treat as complete: nothing stored, or a file this build can read. */
+export function roomsReadable(storage: RoomsStorage): boolean {
+  try {
+    const stored = storage?.getItem(ROOMS_KEY) ?? null;
+    return !stored || readFile(stored) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** The saved rooms, or none when storage is missing, blocked or unreadable. */
 export function loadRooms(storage: RoomsStorage): RoomsFile {
   try {

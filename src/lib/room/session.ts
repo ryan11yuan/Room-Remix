@@ -8,6 +8,7 @@ import {
   MAX_ROOMS,
   removeRoom,
   roomIds,
+  roomsReadable,
   saveRooms,
   selectRoom,
   sortedRooms,
@@ -80,6 +81,7 @@ export class RoomSession {
       }
     }
     this.save();
+    const readable = roomsReadable(this.env.storage); // before the write below replaces what is stored
     let file = this.read();
     let target: string | null = null;
     if (linked) {
@@ -102,10 +104,16 @@ export class RoomSession {
       target = file.currentId;
     }
     this.write(file);
-    // Scans whose room is gone (deleted in another tab, or stored before scans were kept per room) are dropped.
-    // Not when the rooms couldn't be saved: then they may not have been read either, and the list would be incomplete.
-    if (!this.unsaved) this.env.pruneScans(roomIds(file)); // rooms this build can't read keep their scans too
     this.show(file, target);
+    // Scans whose room is gone (deleted in another tab, or stored before scans were kept per room) are dropped.
+    // Not when the stored rooms couldn't be read (a newer build's, or broken) or can't be saved: the list is then incomplete.
+    if (readable && !this.unsaved) {
+      try {
+        this.env.pruneScans(roomIds(file)); // rooms this build can't read keep their scans too
+      } catch {
+        // cleanup only: a later start prunes
+      }
+    }
   }
 
   /**
@@ -170,7 +178,11 @@ export class RoomSession {
     if (wasOpen) file = startRooms(file, this.env.newId(), defaultRoom(), this.env.now()); // never leave this tab without a room
     this.write(file);
     if (wasOpen) this.show(file, file.currentId);
-    this.env.dropScan(id);
+    try {
+      this.env.dropScan(id);
+    } catch {
+      // cleanup only: a later start prunes
+    }
   }
 
   /**
