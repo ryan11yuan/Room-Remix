@@ -22,6 +22,7 @@ export type SceneCallbacks = {
 };
 
 const TAP_SLOP_PX = 6;
+const GRAZING = 0.1; // ~6°: below this, pixels map to metres too coarsely to drag
 const FORWARD = new THREE.Vector3(0, 0, 1);
 
 /** The 3D room: draws the shell, handles, fixes and rays, and turns pointer input into drags and wall taps. */
@@ -40,7 +41,7 @@ export class RoomScene {
   private fixesKey = '';
   private framed = false;
   private placingPanel = false;
-  private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number } | null = null;
+  private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number; offset: { x: number; z: number } } | null = null;
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
   private extraPointer = false; // another finger or button joined the press, so it's a gesture, not a tap
 
@@ -160,9 +161,14 @@ export class RoomScene {
     const rugs = this.fixes?.children.filter((c) => (c.userData.handle as Handle).kind === 'rug') ?? [];
     const hit = this.raycaster.intersectObjects([this.speaker, this.listener, ...rugs], true)[0];
     const handle = hit?.object.userData.handle as Handle | undefined;
-    if (!handle || handle.kind === 'panel') return;
+    if (!hit || !handle || handle.kind === 'panel') return;
     const height = handle.kind === 'speaker' ? this.speaker.position.y : handle.kind === 'listener' ? this.listener.position.y : 0;
-    this.dragging = { target: handle, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), pointerId: event.pointerId };
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -height);
+    // Remember where on the item it was grabbed, so the first move doesn't snap its centre to the pointer.
+    const item = handle.kind === 'speaker' ? this.speaker.position : handle.kind === 'listener' ? this.listener.position : hit.object.getWorldPosition(new THREE.Vector3());
+    const grab = this.raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+    const offset = grab ? { x: item.x - grab.x, z: item.z - grab.z } : { x: 0, z: 0 };
+    this.dragging = { target: handle, plane, pointerId: event.pointerId, offset };
     this.controls.enabled = false;
     this.canvas.setPointerCapture(event.pointerId);
   };
@@ -170,8 +176,10 @@ export class RoomScene {
   private readonly onPointerMove = (event: PointerEvent) => {
     if (!this.dragging || event.pointerId !== this.dragging.pointerId) return;
     this.aim(event);
+    if (Math.abs(this.raycaster.ray.direction.y) < GRAZING) return; // looking along the plane: a few pixels would fling the item
     const point = this.raycaster.ray.intersectPlane(this.dragging.plane, new THREE.Vector3());
-    if (point) this.callbacks.onDrag(this.dragging.target, { x: point.x, y: point.y, z: point.z });
+    const { offset } = this.dragging;
+    if (point) this.callbacks.onDrag(this.dragging.target, { x: point.x + offset.x, y: point.y, z: point.z + offset.z });
   };
 
   private readonly onPointerUp = (event: PointerEvent) => {
