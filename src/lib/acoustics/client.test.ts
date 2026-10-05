@@ -94,6 +94,33 @@ describe('AcousticsClient', () => {
     await expect(waiting).resolves.toBeDefined();
   });
 
+  it('ignores a late error from a worker it already replaced', async () => {
+    const { client, workers } = setup();
+    const first = client.simulate(room, 48000);
+    workers[0].crash('first');
+    await expect(first).rejects.toThrow('first');
+    const second = client.simulate(room, 48000);
+    workers[0].crash('stale'); // the old worker reports again
+    workers[1].reply();
+    await expect(second).resolves.toBeDefined();
+  });
+
+  it('recovers when creating the worker throws', async () => {
+    let fail = true;
+    const workers: FakeWorker[] = [];
+    const client = new AcousticsClient(() => {
+      if (fail) throw new Error('no workers here');
+      const w = new FakeWorker();
+      workers.push(w);
+      return w;
+    });
+    await expect(client.simulate(room, 48000)).rejects.toThrow('no workers here');
+    fail = false;
+    const next = client.simulate(room, 48000);
+    workers[0].reply();
+    await expect(next).resolves.toBeDefined();
+  });
+
   it('rejects everything on dispose and refuses later requests', async () => {
     const { client, workers } = setup();
     const running = client.simulate(room, 48000);

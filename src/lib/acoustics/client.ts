@@ -58,13 +58,22 @@ export class AcousticsClient {
     const job = { ...this.waiting, id: this.nextId++ };
     this.waiting = null;
     this.running = job;
-    this.ensureWorker().postMessage({ id: job.id, room: job.room, sampleRate: job.sampleRate });
+    try {
+      this.ensureWorker().postMessage({ id: job.id, room: job.room, sampleRate: job.sampleRate });
+    } catch (error) {
+      this.running = null;
+      this.worker?.terminate();
+      this.worker = null;
+      job.reject(new Error(error instanceof Error && error.message ? error.message : CRASHED));
+      this.startNext();
+    }
   }
 
   private ensureWorker(): WorkerLike {
     if (this.worker) return this.worker;
     const worker = this.createWorker();
     worker.onmessage = (event) => {
+      if (this.worker !== worker) return;
       const res = event.data;
       const job = this.running;
       if (!job || job.id !== res.id) return;
@@ -74,11 +83,12 @@ export class AcousticsClient {
       this.startNext();
     };
     worker.onerror = (event) => {
+      if (this.worker !== worker) return;
       event.preventDefault?.();
       const job = this.running;
       this.running = null;
       worker.terminate();
-      if (this.worker === worker) this.worker = null; // a fresh one is created for the next job
+      this.worker = null; // a fresh one is created for the next job
       job?.reject(new Error(event.message || CRASHED));
       this.startNext();
     };
