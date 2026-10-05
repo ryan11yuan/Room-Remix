@@ -1,7 +1,7 @@
 import type { Dims, RoomState, Vec3 } from '@/lib/room/types';
 import { AlignError, alignTap, nudgeAlignment, startAlign, type Alignment, type AlignState } from './alignment';
 import type { RoomScene } from './RoomScene';
-import { deleteScan, loadScan, saveScan, updateScanAlignment } from './scanStore';
+import { deleteScan, loadScan, saveScan, updateScanAlignment, type StoredScan } from './scanStore';
 import type { SplatLayer } from './SplatLayer';
 
 export type ScanStatus =
@@ -16,9 +16,14 @@ type Report = { status(s: ScanStatus): void; step(step: ScanUiStep, taps: number
 export const SPLAT_WARN_COUNT = 1_500_000;
 
 const UNREADABLE = "Couldn't read this scan. Use a .ply, .spz, .splat or .ksplat export.";
+const SIZE_FIRST = "Enter the room's size first.";
 const SUPERSEDED = 'Scan load superseded'; // SplatLayer.load's rejection when a newer load or dispose() overtook it
 const centre = (dims: Dims): Vec3 => ({ x: dims.length / 2, y: 0, z: dims.width / 2 });
 const isSize = (d: number) => Number.isFinite(d) && d > 0;
+/** A room size that is mid-edit (empty, zero, NaN) must never reach the alignment maths. */
+const validDims = (dims: Dims) => isSize(dims.length) && isSize(dims.width) && isSize(dims.height);
+const isFiniteAlignment = (a: Alignment) =>
+  [...a.level, a.scale, a.yaw, a.offset.x, a.offset.y, a.offset.z].every(Number.isFinite);
 
 /** Loads, aligns and keeps the room scan. Browser only; Spark is loaded the first time a scan is opened. */
 export class ScanController {
@@ -29,6 +34,8 @@ export class ScanController {
   private bounds: { min: Vec3; max: Vec3 } | null = null;
   private latestDims: Dims | null = null; // from setRoom(): a scan that finishes loading crops to the room as it is now
   private cropKey: string | null = null; // the crop on the layer: null for none, else "LxWxH"
+  private scanId = 0; // changes whenever the shown scan does, so a save that finishes late can tell it has been replaced
+  private storedScan = false; // the shown scan is the one in storage (restored from it, or saved and still shown)
   private disposed = false;
 
   constructor(
@@ -55,19 +62,22 @@ export class ScanController {
     let bytes: ArrayBuffer;
     try {
       bytes = await file.arrayBuffer();
-    } catch {
-      this.setStatus({ kind: 'error', message: UNREADABLE });
+    } catch (error) {
+      this.failLoad(error); // same as a scan Spark can't read: the old scan goes, the box view stays
       return;
     }
+    if (!(await this.show(bytes, file.name, null, false, room.dims))) return;
+    const id = this.scanId;
     // Shown as kept until the save says otherwise, so a slow save doesn't flash a "not kept" warning.
-    if (!(await this.show(bytes, file.name, null, true, room.dims))) return;
-    let stored = true;
-    try {
-      await saveScan({ fileName: file.name, bytes, alignment: null, savedAt: Date.now() });
-    } catch {
-      stored = false; // e.g. storage full: keep it for this session only
+    const stored = await this.keep({ fileName: file.name, bytes, alignment: null, savedAt: Date.now() });
+    if (id !== this.scanId) return; // another scan, or none, is on screen by now
+    this.storedScan = stored;
+    this.reportStored(stored);
+    // Aligned while the save was still running: the stored copy doesn't have that alignment yet.
+    if (stored && this.alignment) {
+      const ok = await this.writeAlignment(this.alignment);
+      if (id === this.scanId) this.reportStored(ok);
     }
-    if (this.status.kind === 'ready') this.setStatus({ ...this.status, stored });
   }
 
   startAlignment(): void {
@@ -88,6 +98,7 @@ export class ScanController {
 
   tap(point: Vec3, room: RoomState): void {
     if (!this.align || this.align.step === 'nudge' || !this.bounds) return;
+    if (!validDims(room.dims)) return this.reportStep(SIZE_FIRST);
     // The scan's bounding-box centre is inside the room: it decides which way is up and which side is in.
     const { min, max } = this.bounds;
     const inside = { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 };
@@ -103,28 +114,36 @@ export class ScanController {
   }
 
   nudge(change: { yaw?: number; scale?: number; x?: number; z?: number }, room: RoomState): void {
-    if (this.align?.step !== 'nudge') return;
-    this.align = { step: 'nudge', alignment: nudgeAlignment(this.align.alignment, change, centre(room.dims)) };
-    this.layer?.setAlignment(this.align.alignment);
+    if (this.align?.step !== 'nudge' || !validDims(room.dims)) return;
+    const alignment = nudgeAlignment(this.align.alignment, change, centre(room.dims));
+    if (!isFiniteAlignment(alignment)) return;
+    this.align = { step: 'nudge', alignment };
+    this.layer?.setAlignment(alignment);
   }
 
   async finish(room: RoomState): Promise<void> {
-    if (this.align?.step !== 'nudge') return;
-    this.alignment = this.align.alignment;
+    if (this.align?.step !== 'nudge' || !validDims(room.dims)) return;
+    const alignment = this.align.alignment;
+    if (!isFiniteAlignment(alignment)) return this.reportStep("That alignment can't be used. Cancel and start again.");
+    this.alignment = alignment;
     this.align = null;
     this.endAlignment(room);
-    try {
-      await updateScanAlignment(this.alignment);
-    } catch {
-      // the alignment still applies for this session
-    }
+    // Before any await, so " · not aligned yet" goes away together with the outline view.
     if (this.status.kind === 'ready') this.setStatus({ ...this.status, aligned: true });
+    // Only the stored scan gets the alignment: while another scan is on screen, 'current' holds a different one.
+    if (!this.storedScan) return;
+    const id = this.scanId;
+    const ok = await this.writeAlignment(alignment);
+    if (id === this.scanId) this.reportStored(ok);
   }
 
   cancelAlignment(room: RoomState): void {
     if (!this.align) return;
+    const picking = this.align.step !== 'nudge'; // the nudge step already put the camera on Corner
     this.align = null;
     this.endAlignment(room);
+    // Picking points left the camera on the scan, in the scan's own units: bring it back to the room.
+    if (picking && validDims(room.dims)) this.scene.setCameraPreset(room, 'corner');
   }
 
   setVisible(visible: boolean): void {
@@ -152,7 +171,7 @@ export class ScanController {
     try {
       await deleteScan();
     } catch {
-      // already gone
+      // the scan stays in storage and comes back the next time the page loads
     }
   }
 
@@ -162,7 +181,7 @@ export class ScanController {
   }
 
   /** Show bytes as the scan; false if Spark can't read them (with an error status) or a newer load or dispose() took over (silently). */
-  private async show(bytes: ArrayBuffer, fileName: string, alignment: Alignment | null, stored: boolean, dims: Dims): Promise<boolean> {
+  private async show(bytes: ArrayBuffer, fileName: string, alignment: Alignment | null, fromStorage: boolean, dims: Dims): Promise<boolean> {
     this.setStatus({ kind: 'loading', fileName });
     try {
       if (!this.layer) {
@@ -179,19 +198,66 @@ export class ScanController {
       if (count === 0 || ![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) throw new Error('Scan has no splats');
       this.bounds = { min, max };
       this.alignment = alignment;
+      this.scanId++;
+      this.storedScan = fromStorage; // a file just opened is stored only once keep() says so
       layer.setAlignment(alignment);
       this.applyCrop(alignment ? (this.latestDims ?? dims) : null);
       layer.setVisible(true);
-      this.setStatus({ kind: 'ready', fileName, count, aligned: alignment !== null, stored, visible: true });
+      this.setStatus({ kind: 'ready', fileName, count, aligned: alignment !== null, stored: true, visible: true });
       this.applyShell();
       return true;
     } catch (error) {
       if (this.disposed || (error instanceof Error && error.message === SUPERSEDED)) return false; // a newer load owns the layer now
-      this.disposeLayer();
-      this.setStatus({ kind: 'error', message: UNREADABLE });
-      this.applyShell();
+      this.failLoad(error);
       return false;
     }
+  }
+
+  /** A scan that can't be read: say so, drop the layer (the box view stays) and leave whatever is in storage alone. */
+  private failLoad(error: unknown): void {
+    if (this.disposed) return;
+    console.warn('Could not read the room scan', error);
+    this.disposeLayer();
+    this.setStatus({ kind: 'error', message: UNREADABLE });
+    this.applyShell();
+  }
+
+  /**
+   * Keep the scan in storage. If saving fails, drop whatever was stored before (storage must never hold a scan other than
+   * the one on screen; it may also free the room the save needed) and try once more.
+   */
+  private async keep(scan: StoredScan): Promise<boolean> {
+    try {
+      await saveScan(scan);
+      return true;
+    } catch {
+      // fall through to the retry
+    }
+    try {
+      await deleteScan();
+    } catch {
+      // nothing to drop, or it can't be dropped
+    }
+    try {
+      await saveScan(scan);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async writeAlignment(alignment: Alignment): Promise<boolean> {
+    try {
+      await updateScanAlignment(alignment);
+      return true;
+    } catch {
+      return false; // the alignment still applies for this session
+    }
+  }
+
+  /** Show whether the scan on screen is in storage (" · only kept until you leave this page" when it isn't). */
+  private reportStored(stored: boolean): void {
+    if (this.status.kind === 'ready' && this.status.stored !== stored) this.setStatus({ ...this.status, stored });
   }
 
   private enterNudge(room: RoomState): void {
@@ -206,6 +272,7 @@ export class ScanController {
   private endAlignment(room: RoomState): void {
     this.layer?.setAlignment(this.alignment);
     this.applyCrop(this.alignment ? room.dims : null);
+    this.scene.setScanTargets([]);
     this.scene.setTapMode('none');
     this.scene.setRoomItemsVisible(true);
     this.applyShell();
@@ -215,7 +282,7 @@ export class ScanController {
   /** Crop the scan to the room. `room` changes on every drag frame, so the layer is only touched when the size really changes. */
   private applyCrop(dims: Dims | null): void {
     if (!this.layer) return;
-    if (dims && !(isSize(dims.length) && isSize(dims.width) && isSize(dims.height))) return; // mid-edit: keep the previous crop
+    if (dims && !validDims(dims)) return; // mid-edit: keep the previous crop
     const key = dims ? `${dims.length}x${dims.width}x${dims.height}` : null;
     if (key === this.cropKey) return;
     this.cropKey = key;
@@ -242,9 +309,12 @@ export class ScanController {
 
   private disposeLayer(): void {
     if (!this.layer) return;
+    this.scene.setScanTargets([]);
     this.scene.removeLayer(this.layer.group);
     this.layer.dispose();
     this.layer = null;
     this.cropKey = null;
+    this.scanId++;
+    this.storedScan = false; // no scan is shown
   }
 }

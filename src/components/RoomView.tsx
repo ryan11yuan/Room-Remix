@@ -142,7 +142,12 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     hint: null,
   });
   const aligning = alignStep.step !== null;
+  const picking = alignStep.step === 'floor' || alignStep.step === 'corners'; // choosing points on the scan: the camera stays on it
   const scanReady = scanStatus.kind === 'ready' ? scanStatus : null;
+  const largeScanWarning =
+    scanReady && scanReady.count > SPLAT_WARN_COUNT
+      ? `This scan has ${(scanReady.count / 1_000_000).toFixed(1)} million splats and may be slow on your phone.`
+      : null;
 
   const withFixes = mode.room && mode.fixes;
   const paths = useMemo(() => computeRayPaths(withFixes ? room : withoutFixes(room)), [room, withFixes]);
@@ -243,12 +248,15 @@ export function RoomView({ mode }: { mode: ListenMode }) {
             Tap a wall to place the panel
           </p>
         )}
-        {alignStep.step && (
-          <div role="status" className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-1 px-3 text-center text-sm">
+        {/* Mounted all the time, so a screen reader announces the first message when it appears. */}
+        <div role="status" className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-1 px-3 text-center text-sm">
+          {alignStep.step && (
             <p className="rounded-md bg-neutral-950/80 px-2 py-1 text-neutral-100">{alignBanner(alignStep.step, alignStep.taps)}</p>
-            {alignStep.hint && <p className="rounded-md bg-neutral-950/80 px-2 py-1 text-amber-200">{alignStep.hint}</p>}
-          </div>
-        )}
+          )}
+          {alignStep.step && alignStep.hint && (
+            <p className="rounded-md bg-neutral-950/80 px-2 py-1 text-amber-200">{alignStep.hint}</p>
+          )}
+        </div>
       </div>
       {aligning && (
         <div role="group" aria-label="Line up the scan" className="flex flex-wrap items-center gap-2 text-sm">
@@ -271,7 +279,12 @@ export function RoomView({ mode }: { mode: ListenMode }) {
       )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {(Object.keys(PRESET_LABELS) as CameraPreset[]).map((preset) => (
-          <button key={preset} onClick={() => sceneRef.current?.setCameraPreset(room, preset)} className={buttonClass}>
+          <button
+            key={preset}
+            disabled={picking}
+            onClick={() => sceneRef.current?.setCameraPreset(room, preset)}
+            className={buttonClass}
+          >
             {PRESET_LABELS[preset]}
           </button>
         ))}
@@ -341,20 +354,22 @@ export function RoomView({ mode }: { mode: ListenMode }) {
             >
               Hide scan
             </button>
-            <button onClick={() => void scanRef.current?.remove()} className={buttonClass}>
-              Remove scan
-            </button>
           </>
+        )}
+        {/* After an unreadable file the stored scan (if any) is still there; this is the way to clear it. */}
+        {(scanReady || scanStatus.kind === 'error') && !aligning && (
+          <button onClick={() => void scanRef.current?.remove()} className={buttonClass}>
+            Remove scan
+          </button>
         )}
         <span role="status" className={`min-w-0 wrap-break-word ${scanStatus.kind === 'error' ? 'text-amber-200' : 'text-neutral-400'}`}>
           {scanStatusText(scanStatus)}
         </span>
       </div>
-      {scanReady && scanReady.count > SPLAT_WARN_COUNT && (
-        <p role="status" className="text-sm text-amber-200">
-          This scan has {(scanReady.count / 1_000_000).toFixed(1)} million splats and may be slow on your phone.
-        </p>
-      )}
+      {/* Mounted all the time (see the banner); while empty, -mt-2 cancels the gap it would add. */}
+      <p role="status" className="text-sm text-amber-200 empty:-mt-2">
+        {largeScanWarning}
+      </p>
       <p className="text-xs text-neutral-500">
         Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.
         Rays show the room as you&apos;re hearing it.

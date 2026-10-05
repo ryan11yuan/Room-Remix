@@ -11,6 +11,8 @@ import type { Dims, Vec3 } from '@/lib/room/types';
 import { alignmentMatrix, type Alignment } from './alignment';
 
 const CROP_MARGIN = 0.3; // metres of scan kept beyond the room box (walls are rarely captured exactly flat)
+const SPARK_IDLE_POLL_MS = 50; // how often dispose() re-checks whether Spark's sort has finished
+const SPARK_IDLE_GIVE_UP_MS = 5000; // after this long, dispose Spark anyway (a sort that threw leaves `sorting` stuck on)
 
 const plain = (v: THREE.Vector3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 const isFiniteBox = (box: THREE.Box3): boolean =>
@@ -93,11 +95,29 @@ export class SplatLayer {
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true;
     this.removeMesh();
     this.setCrop(null);
-    this.spark.dispose();
-    this.group.removeFromParent();
+    this.group.removeFromParent(); // nothing renders or re-sorts from here on
+    this.disposeSparkWhenIdle();
+  }
+
+  /**
+   * Spark's sort loop (SparkRenderer.driveSort) sets `sorting` before it awaits the GPU read-back and the sort worker and
+   * clears it only after them, with no guard against disposal. Disposing mid-sort pulls the render target and worker out from
+   * under those awaits and surfaces as an unhandled promise rejection, so wait for the sort to finish, then dispose.
+   */
+  private disposeSparkWhenIdle(): void {
+    const started = Date.now();
+    const attempt = () => {
+      if (this.spark.sorting && Date.now() - started < SPARK_IDLE_GIVE_UP_MS) {
+        setTimeout(attempt, SPARK_IDLE_POLL_MS);
+        return;
+      }
+      this.spark.dispose();
+    };
+    attempt();
   }
 
   private applyAlignment(): void {
