@@ -46,9 +46,10 @@ function setRestoreMarker(key: string): void {
     // no marker: a crash loop can't be detected here
   }
 }
-function clearRestoreMarker(): void {
+/** Clears the marker only if it is this room's: another room's open may be under way and keeps its own. */
+function clearRestoreMarker(key: string): void {
   try {
-    localStorage.removeItem(RESTORING_KEY);
+    if (localStorage.getItem(RESTORING_KEY) === key) localStorage.removeItem(RESTORING_KEY);
   } catch {
     // nothing to clear
   }
@@ -140,7 +141,7 @@ export class ScanController {
     try {
       await this.show(stored.bytes, stored.fileName, stored.alignment, stored.savedAt, room.dims);
     } finally {
-      clearRestoreMarker(); // ready, failed, or abandoned: the open is over
+      clearRestoreMarker(key); // ready, failed, or abandoned: the open is over
     }
   }
 

@@ -493,6 +493,19 @@ describe('RoomSession and scans', () => {
   });
 });
 
+describe('RoomSession and unreadable rooms', () => {
+  it("keeps the scan of a room this build can't read when pruning", async () => {
+    const storage = fakeStorage();
+    storage.items.set(
+      ROOMS_KEY,
+      JSON.stringify({ v: 1, currentId: 'a', rooms: [{ id: 'a', updatedAt: 1, state: named('Studio') }, { id: 'n', updatedAt: 2, state: { v: 99 } }] }),
+    );
+    const t = setup({ storage });
+    await t.session.start();
+    expect(t.pruned).toEqual([['a', 'n']]);
+  });
+});
+
 describe('RoomSession without working storage', () => {
   it('still opens a room, warns once, and keeps My rooms for the page', async () => {
     const t = setup({ storage: fakeStorage(true) });

@@ -7,6 +7,7 @@ import {
   loadRooms,
   MAX_ROOMS,
   removeRoom,
+  roomIds,
   saveRooms,
   selectRoom,
   sortedRooms,
@@ -103,7 +104,7 @@ export class RoomSession {
     this.write(file);
     // Scans whose room is gone (deleted in another tab, or stored before scans were kept per room) are dropped.
     // Not when the rooms couldn't be saved: then they may not have been read either, and the list would be incomplete.
-    if (!this.unsaved) this.env.pruneScans(file.rooms.map((room) => room.id));
+    if (!this.unsaved) this.env.pruneScans(roomIds(file)); // rooms this build can't read keep their scans too
     this.show(file, target);
   }
 

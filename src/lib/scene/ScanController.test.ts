@@ -1191,6 +1191,28 @@ describe('ScanController rooms', () => {
     expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
   });
 
+  it("keeps another room's crash guard when an abandoned restore unwinds", async () => {
+    const gateA = deferred<Loaded>();
+    const gateB = deferred<Loaded>();
+    h.load = () => gateA.promise;
+    vi.mocked(loadScan).mockImplementation(async (key) => saved(`${key}.spz`));
+    const { scans } = setup();
+    const restoringA = scans.restore(room);
+    await flush();
+    expect(storage.items.get(RESTORING)).toBe('room-a');
+    h.load = () => gateB.promise;
+    const switching = scans.switchRoom('room-b', room);
+    await flush();
+    expect(storage.items.get(RESTORING)).toBe('room-b');
+    gateA.resolve(good); // A's abandoned open unwinds
+    await restoringA;
+    await flush();
+    expect(storage.items.get(RESTORING)).toBe('room-b'); // still guarded
+    gateB.resolve(good);
+    await switching;
+    expect(storage.items.has(RESTORING)).toBe(false);
+  });
+
   it("doesn't reopen a scan whose last open never finished", async () => {
     storage.items.set(RESTORING, 'room-a');
     const { scans, statuses } = setup();

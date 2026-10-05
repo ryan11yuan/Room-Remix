@@ -12,6 +12,7 @@ import {
   newRoomId,
   parseRooms,
   removeRoom,
+  roomIds,
   ROOMS_BACKUP_KEY,
   ROOMS_KEY,
   saveRooms,
@@ -114,6 +115,14 @@ describe('parseRooms and serializeRooms', () => {
   it('gives a fresh empty file each time', () => {
     expect(parseRooms(null)).not.toBe(parseRooms(null));
     expect(parseRooms(null)).not.toBe(EMPTY_ROOMS);
+  });
+});
+
+describe('roomIds', () => {
+  it('lists the readable rooms, then the unreadable ones that have an id', () => {
+    const f: RoomsFile = { ...file(['a', 100, 'Studio']), unreadable: [{ id: 'n', state: 'new format' }, { id: 7 }, 'junk', null] };
+    expect(roomIds(f)).toEqual(['a', 'n']);
+    expect(roomIds(file(['a', 100, 'Studio'], ['b', 200, 'Den']))).toEqual(['a', 'b']);
   });
 });
 

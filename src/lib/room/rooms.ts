@@ -69,6 +69,14 @@ export function parseRooms(json: string | null): RoomsFile {
   return unreadable.length > 0 ? { rooms, currentId, unreadable } : { rooms, currentId };
 }
 
+/** The ids of every room in the file: the readable ones, then the ones this build can't read (their data is kept). */
+export function roomIds(file: RoomsFile): string[] {
+  const kept = (file.unreadable ?? []).flatMap((entry) =>
+    isRecord(entry) && typeof entry.id === 'string' ? [entry.id] : [],
+  );
+  return [...file.rooms.map((room) => room.id), ...kept];
+}
+
 export function serializeRooms(file: RoomsFile): string {
   return JSON.stringify({ v: 1, rooms: [...file.rooms, ...(file.unreadable ?? [])], currentId: file.currentId });
 }
