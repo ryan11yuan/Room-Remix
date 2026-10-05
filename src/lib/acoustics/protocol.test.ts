@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultRoom } from '@/lib/room/roomState';
+import { pinkGain } from './loudness';
 import { handleRequest, transferables } from './protocol';
 
 describe('handleRequest', () => {
@@ -10,6 +11,8 @@ describe('handleRequest', () => {
     if (res.ok) {
       expect(res.now.ir.sampleRate).toBe(16000);
       expect(transferables(res)).toHaveLength(4);
+      const gain = (pinkGain(res.now.ir.left, 16000) + pinkGain(res.now.ir.right, 16000)) / 2;
+      expect(gain).toBeCloseTo(1, 6);
     }
   });
 

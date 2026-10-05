@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { downmixToMono, modeGains, normalizeIr } from './mix';
+import { downmixToMono, modeGains } from './mix';
 
 describe('modeGains', () => {
   it('plays only the dry path when the room is off', () => {
@@ -23,18 +23,5 @@ describe('downmixToMono', () => {
   });
   it('passes mono through', () => {
     expect(Array.from(downmixToMono([Float32Array.of(0.25, -0.5)]))).toEqual([0.25, -0.5]);
-  });
-});
-
-describe('normalizeIr', () => {
-  it('scales to unit mean ear energy', () => {
-    const ir = normalizeIr({ left: Float32Array.of(2, 0), right: Float32Array.of(0, 2), sampleRate: 48000 });
-    const energy = (a: Float32Array) => a.reduce((s, v) => s + v * v, 0);
-    expect((energy(ir.left) + energy(ir.right)) / 2).toBeCloseTo(1, 6);
-    expect(ir.sampleRate).toBe(48000);
-  });
-  it('leaves a silent IR alone', () => {
-    const ir = { left: new Float32Array(4), right: new Float32Array(4), sampleRate: 48000 };
-    expect(normalizeIr(ir)).toBe(ir);
   });
 });

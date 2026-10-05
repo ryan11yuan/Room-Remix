@@ -1,5 +1,5 @@
 import type { StereoIr } from '@/lib/acoustics/simulate';
-import { downmixToMono, modeGains, normalizeIr, type ListenMode } from './mix';
+import { downmixToMono, modeGains, type ListenMode } from './mix';
 
 export const CROSSFADE_SECONDS = 0.05;
 const MASTER_GAIN = 0.5; // −6 dB headroom: convolving with a dense room IR raises peaks well above the dry track's
@@ -89,6 +89,7 @@ export class AudioEngine {
     this.source = null;
   }
 
+  /** IRs must already be loudness-matched (the simulation worker does this). */
   setIrs(now: StereoIr, withFixes: StereoIr): void {
     this.loadSlot(this.slots.now, now);
     this.loadSlot(this.slots.withFixes, withFixes);
@@ -173,10 +174,9 @@ export class AudioEngine {
   }
 
   private irBuffer(ir: StereoIr): AudioBuffer {
-    const normalized = normalizeIr(ir);
-    const buffer = this.ctx.createBuffer(2, normalized.left.length, normalized.sampleRate);
-    buffer.getChannelData(0).set(normalized.left);
-    buffer.getChannelData(1).set(normalized.right);
+    const buffer = this.ctx.createBuffer(2, ir.left.length, ir.sampleRate);
+    buffer.getChannelData(0).set(ir.left);
+    buffer.getChannelData(1).set(ir.right);
     return buffer;
   }
 
