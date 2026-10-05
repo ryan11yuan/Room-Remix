@@ -68,8 +68,11 @@ export class RoomScene {
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
   private extraPointer = false; // another finger or button joined the press, so it's a gesture, not a tap
   private room: RoomState | null = null; // the last room with usable dimensions
-  // Walk mode: where the orbit wants the camera (it is drawn pulled inside the room) and the floor spot being walked to.
-  private walk: { wanted: THREE.Vector3; goal: FloorPoint | null } | null = null;
+  private walk: { goal: FloorPoint | null } | null = null; // walk mode: the floor spot being walked to
+  // Walk mode draws, and taps aim, from the orbit camera pulled inside the room. this.camera stays the unpulled orbit
+  // camera, so OrbitControls' own event-time updates (wheel and pinch zoom, drag turns) act on it and are kept.
+  private readonly drawCamera = new THREE.PerspectiveCamera();
+  private midEdit = false; // the store's room has a size being typed: walking waits, or the scene and the store would part ways
   private readonly keys = new Set<string>(); // walk keys held down (KeyboardEvent.code)
   private lastFrame = 0; // ms: the previous frame's time
 
@@ -103,7 +106,7 @@ export class RoomScene {
       if (this.walk) this.stepWalk(this.walk, dt);
       else this.controls.update();
       this.rays.tick(time / 1000);
-      this.webgl.render(this.scene, this.camera);
+      this.webgl.render(this.scene, this.walk ? this.drawCamera : this.camera);
     });
   }
 
@@ -123,7 +126,11 @@ export class RoomScene {
 
   setRoom(room: RoomState): void {
     const { length, width, height } = room.dims;
-    if (![length, width, height].every((d) => Number.isFinite(d) && d > 0)) return; // mid-edit: keep showing the last good room
+    if (![length, width, height].every((d) => Number.isFinite(d) && d > 0)) {
+      this.midEdit = true; // mid-edit: keep showing the last good room
+      return;
+    }
+    this.midEdit = false;
     this.room = room;
     const shellKey = JSON.stringify([room.dims, room.surfaces]);
     if (shellKey !== this.shellKey) {
@@ -226,8 +233,11 @@ export class RoomScene {
       window.removeEventListener('keyup', this.onKeyUp);
       window.removeEventListener('blur', this.onBlur);
       this.controls.enablePan = true;
+      // The limits go before the update below: it would otherwise clamp a camera pulled in to 0.2 m back out to 0.6 m.
       this.controls.minDistance = 0;
       this.controls.maxDistance = Infinity;
+      this.camera.position.copy(this.drawCamera.position);
+      this.controls.update(); // stay where walk mode was drawing from
       this.userMoved = true; // the camera stays where the walk left it, so a room-size edit mustn't snap it to a preset
       return;
     }
@@ -236,16 +246,17 @@ export class RoomScene {
     this.controls.minDistance = WALK_ZOOM.min;
     this.controls.maxDistance = WALK_ZOOM.max;
     this.moveCamera(walkView(this.room));
-    this.walk = { wanted: this.camera.position.clone(), goal: null };
+    this.walk = { goal: null };
+    this.updateDrawCamera(); // taps before the first frame aim from what is drawn
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
   }
 
   /** One walk-mode frame: step the listener (held keys win over a tapped goal), then carry the camera along inside the room. */
-  private stepWalk(walk: { wanted: THREE.Vector3; goal: FloorPoint | null }, dt: number): void {
+  private stepWalk(walk: { goal: FloorPoint | null }, dt: number): void {
     const room = this.room;
-    if (room && this.roomItemsOn && this.tapMode === 'none' && !this.dragging) {
+    if (room && this.roomItemsOn && this.tapMode === 'none' && !this.dragging && !this.midEdit) {
       const forward = { x: this.controls.target.x - this.camera.position.x, z: this.controls.target.z - this.camera.position.z };
       const step = advanceWalk(room, walk.goal, keyDirection(this.keys, forward), dt);
       walk.goal = step.goal;
@@ -256,22 +267,29 @@ export class RoomScene {
         this.callbacks.onDrag(LISTENER, point);
       }
     }
-    // Carry the orbit along with the head, then let OrbitControls apply the user's turn and zoom.
+    // Carry the orbit along with the head, then let OrbitControls apply the rest of the user's turn and zoom.
     const head = this.listener.position;
     const look = walkLook(head);
-    this.camera.position.copy(walk.wanted).sub(this.controls.target).add(look);
+    this.camera.position.sub(this.controls.target).add(look);
     this.controls.target.set(look.x, look.y, look.z);
     this.controls.update();
-    walk.wanted.copy(this.camera.position);
-    // Draw from inside the room. The camera stays there until the next frame, so taps aim from what is on screen.
+    this.updateDrawCamera();
+  }
+
+  /** Walk mode's view: the orbit camera pulled inside the room, still looking at the point over the head. */
+  private updateDrawCamera(): void {
+    this.drawCamera.copy(this.camera);
     if (this.room) {
-      const inside = pullInside(this.room.dims, head, this.camera.position);
-      this.camera.position.set(inside.x, inside.y, inside.z);
+      const inside = pullInside(this.room.dims, this.listener.position, this.camera.position);
+      this.drawCamera.position.set(inside.x, inside.y, inside.z);
+      this.drawCamera.lookAt(this.controls.target);
     }
+    this.drawCamera.updateMatrixWorld();
   }
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
-    if (!WALK_KEYS.has(event.code) || event.altKey || event.ctrlKey || event.metaKey || isTyping(event.target)) return;
+    // Scrolled off-screen, the arrow keys scroll the page again instead of walking.
+    if (!this.onScreen || !WALK_KEYS.has(event.code) || event.altKey || event.ctrlKey || event.metaKey || isTyping(event.target)) return;
     this.keys.add(event.code);
     event.preventDefault(); // the arrow keys mustn't scroll the page while walking
   };
@@ -322,7 +340,7 @@ export class RoomScene {
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
-    this.raycaster.setFromCamera(ndc, this.camera);
+    this.raycaster.setFromCamera(ndc, this.walk ? this.drawCamera : this.camera);
   }
 
   private readonly onPointerDown = (event: PointerEvent) => {
