@@ -7,7 +7,15 @@ import type { SplatLayer } from './SplatLayer';
 export type ScanStatus =
   | { kind: 'none' }
   | { kind: 'loading'; fileName: string }
-  | { kind: 'ready'; fileName: string; count: number; aligned: boolean; stored: boolean; visible: boolean }
+  | {
+      kind: 'ready';
+      fileName: string;
+      count: number;
+      aligned: boolean;
+      stored: boolean; // the scan itself is kept on this device
+      alignmentKept: boolean; // its alignment is kept too (false when only the alignment couldn't be written)
+      visible: boolean;
+    }
   | { kind: 'error'; message: string };
 export type ScanUiStep = 'floor' | 'corners' | 'nudge' | null;
 type Report = { status(s: ScanStatus): void; step(step: ScanUiStep, taps: number, hint: string | null): void };
@@ -16,7 +24,11 @@ type Report = { status(s: ScanStatus): void; step(step: ScanUiStep, taps: number
 export const SPLAT_WARN_COUNT = 1_500_000;
 
 const UNREADABLE = "Couldn't read this scan. Use a .ply, .spz, .splat or .ksplat export.";
+const SAVED_UNREADABLE = "Couldn't read your saved scan. Load it again or remove it."; // the scan kept on this device, not a file just picked
+const INTERRUPTED = "Your saved scan didn't open last time. Load it again or remove it.";
 const SIZE_FIRST = "Enter the room's size first.";
+/** Set while a stored scan is being opened. Still there at the next start means the tab died (or was closed) mid-open. */
+const RESTORING_KEY = 'room-remix:restoring';
 const SUPERSEDED = 'Scan load superseded'; // SplatLayer.load's rejection when a newer load or dispose() overtook it
 const centre = (dims: Dims): Vec3 => ({ x: dims.length / 2, y: 0, z: dims.width / 2 });
 const isSize = (d: number) => Number.isFinite(d) && d > 0;
@@ -24,6 +36,52 @@ const isSize = (d: number) => Number.isFinite(d) && d > 0;
 const validDims = (dims: Dims) => isSize(dims.length) && isSize(dims.width) && isSize(dims.height);
 const isFiniteAlignment = (a: Alignment) =>
   [...a.level, a.scale, a.yaw, a.offset.x, a.offset.y, a.offset.z].every(Number.isFinite);
+const isFiniteVec = (v: Vec3) => [v.x, v.y, v.z].every(Number.isFinite);
+
+// localStorage can be missing or throw (blocked, full, private windows), and then restoring works as it did without the marker.
+function setRestoreMarker(): void {
+  try {
+    localStorage.setItem(RESTORING_KEY, '1');
+  } catch {
+    // no marker: a crash loop can't be detected here
+  }
+}
+function clearRestoreMarker(): void {
+  try {
+    localStorage.removeItem(RESTORING_KEY);
+  } catch {
+    // nothing to clear
+  }
+}
+/** Whether the last restore never finished; clears the marker so the start after this one tries again. */
+function takeRestoreMarker(): boolean {
+  try {
+    const found = localStorage.getItem(RESTORING_KEY) !== null;
+    if (found) localStorage.removeItem(RESTORING_KEY);
+    return found;
+  } catch {
+    return false;
+  }
+}
+
+/** The scan status line: `text`, and a `warning` to show after it (in the warning colour) when something isn't being kept. */
+export function scanStatusParts(status: ScanStatus): { text: string; warning: string | null } {
+  switch (status.kind) {
+    case 'none':
+      return { text: '', warning: null };
+    case 'loading':
+      return { text: `Loading ${status.fileName}…`, warning: null };
+    case 'ready': {
+      const text = `${status.fileName}: ${status.count.toLocaleString()} splats${status.aligned ? '' : ' · not aligned yet'}`;
+      // The scan itself is the bigger loss, so it takes the line; the alignment is only mentioned while the scan is kept.
+      if (!status.stored) return { text, warning: ' · only kept until you leave this page' };
+      if (!status.alignmentKept) return { text, warning: ' · alignment only kept until you leave this page' };
+      return { text, warning: null };
+    }
+    case 'error':
+      return { text: status.message, warning: null };
+  }
+}
 
 /** Loads, aligns and keeps the room scan. Browser only; Spark is loaded the first time a scan is opened. */
 export class ScanController {
@@ -31,11 +89,18 @@ export class ScanController {
   private alignment: Alignment | null = null;
   private align: AlignState | null = null;
   private status: ScanStatus = { kind: 'none' };
-  private bounds: { min: Vec3; max: Vec3 } | null = null;
+  private bounds: { min: Vec3; max: Vec3; centre: Vec3 } | null = null;
   private latestDims: Dims | null = null; // from setRoom(): a scan that finishes loading crops to the room as it is now
   private cropKey: string | null = null; // the crop on the layer: null for none, else "LxWxH"
   private scanId = 0; // changes whenever the shown scan does, so a save that finishes late can tell it has been replaced
-  private storedScan = false; // the shown scan is the one in storage (restored from it, or saved and still shown)
+  /**
+   * What the app means to keep in storage. Bumped by remove() and by every newly shown scan (opened or restored), never by
+   * dispose(): leaving the page mid-save lets the save finish. A save, a load or a delete that began under an older value
+   * must not touch storage or the screen any more.
+   */
+  private storeGen = 0;
+  /** `savedAt` of the stored record that holds the shown scan; null while the shown scan isn't in storage (yet, or at all). */
+  private storedAt: number | null = null;
   private disposed = false;
 
   constructor(
@@ -44,39 +109,57 @@ export class ScanController {
   ) {}
 
   async restore(room: RoomState): Promise<void> {
+    const interrupted = takeRestoreMarker();
+    const gen = this.storeGen;
+    let stored: StoredScan | null;
     try {
-      const stored = await loadScan();
-      // Only fill an empty view: a file the user opened while this was reading (open() sets 'loading' first) wins.
-      if (stored && !this.disposed && this.status.kind === 'none') {
-        await this.show(stored.bytes, stored.fileName, stored.alignment, true, room.dims);
-      }
+      // The await (even of null) keeps every report after this call returns, so a view can start it from an effect.
+      stored = await (interrupted ? null : loadScan());
     } catch {
-      // nothing usable stored: start without a scan
+      return; // nothing usable stored: start without a scan
+    }
+    // Only fill an empty view: a file the user opened while this was reading (open() sets 'loading' first) wins.
+    if (this.disposed || this.status.kind !== 'none' || gen !== this.storeGen) return;
+    if (interrupted) {
+      // The last open of the stored scan never finished (the tab crashed or was closed): don't walk into the same crash.
+      this.setStatus({ kind: 'error', message: INTERRUPTED });
+      return;
+    }
+    if (!stored) return;
+    setRestoreMarker();
+    try {
+      await this.show(stored.bytes, stored.fileName, stored.alignment, stored.savedAt, room.dims);
+    } finally {
+      clearRestoreMarker(); // ready, failed, or abandoned: the open is over
     }
   }
 
   async open(file: File, room: RoomState): Promise<void> {
     // One load at a time: two overlapping layer loads could leave two meshes in the layer.
     if (this.status.kind === 'loading' || this.align) return;
+    const gen = this.storeGen;
     this.setStatus({ kind: 'loading', fileName: file.name });
     let bytes: ArrayBuffer;
     try {
       bytes = await file.arrayBuffer();
     } catch (error) {
-      this.failLoad(error); // same as a scan Spark can't read: the old scan goes, the box view stays
+      if (!this.disposed && gen === this.storeGen) this.failLoad(error, UNREADABLE); // same as a scan Spark can't read: the old scan goes, the box view stays
       return;
     }
-    if (!(await this.show(bytes, file.name, null, false, room.dims))) return;
+    if (this.disposed || gen !== this.storeGen) return; // removed while the file was being read
+    if (!(await this.show(bytes, file.name, null, null, room.dims))) return;
     const id = this.scanId;
+    const keepGen = this.storeGen;
+    const savedAt = Date.now();
     // Shown as kept until the save says otherwise, so a slow save doesn't flash a "not kept" warning.
-    const stored = await this.keep({ fileName: file.name, bytes, alignment: null, savedAt: Date.now() });
-    if (id !== this.scanId) return; // another scan, or none, is on screen by now
-    this.storedScan = stored;
+    const stored = await this.keep(keepGen, { fileName: file.name, bytes, alignment: null, savedAt });
+    if (id !== this.scanId || keepGen !== this.storeGen) return; // another scan, or none, is on screen by now
+    this.storedAt = stored ? savedAt : null;
     this.reportStored(stored);
     // Aligned while the save was still running: the stored copy doesn't have that alignment yet.
     if (stored && this.alignment) {
-      const ok = await this.writeAlignment(this.alignment);
-      if (id === this.scanId) this.reportStored(ok);
+      const ok = await this.writeAlignment(this.alignment, savedAt);
+      if (id === this.scanId) this.reportAlignmentKept(ok);
     }
   }
 
@@ -99,11 +182,10 @@ export class ScanController {
   tap(point: Vec3, room: RoomState): void {
     if (!this.align || this.align.step === 'nudge' || !this.bounds) return;
     if (!validDims(room.dims)) return this.reportStep(SIZE_FIRST);
-    // The scan's bounding-box centre is inside the room: it decides which way is up and which side is in.
-    const { min, max } = this.bounds;
-    const inside = { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 };
+    // The mean of the splat centres is a point off the floor on the room's side; it decides which way is up. (Which side of the
+    // right wall is in is judged from the floor taps instead: a scan's splats can reach well outside the room.)
     try {
-      this.align = alignTap(this.align, point, inside, room.dims);
+      this.align = alignTap(this.align, point, this.bounds.centre, room.dims);
     } catch (error) {
       if (!(error instanceof AlignError)) throw error;
       if (error.retry) this.align = error.retry; // e.g. wrong wall: start the corner taps again
@@ -131,10 +213,10 @@ export class ScanController {
     // Before any await, so " · not aligned yet" goes away together with the outline view.
     if (this.status.kind === 'ready') this.setStatus({ ...this.status, aligned: true });
     // Only the stored scan gets the alignment: while another scan is on screen, 'current' holds a different one.
-    if (!this.storedScan) return;
+    if (this.storedAt === null) return;
     const id = this.scanId;
-    const ok = await this.writeAlignment(alignment);
-    if (id === this.scanId) this.reportStored(ok);
+    const ok = await this.writeAlignment(alignment, this.storedAt);
+    if (id === this.scanId) this.reportAlignmentKept(ok);
   }
 
   cancelAlignment(room: RoomState): void {
@@ -159,6 +241,7 @@ export class ScanController {
   }
 
   async remove(): Promise<void> {
+    this.storeGen++; // a save still retrying stops, and a load still running is abandoned
     this.align = null;
     this.alignment = null;
     this.bounds = null;
@@ -180,64 +263,73 @@ export class ScanController {
     this.disposeLayer();
   }
 
-  /** Show bytes as the scan; false if Spark can't read them (with an error status) or a newer load or dispose() took over (silently). */
-  private async show(bytes: ArrayBuffer, fileName: string, alignment: Alignment | null, fromStorage: boolean, dims: Dims): Promise<boolean> {
+  /**
+   * Show bytes as the scan. `storedAt` is the `savedAt` of the stored record they came from, or null for a file just opened.
+   * False if Spark can't read them (with an error status), or a newer load, remove() or dispose() took over (silently).
+   */
+  private async show(bytes: ArrayBuffer, fileName: string, alignment: Alignment | null, storedAt: number | null, dims: Dims): Promise<boolean> {
+    const gen = this.storeGen; // remove() while this runs bumps it: the scan must not appear after it
     this.setStatus({ kind: 'loading', fileName });
     try {
       if (!this.layer) {
         const { SplatLayer } = await import('./SplatLayer');
-        if (this.disposed) return false;
+        if (this.disposed || gen !== this.storeGen) return false;
         this.layer = new SplatLayer(this.scene.renderer);
         this.cropKey = null;
         this.scene.addLayer(this.layer.group);
       }
       const layer = this.layer;
-      const { count, min, max } = await layer.load(bytes, fileName);
-      if (this.disposed || this.layer !== layer) return false;
+      const { count, min, max, centre } = await layer.load(bytes, fileName);
+      if (this.disposed || gen !== this.storeGen || this.layer !== layer) return false;
       // An empty scan has infinite bounds, which would make the framing and the inside point NaN.
-      if (count === 0 || ![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) throw new Error('Scan has no splats');
-      this.bounds = { min, max };
+      if (count === 0 || ![min, max, centre].every(isFiniteVec)) throw new Error('Scan has no splats');
+      this.bounds = { min, max, centre };
       this.alignment = alignment;
       this.scanId++;
-      this.storedScan = fromStorage; // a file just opened is stored only once keep() says so
+      this.storedAt = storedAt; // a file just opened is stored only once keep() says so
       layer.setAlignment(alignment);
       this.applyCrop(alignment ? (this.latestDims ?? dims) : null);
       layer.setVisible(true);
-      this.setStatus({ kind: 'ready', fileName, count, aligned: alignment !== null, stored: true, visible: true });
+      this.setStatus({ kind: 'ready', fileName, count, aligned: alignment !== null, stored: true, alignmentKept: true, visible: true });
       this.applyShell();
+      this.storeGen++; // a new scan is on screen: saves and loads meant for an earlier one stop (last, so the catch above can't mistake it)
       return true;
     } catch (error) {
-      if (this.disposed || (error instanceof Error && error.message === SUPERSEDED)) return false; // a newer load owns the layer now
-      this.failLoad(error);
+      // A newer load owns the layer now, or remove() / dispose() ended this one.
+      if (this.disposed || gen !== this.storeGen || (error instanceof Error && error.message === SUPERSEDED)) return false;
+      this.failLoad(error, storedAt === null ? UNREADABLE : SAVED_UNREADABLE);
       return false;
     }
   }
 
   /** A scan that can't be read: say so, drop the layer (the box view stays) and leave whatever is in storage alone. */
-  private failLoad(error: unknown): void {
+  private failLoad(error: unknown, message: string): void {
     if (this.disposed) return;
     console.warn('Could not read the room scan', error);
     this.disposeLayer();
-    this.setStatus({ kind: 'error', message: UNREADABLE });
+    this.setStatus({ kind: 'error', message });
     this.applyShell();
   }
 
   /**
    * Keep the scan in storage. If saving fails, drop whatever was stored before (storage must never hold a scan other than
-   * the one on screen; it may also free the room the save needed) and try once more.
+   * the one on screen; it may also free the room the save needed) and try once more. `gen` is the `storeGen` the scan was
+   * shown under: once remove() or another scan has moved it on, this stops quietly instead of touching storage again.
    */
-  private async keep(scan: StoredScan): Promise<boolean> {
+  private async keep(gen: number, scan: StoredScan): Promise<boolean> {
     try {
       await saveScan(scan);
       return true;
     } catch {
       // fall through to the retry
     }
+    if (gen !== this.storeGen) return false;
     try {
       await deleteScan();
     } catch {
       // nothing to drop, or it can't be dropped
     }
+    if (gen !== this.storeGen) return false;
     try {
       await saveScan(scan);
       return true;
@@ -246,10 +338,10 @@ export class ScanController {
     }
   }
 
-  private async writeAlignment(alignment: Alignment): Promise<boolean> {
+  /** Write the alignment onto the stored record saved at `savedAt`. False when it fails or that record isn't what is in storage. */
+  private async writeAlignment(alignment: Alignment, savedAt: number): Promise<boolean> {
     try {
-      await updateScanAlignment(alignment);
-      return true;
+      return await updateScanAlignment(alignment, savedAt);
     } catch {
       return false; // the alignment still applies for this session
     }
@@ -258,6 +350,11 @@ export class ScanController {
   /** Show whether the scan on screen is in storage (" · only kept until you leave this page" when it isn't). */
   private reportStored(stored: boolean): void {
     if (this.status.kind === 'ready' && this.status.stored !== stored) this.setStatus({ ...this.status, stored });
+  }
+
+  /** Show whether the alignment is in storage (" · alignment only kept until you leave this page" when it isn't). */
+  private reportAlignmentKept(kept: boolean): void {
+    if (this.status.kind === 'ready' && this.status.alignmentKept !== kept) this.setStatus({ ...this.status, alignmentKept: kept });
   }
 
   private enterNudge(room: RoomState): void {
@@ -315,6 +412,6 @@ export class ScanController {
     this.layer = null;
     this.cropKey = null;
     this.scanId++;
-    this.storedScan = false; // no scan is shown
+    this.storedAt = null; // no scan is shown
   }
 }

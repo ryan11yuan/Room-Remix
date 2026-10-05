@@ -10,7 +10,7 @@ import { useRoomStore } from '@/lib/room/store';
 import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
 // Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
-import { ScanController, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
+import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
 
 const PRESET_LABELS: Record<CameraPreset, string> = { top: 'Top', corner: 'Corner', listener: "Listener's view" };
 const SPEAKER_HEIGHTS = [
@@ -38,19 +38,6 @@ const NUDGES: { label: string; change: { yaw?: number; scale?: number; x?: numbe
   { label: 'Right', change: { z: -0.05 } },
   { label: 'Left', change: { z: 0.05 } },
 ];
-
-function scanStatusText(status: ScanStatus): string {
-  switch (status.kind) {
-    case 'none':
-      return '';
-    case 'loading':
-      return `Loading ${status.fileName}…`;
-    case 'ready':
-      return `${status.fileName}: ${status.count.toLocaleString()} splats${status.aligned ? '' : ' · not aligned yet'}${status.stored ? '' : ' · only kept until you leave this page'}`;
-    case 'error':
-      return status.message;
-  }
-}
 
 function alignBanner(step: Exclude<ScanUiStep, null>, taps: number): string {
   switch (step) {
@@ -144,6 +131,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const aligning = alignStep.step !== null;
   const picking = alignStep.step === 'floor' || alignStep.step === 'corners'; // choosing points on the scan: the camera stays on it
   const scanReady = scanStatus.kind === 'ready' ? scanStatus : null;
+  const scanLine = scanStatusParts(scanStatus);
   const largeScanWarning =
     scanReady && scanReady.count > SPLAT_WARN_COUNT
       ? `This scan has ${(scanReady.count / 1_000_000).toFixed(1)} million splats and may be slow on your phone.`
@@ -347,23 +335,20 @@ export function RoomView({ mode }: { mode: ListenMode }) {
             >
               Align scan
             </button>
-            <button
-              aria-pressed={!scanReady.visible}
-              onClick={() => scanRef.current?.setVisible(!scanReady.visible)}
-              className={`${buttonClass} aria-pressed:bg-neutral-800`}
-            >
-              Hide scan
+            <button aria-pressed={scanReady.visible} onClick={() => scanRef.current?.setVisible(!scanReady.visible)} className={buttonClass}>
+              {scanReady.visible ? 'Hide scan' : 'Show scan'}
             </button>
           </>
         )}
-        {/* After an unreadable file the stored scan (if any) is still there; this is the way to clear it. */}
-        {(scanReady || scanStatus.kind === 'error') && !aligning && (
+        {/* While a scan loads, this is the way out of one that is slow or stuck. After an unreadable file the stored scan (if any) is still there; this clears it. */}
+        {(scanReady || scanStatus.kind === 'error' || scanStatus.kind === 'loading') && !aligning && (
           <button onClick={() => void scanRef.current?.remove()} className={buttonClass}>
             Remove scan
           </button>
         )}
         <span role="status" className={`min-w-0 wrap-break-word ${scanStatus.kind === 'error' ? 'text-amber-200' : 'text-neutral-400'}`}>
-          {scanStatusText(scanStatus)}
+          {scanLine.text}
+          {scanLine.warning && <span className="text-amber-200">{scanLine.warning}</span>}
         </span>
       </div>
       {/* Mounted all the time (see the banner); while empty, -mt-2 cancels the gap it would add. */}

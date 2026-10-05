@@ -12,6 +12,7 @@ import {
   startAlign,
   toRoom,
   type Alignment,
+  type AlignState,
 } from './alignment';
 
 const dims = { length: 4, width: 3.5, height: 2.6 };
@@ -134,6 +135,97 @@ describe('alignment', () => {
     expect((caught as AlignError).message).toMatch(/wrong side/);
     expect((caught as AlignError).retry).toEqual({ ...afterFloor, corners: [] });
     expect(afterBack).toEqual({ ...afterFloor, corners: [scan({ x: dims.length, y: 0, z: 0 })] }); // the refused tap left the state alone
+  });
+
+  describe('which side of the wall the room is on', () => {
+    const floorCentre = { x: 2, y: 0, z: (0.5 + 1 + 3) / 3 }; // the centroid of floorTaps, in room coordinates
+    // Splats seen through a window, or floaters, reach 20 m past the right wall (z < 0), so their mean sits outside the room.
+    const meanOutside = { x: 2, y: 1.3, z: -3 };
+
+    it.each([
+      ['tilted', tilted],
+      ['y-down', yDown],
+    ])('records the centroid of the three floor taps in the corners state (%s scan)', (_name, make) => {
+      const scan = make();
+      const { state } = tapFloor(scan);
+      if (state.step !== 'corners') throw new Error('expected the corners step');
+      expectNear(state.floorCentre, scan(floorCentre));
+    });
+
+    it.each([
+      ['tilted', tilted],
+      ['y-down', yDown],
+    ])('accepts perfect taps when the inside point lies outside the room (%s scan)', (_name, make) => {
+      const scan = make();
+      const inside = scan(meanOutside);
+      let state = startAlign();
+      for (const p of floorTaps) state = alignTap(state, scan(p), inside, dims);
+      state = alignTap(state, scan({ x: 0, y: 0, z: 0 }), inside, dims);
+      state = alignTap(state, scan({ x: dims.length, y: 0, z: 0 }), inside, dims);
+      expect(state.step).toBe('nudge');
+      if (state.step !== 'nudge') return;
+      for (const p of [{ x: 0, y: 0, z: 0 }, { x: 4, y: 2.6, z: 3.5 }, { x: 1.2, y: 1.1, z: 2.9 }]) {
+        expectNear(toRoom(state.alignment, scan(p)), p);
+      }
+    });
+
+    it('judges the side from the floor taps, whatever the inside point says', () => {
+      const scan = tilted();
+      const front = scan({ x: 0, y: 0, z: 0 });
+      const back = scan({ x: dims.length, y: 0, z: 0 });
+      const { state } = tapFloor(scan);
+      if (state.step !== 'corners') throw new Error('expected the corners step');
+      const finish = (from: AlignState, inside: Vec3) => alignTap(alignTap(from, front, inside, dims), back, inside, dims);
+      // The same corner taps, the same inside point: only the floor centre differs, and so does the verdict.
+      expect(finish(state, scan(meanOutside)).step).toBe('nudge');
+      expect(() => finish({ ...state, floorCentre: scan({ x: 2, y: 0, z: -1 }) }, scan(meanOutside))).toThrow(/wrong side/);
+      // And the inside point is not consulted for the side: moving it across the wall changes nothing.
+      expect(finish(state, scan(roomCentre)).step).toBe('nudge');
+      expect(() => finish({ ...state, floorCentre: scan({ x: 2, y: 0, z: -1 }) }, scan(roomCentre))).toThrow(/wrong side/);
+    });
+
+    it.each([
+      ['tilted', tilted],
+      ['y-down', yDown],
+    ])('still catches the left wall tapped as the right wall (%s scan), even with the inside point outside the room', (_name, make) => {
+      const scan = make();
+      const inside = scan(meanOutside);
+      let state = startAlign();
+      for (const p of floorTaps) state = alignTap(state, scan(p), inside, dims);
+      state = alignTap(state, scan({ x: 0, y: 0, z: dims.width }), inside, dims); // front-left corner
+      expect(() => alignTap(state, scan({ x: dims.length, y: 0, z: dims.width }), inside, dims)).toThrow(/wrong side/);
+    });
+
+    it('still catches the back corner tapped first, even with the inside point outside the room', () => {
+      const scan = tilted();
+      const inside = scan(meanOutside);
+      let state = startAlign();
+      for (const p of floorTaps) state = alignTap(state, scan(p), inside, dims);
+      state = alignTap(state, scan({ x: dims.length, y: 0, z: 0 }), inside, dims);
+      expect(() => alignTap(state, scan({ x: 0, y: 0, z: 0 }), inside, dims)).toThrow(/wrong side/);
+    });
+
+    it('keeps the floor centre in the state it offers to retry from, with the same message', () => {
+      const scan = tilted();
+      const { state, inside } = tapFloor(scan);
+      if (state.step !== 'corners') throw new Error('expected the corners step');
+      const afterBack = alignTap(state, scan({ x: dims.length, y: 0, z: 0 }), inside, dims);
+      let caught: unknown;
+      try {
+        alignTap(afterBack, scan({ x: 0, y: 0, z: 0 }), inside, dims);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(AlignError);
+      expect((caught as AlignError).message).toBe("The room came out on the wrong side. Tap the right wall's front corner first, then its back corner.");
+      const retry = (caught as AlignError).retry;
+      expect(retry).toEqual({ ...state, corners: [] });
+      if (retry?.step !== 'corners') throw new Error('expected a corners retry');
+      expect(retry.floorCentre).toEqual(state.floorCentre);
+      // And the retry carries on to a good alignment from there.
+      const again = alignTap(alignTap(retry, scan({ x: 0, y: 0, z: 0 }), inside, dims), scan({ x: dims.length, y: 0, z: 0 }), inside, dims);
+      expect(again.step).toBe('nudge');
+    });
   });
 });
 

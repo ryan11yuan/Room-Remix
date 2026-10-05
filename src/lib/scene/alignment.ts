@@ -43,8 +43,9 @@ export function toRoom(a: Alignment, p: Vec3): Vec3 {
 }
 
 /**
- * Rotation that levels the floor through three tapped points. `inside` is a point inside the room
- * (e.g. the scan's bounding-box centre); the floor normal is turned toward it.
+ * Rotation that levels the floor through three tapped points. `inside` is a point off the floor plane on the room side
+ * (e.g. the mean of the splat centres); the floor normal is turned toward it. Only its height above the floor matters, so
+ * it may sit outside the walls.
  */
 export function levelFromFloor(points: [Vec3, Vec3, Vec3], inside: Vec3): Alignment['level'] {
   const [a, b, c] = points.map(vec);
@@ -97,13 +98,14 @@ export function nudgeAlignment(
 
 export type AlignState =
   | { step: 'floor'; floor: Vec3[] }
-  | { step: 'corners'; level: Alignment['level']; floorPoint: Vec3; corners: Vec3[] }
+  | { step: 'corners'; level: Alignment['level']; floorPoint: Vec3; floorCentre: Vec3; corners: Vec3[] }
   | { step: 'nudge'; alignment: Alignment };
 
 export const startAlign = (): AlignState => ({ step: 'floor', floor: [] });
 
 /**
- * Take one tap on the scan; `inside` is a point inside the room (see `levelFromFloor`).
+ * Take one tap on the scan; `inside` is a point inside the room (see `levelFromFloor`), used only to tell which way is up.
+ * Which side of the right wall the room lies on is judged from the three floor taps, which are inside the room by construction.
  * Throws AlignError (the given state is not changed) when the tap can't be used.
  */
 export function alignTap(state: AlignState, point: Vec3, inside: Vec3, dims: Dims): AlignState {
@@ -112,14 +114,20 @@ export function alignTap(state: AlignState, point: Vec3, inside: Vec3, dims: Dim
       const floor = [...state.floor, point];
       if (floor.length < 3) return { step: 'floor', floor };
       const level = levelFromFloor([floor[0], floor[1], floor[2]], inside);
-      return { step: 'corners', level, floorPoint: floor[0], corners: [] };
+      const floorCentre = {
+        x: (floor[0].x + floor[1].x + floor[2].x) / 3,
+        y: (floor[0].y + floor[1].y + floor[2].y) / 3,
+        z: (floor[0].z + floor[1].z + floor[2].z) / 3,
+      };
+      return { step: 'corners', level, floorPoint: floor[0], floorCentre, corners: [] };
     }
     case 'corners': {
       const corners = [...state.corners, point];
       if (corners.length < 2) return { ...state, corners };
       const alignment = alignFromCorners(state.level, state.floorPoint, corners[0], corners[1], dims);
-      // The room lies on +z of its right wall. If the inside landed on the other side, the wall or the tap order was wrong.
-      if (toRoom(alignment, inside).z <= 0) {
+      // The room lies on +z of its right wall. The floor taps are in the room, so if their centre landed on the other side,
+      // the wall or the tap order was wrong. (The scan's own bounds can't decide this: windows and floaters push them outside.)
+      if (toRoom(alignment, state.floorCentre).z <= 0) {
         throw new AlignError("The room came out on the wrong side. Tap the right wall's front corner first, then its back corner.", {
           ...state,
           corners: [],

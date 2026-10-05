@@ -57,14 +57,22 @@ export function loadScan(key = CURRENT_SCAN, factory: IDBFactory = browserIndexe
   return withStore(factory, 'readonly', async (store) => ((await done(store.get(key))) as StoredScan | undefined) ?? null);
 }
 
+/**
+ * Give the stored scan an alignment, but only if it is the scan the caller means: its `savedAt` must equal
+ * `expectedSavedAt`. Reads and writes in one transaction, so a scan saved in between can't receive the old one's alignment.
+ * Resolves true when written, false when skipped (nothing stored, or a different scan); rejects when storage fails.
+ */
 export function updateScanAlignment(
   alignment: Alignment | null,
+  expectedSavedAt: number,
   key = CURRENT_SCAN,
   factory: IDBFactory = browserIndexedDB(),
-): Promise<void> {
+): Promise<boolean> {
   return withStore(factory, 'readwrite', async (store) => {
     const existing = (await done(store.get(key))) as StoredScan | undefined;
-    if (existing) await done(store.put({ ...existing, alignment }, key));
+    if (!existing || existing.savedAt !== expectedSavedAt) return false;
+    await done(store.put({ ...existing, alignment }, key));
+    return true;
   });
 }
 

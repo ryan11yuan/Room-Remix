@@ -20,19 +20,40 @@ describe('scanStore', () => {
     expect(loaded?.alignment).toBeNull();
   });
 
-  it('updates the alignment without touching the bytes', async () => {
+  it('updates the alignment without touching the bytes when the stored scan is the expected one', async () => {
     const factory = new IDBFactory();
     await saveScan(scan(), undefined, factory);
-    await updateScanAlignment(alignment, undefined, factory);
+    expect(await updateScanAlignment(alignment, scan().savedAt, undefined, factory)).toBe(true);
     const loaded = await loadScan(undefined, factory);
     expect(loaded?.alignment).toEqual(alignment);
+    expect(loaded?.savedAt).toBe(scan().savedAt);
     expect(Array.from(new Uint8Array(loaded!.bytes))).toEqual([1, 2, 3, 250]);
   });
 
-  it('ignores an alignment update when nothing is stored', async () => {
+  it('skips the alignment update when a different scan is stored', async () => {
     const factory = new IDBFactory();
-    await updateScanAlignment(alignment, undefined, factory);
+    await saveScan({ ...scan(), savedAt: 2 }, undefined, factory);
+    expect(await updateScanAlignment(alignment, 1, undefined, factory)).toBe(false);
+    const loaded = await loadScan(undefined, factory);
+    expect(loaded?.alignment).toBeNull();
+    expect(loaded?.savedAt).toBe(2);
+  });
+
+  it('skips the alignment update when nothing is stored, and stores nothing', async () => {
+    const factory = new IDBFactory();
+    expect(await updateScanAlignment(alignment, 1, undefined, factory)).toBe(false);
     expect(await loadScan(undefined, factory)).toBeNull();
+  });
+
+  it('rejects when the alignment cannot be written', async () => {
+    const factory = new IDBFactory();
+    await saveScan(scan(), undefined, factory);
+    const unstorable = { level: [0, 0, 0, 1], scale: () => {}, yaw: 0, offset: { x: 0, y: 0, z: 0 } } as unknown as Alignment;
+    const error = await updateScanAlignment(unstorable, 1, undefined, factory).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(Error);
   });
 
   it('deletes the scan', async () => {

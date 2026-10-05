@@ -1,18 +1,18 @@
-import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { defaultRoom } from '@/lib/room/roomState';
 import type { Dims, Vec3 } from '@/lib/room/types';
 import type { Alignment } from './alignment';
 import type { RoomScene } from './RoomScene';
-import { ScanController, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from './ScanController';
+import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from './ScanController';
 import { deleteScan, loadScan, saveScan, updateScanAlignment } from './scanStore';
 
-type Loaded = { count: number; min: Vec3; max: Vec3 };
+type Loaded = { count: number; min: Vec3; max: Vec3; centre: Vec3 };
 type FakeLayer = { crops: Array<Dims | null>; alignments: Array<Alignment | null>; visible: boolean[]; disposed: boolean };
 
 // Spark can't run in node, so the layer is a recorder; the controller reaches it only through a dynamic import.
 const h = vi.hoisted(() => ({
   layers: [] as FakeLayer[],
-  load: (async () => ({ count: 0, min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } })) as (
+  load: (async () => ({ count: 0, min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 }, centre: { x: 0, y: 0, z: 0 } })) as (
     bytes: ArrayBuffer,
     name: string,
   ) => Promise<Loaded>,
@@ -48,7 +48,7 @@ vi.mock('./SplatLayer', () => ({
 vi.mock('./scanStore');
 
 const room = defaultRoom(); // 4 x 3.5 x 2.6 m
-const good: Loaded = { count: 1000, min: { x: 0, y: 0, z: 0 }, max: { x: 4, y: 2, z: 2 } };
+const good: Loaded = { count: 1000, min: { x: 0, y: 0, z: 0 }, max: { x: 4, y: 2, z: 2 }, centre: { x: 2, y: 1, z: 1 } };
 const file = (name: string) => ({ name, arrayBuffer: async () => new ArrayBuffer(8) }) as unknown as File;
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const last = <T>(items: T[]): T => items[items.length - 1];
@@ -62,7 +62,8 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function setup() {
+/** `onStatus` runs inside each status report, so a test can act at an exact moment (before the first await of a load, say). */
+function setup(onStatus?: (status: ScanStatus, scans: ScanController) => void) {
   const scene = {
     renderer: {},
     addLayer: vi.fn(),
@@ -77,7 +78,10 @@ function setup() {
   const statuses: ScanStatus[] = [];
   const steps: Array<[ScanUiStep, number, string | null]> = [];
   const scans = new ScanController(scene as unknown as RoomScene, {
-    status: (s) => statuses.push(s),
+    status: (s) => {
+      statuses.push(s);
+      onStatus?.(s, scans);
+    },
     step: (step, taps, hint) => steps.push([step, taps, hint]),
   });
   return { scene, scans, statuses, steps };
@@ -94,16 +98,37 @@ async function alignedScan() {
   return t;
 }
 
+/** An in-memory localStorage (the tests run in node, which has none). `failing` makes every access throw, as a blocked one does. */
+function fakeLocalStorage(failing = false) {
+  const items = new Map<string, string>();
+  const guard = () => {
+    if (failing) throw new DOMException('blocked', 'SecurityError');
+  };
+  return {
+    items,
+    getItem: (k: string) => (guard(), items.get(k) ?? null),
+    setItem: (k: string, v: string) => (guard(), void items.set(k, v)),
+    removeItem: (k: string) => (guard(), void items.delete(k)),
+  };
+}
+const RESTORING = 'room-remix:restoring';
+
 let warn: MockInstance<typeof console.warn>;
+let storage: ReturnType<typeof fakeLocalStorage>;
 beforeEach(() => {
   vi.resetAllMocks();
+  storage = fakeLocalStorage();
+  vi.stubGlobal('localStorage', storage);
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   h.layers.length = 0;
   h.load = async () => good;
   vi.mocked(loadScan).mockResolvedValue(null);
   vi.mocked(saveScan).mockResolvedValue(undefined);
-  vi.mocked(updateScanAlignment).mockResolvedValue(undefined);
+  vi.mocked(updateScanAlignment).mockResolvedValue(true);
   vi.mocked(deleteScan).mockResolvedValue(undefined);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('ScanController opening a file', () => {
@@ -111,7 +136,15 @@ describe('ScanController opening a file', () => {
     const { scans, scene, statuses } = setup();
     await scans.open(file('room.spz'), room);
     expect(statuses[0]).toEqual({ kind: 'loading', fileName: 'room.spz' });
-    expect(last(statuses)).toEqual({ kind: 'ready', fileName: 'room.spz', count: 1000, aligned: false, stored: true, visible: true });
+    expect(last(statuses)).toEqual({
+      kind: 'ready',
+      fileName: 'room.spz',
+      count: 1000,
+      aligned: false,
+      stored: true,
+      alignmentKept: true,
+      visible: true,
+    });
     expect(saveScan).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'room.spz', alignment: null }));
     expect(h.layers[0].crops).toEqual([]); // unaligned: no crop
     expect(last(scene.setShellStyle.mock.calls)[0]).toBe('tinted');
@@ -190,6 +223,8 @@ describe('ScanController opening a file', () => {
     ['no splats', { ...good, count: 0 }],
     ['infinite bounds', { ...good, min: { x: Infinity, y: Infinity, z: Infinity } }],
     ['NaN bounds', { ...good, max: { x: NaN, y: 2, z: 2 } }],
+    ['a NaN centre', { ...good, centre: { x: 2, y: NaN, z: 1 } }],
+    ['an infinite centre', { ...good, centre: { x: 2, y: 1, z: Infinity } }],
   ])('treats a scan with %s as unreadable', async (_name, loaded) => {
     const { scans, scene, statuses } = setup();
     h.load = async () => loaded;
@@ -267,7 +302,15 @@ describe('ScanController restore', () => {
     vi.mocked(loadScan).mockResolvedValue({ fileName: 'kept.spz', bytes: new ArrayBuffer(8), alignment, savedAt: 1 });
     const { scans, scene, statuses } = setup();
     await scans.restore(room);
-    expect(last(statuses)).toEqual({ kind: 'ready', fileName: 'kept.spz', count: 1000, aligned: true, stored: true, visible: true });
+    expect(last(statuses)).toEqual({
+      kind: 'ready',
+      fileName: 'kept.spz',
+      count: 1000,
+      aligned: true,
+      stored: true,
+      alignmentKept: true,
+      visible: true,
+    });
     expect(h.layers[0].alignments).toEqual([alignment]);
     expect(h.layers[0].crops).toEqual([room.dims]);
     expect(last(scene.setShellStyle.mock.calls)[0]).toBe('outline');
@@ -383,7 +426,8 @@ describe('ScanController aligning', () => {
   it('saves the alignment on Done, crops to the room and keeps the outline', async () => {
     const { scans, scene, steps, statuses } = await alignedScan();
     await scans.finish(room);
-    expect(updateScanAlignment).toHaveBeenCalledWith(last(h.layers[0].alignments));
+    const savedAt = vi.mocked(saveScan).mock.calls[0][0].savedAt; // the write is for the record this scan was saved as
+    expect(updateScanAlignment).toHaveBeenCalledWith(last(h.layers[0].alignments), savedAt);
     expect(h.layers[0].crops).toEqual([room.dims]);
     expect(scene.setScanTargets).toHaveBeenLastCalledWith([]);
     expect(scene.setShellStyle).toHaveBeenLastCalledWith('outline');
@@ -392,23 +436,45 @@ describe('ScanController aligning', () => {
     expect(last(statuses)).toMatchObject({ kind: 'ready', aligned: true });
   });
 
-  it('still applies the alignment this session when it cannot be saved, and says it is not kept', async () => {
+  it('still applies the alignment this session when it cannot be saved, and says only the alignment is not kept', async () => {
     vi.mocked(updateScanAlignment).mockRejectedValue(new Error('quota'));
     const { scans, statuses } = await alignedScan();
     await scans.finish(room);
-    expect(last(statuses)).toMatchObject({ aligned: true, stored: false });
+    // The scan itself is in storage; only its alignment isn't.
+    expect(last(statuses)).toMatchObject({ aligned: true, stored: true, alignmentKept: false });
     expect(last(h.layers[0].alignments)).not.toBeNull();
+  });
+
+  it('says the alignment is not kept when the compare-and-set skipped it (a different scan is stored)', async () => {
+    vi.mocked(updateScanAlignment).mockResolvedValue(false);
+    const { scans, statuses } = await alignedScan();
+    await scans.finish(room);
+    expect(last(statuses)).toMatchObject({ aligned: true, stored: true, alignmentKept: false });
+    expect(last(h.layers[0].alignments)).not.toBeNull();
+  });
+
+  it('says the alignment is kept again once a later Done writes it', async () => {
+    vi.mocked(updateScanAlignment).mockRejectedValueOnce(new Error('quota'));
+    const { scans, statuses } = await alignedScan();
+    await scans.finish(room);
+    expect(last(statuses)).toMatchObject({ alignmentKept: false });
+    scans.startAlignment();
+    for (const p of [{ x: 0, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }, { x: 0, y: 0, z: 2 }]) scans.tap(p, room);
+    scans.tap({ x: 0, y: 0, z: 0 }, room);
+    scans.tap({ x: 4, y: 0, z: 0 }, room);
+    await scans.finish(room);
+    expect(last(statuses)).toMatchObject({ aligned: true, stored: true, alignmentKept: true });
   });
 
   it('shows the scan as aligned before it waits for the alignment to be saved', async () => {
     const { scans, statuses } = await alignedScan();
-    const write = deferred<void>();
+    const write = deferred<boolean>();
     vi.mocked(updateScanAlignment).mockReturnValue(write.promise);
     const finishing = scans.finish(room);
-    expect(last(statuses)).toMatchObject({ aligned: true, stored: true }); // nothing awaited yet
-    write.resolve();
+    expect(last(statuses)).toMatchObject({ aligned: true, stored: true, alignmentKept: true }); // nothing awaited yet
+    write.resolve(true);
     await finishing;
-    expect(last(statuses)).toMatchObject({ aligned: true, stored: true });
+    expect(last(statuses)).toMatchObject({ aligned: true, stored: true, alignmentKept: true });
   });
 
   it('does not write an alignment onto a stored scan that is not the one on screen', async () => {
@@ -704,5 +770,367 @@ describe('ScanController remove', () => {
     await scans.open(file('b.spz'), room);
     expect(h.layers).toHaveLength(2);
     expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+  });
+});
+
+describe('ScanController which way is up and which side is in', () => {
+  it('takes "up" from the mean splat centre, not the middle of the scan box', async () => {
+    // The box reaches far below the floor (its middle is under it) while most splats, and so the mean, are above it.
+    h.load = async () => ({ ...good, min: { x: -5, y: -10, z: 0 }, max: { x: 9, y: 2, z: 2 }, centre: { x: 2, y: 1, z: 1 } });
+    const { steps } = await alignedScan();
+    expect(last(steps)).toEqual(['nudge', 0, null]);
+    expect(last(h.layers[0].alignments)?.level[3]).toBeCloseTo(1, 9); // already level: the floor normal kept pointing up
+  });
+
+  it('accepts perfect taps in a scan whose box reaches 20 m beyond the right wall', async () => {
+    h.load = async () => ({ ...good, min: { x: 0, y: 0, z: -20 }, max: { x: 4, y: 2, z: 2 }, centre: { x: 2, y: 1, z: 1 } });
+    const { scans, steps } = await alignedScan();
+    expect(last(steps)).toEqual(['nudge', 0, null]);
+    await scans.finish(room);
+    expect(updateScanAlignment).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses the back corner tapped first', async () => {
+    h.load = async () => ({ ...good, min: { x: 0, y: 0, z: -20 }, max: { x: 4, y: 2, z: 2 } });
+    const { scans, steps } = setup();
+    await scans.open(file('room.spz'), room);
+    scans.startAlignment();
+    for (const p of [{ x: 0, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }, { x: 0, y: 0, z: 2 }]) scans.tap(p, room);
+    scans.tap({ x: 4, y: 0, z: 0 }, room);
+    scans.tap({ x: 0, y: 0, z: 0 }, room);
+    expect(last(steps)).toEqual(['corners', 0, expect.stringContaining('wrong side')]);
+  });
+});
+
+describe('ScanController storage follows the scan on screen', () => {
+  const quota = () => new Error('quota');
+
+  it('stops retrying once the scan being saved is Removed', async () => {
+    const firstSave = deferred<void>();
+    vi.mocked(saveScan).mockReturnValueOnce(firstSave.promise);
+    const { scans } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush();
+    await scans.remove(); // the user took the scan away while its first save was still running
+    expect(deleteScan).toHaveBeenCalledTimes(1); // remove() own delete
+    firstSave.reject(quota());
+    await opening;
+    expect(deleteScan).toHaveBeenCalledTimes(1); // keep() did not delete again
+    expect(saveScan).toHaveBeenCalledTimes(1); // and did not store the removed scan again
+  });
+
+  it('does not let a failing save of A touch storage after B replaced it, and writes the alignment of B onto B', async () => {
+    const now = vi.spyOn(Date, 'now');
+    const firstSave = deferred<void>();
+    vi.mocked(saveScan).mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined);
+    const { scans, statuses } = setup();
+    now.mockReturnValueOnce(1000);
+    const openingA = scans.open(file('a.spz'), room);
+    await flush();
+    now.mockReturnValueOnce(2000);
+    await scans.open(file('b.spz'), room); // replaced while the first save is still running; B is saved fine
+    expect(vi.mocked(saveScan).mock.calls.map(([s]) => [s.fileName, s.savedAt])).toEqual([['a.spz', 1000], ['b.spz', 2000]]);
+    firstSave.reject(quota()); // now the save of A fails
+    await openingA;
+    expect(deleteScan).not.toHaveBeenCalled(); // keep() of A left storage alone: it would have deleted B
+    expect(saveScan).toHaveBeenCalledTimes(2); // and did not store A again
+    expect(last(statuses)).toMatchObject({ fileName: 'b.spz', stored: true });
+    // Done on B writes its alignment, matched on the savedAt of B
+    scans.startAlignment();
+    for (const p of [{ x: 0, y: 0, z: 0 }, { x: 4, y: 0, z: 0 }, { x: 0, y: 0, z: 2 }]) scans.tap(p, room);
+    scans.tap({ x: 0, y: 0, z: 0 }, room);
+    scans.tap({ x: 4, y: 0, z: 0 }, room);
+    await scans.finish(room);
+    expect(updateScanAlignment).toHaveBeenCalledTimes(1);
+    expect(updateScanAlignment).toHaveBeenCalledWith(expect.objectContaining({ scale: expect.any(Number) }), 2000);
+    now.mockRestore();
+  });
+
+  it('lets the save finish when the page is left mid-save (dispose does not move the storage intent)', async () => {
+    const firstSave = deferred<void>();
+    vi.mocked(saveScan).mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined);
+    const { scans, statuses } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush();
+    const before = statuses.length;
+    scans.dispose();
+    firstSave.reject(quota());
+    await opening;
+    expect(deleteScan).toHaveBeenCalledTimes(1);
+    expect(saveScan).toHaveBeenCalledTimes(2); // the retry landed
+    expect(statuses).toHaveLength(before); // and nothing was reported to the view that has gone
+  });
+
+  it('stops before the retry save when the scan is Removed while the delete is running', async () => {
+    const deleting = deferred<void>();
+    vi.mocked(saveScan).mockRejectedValueOnce(quota());
+    vi.mocked(deleteScan).mockReturnValueOnce(deleting.promise);
+    const { scans } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush(); // the first save failed and keep() is waiting on the delete
+    await scans.remove();
+    deleting.resolve();
+    await opening;
+    expect(saveScan).toHaveBeenCalledTimes(1); // no retry: that would put the removed scan back
+  });
+
+  it('still runs the retry for the scan that is on screen', async () => {
+    vi.mocked(saveScan).mockRejectedValueOnce(quota()).mockResolvedValue(undefined);
+    const { scans, statuses } = setup();
+    await scans.open(file('a.spz'), room);
+    expect(deleteScan).toHaveBeenCalledTimes(1);
+    expect(saveScan).toHaveBeenCalledTimes(2);
+    expect(last(statuses)).toMatchObject({ stored: true });
+  });
+});
+
+describe('ScanController Remove while a scan is loading', () => {
+  it('leaves a clean "none" state and never shows the scan that was loading', async () => {
+    const gate = deferred<Loaded>();
+    h.load = () => gate.promise;
+    const { scans, scene, statuses } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush();
+    expect(last(statuses)).toMatchObject({ kind: 'loading' });
+    await scans.remove();
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(h.layers[0].disposed).toBe(true);
+    gate.resolve(good); // the in-flight load finishes anyway
+    await opening;
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(saveScan).not.toHaveBeenCalled();
+    expect(last(scene.setShellStyle.mock.calls)[0]).toBe('tinted');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the load it abandoned then fails', async () => {
+    const gate = deferred<Loaded>();
+    h.load = () => gate.promise;
+    const { scans, statuses } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush();
+    await scans.remove();
+    gate.reject(new Error('Unable to determine file type'));
+    await opening;
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing when Remove comes while the file is still being read', async () => {
+    const read = deferred<ArrayBuffer>();
+    const slow = { name: 'a.spz', arrayBuffer: () => read.promise } as unknown as File;
+    const { scans, statuses } = setup();
+    const opening = scans.open(slow, room);
+    expect(last(statuses)).toMatchObject({ kind: 'loading' });
+    await scans.remove();
+    read.resolve(new ArrayBuffer(8));
+    await opening;
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(h.layers).toHaveLength(0);
+    expect(saveScan).not.toHaveBeenCalled();
+  });
+
+  it('shows nothing, and leaves no layer behind, when Remove comes before Spark has even been fetched', async () => {
+    // The first scan fetches Spark's chunk with a dynamic import: Remove has no layer to dispose yet.
+    let loadings = 0;
+    let removing: Promise<void> | undefined;
+    const { scans, scene, statuses } = setup((status, controller) => {
+      if (status.kind === 'loading' && ++loadings === 2) removing = controller.remove(); // 2nd report: show() has started
+    });
+    await scans.open(file('a.spz'), room);
+    await removing;
+    expect(h.layers).toHaveLength(0);
+    expect(scene.addLayer).not.toHaveBeenCalled();
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(saveScan).not.toHaveBeenCalled();
+  });
+
+  it('can open another scan afterwards, and the abandoned load landing late changes nothing', async () => {
+    const gate = deferred<Loaded>();
+    h.load = () => gate.promise;
+    const { scans, statuses } = setup();
+    const opening = scans.open(file('a.spz'), room);
+    await flush();
+    await scans.remove();
+    h.load = async () => good;
+    await scans.open(file('b.spz'), room);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+    gate.resolve(good);
+    await opening;
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+  });
+
+  it('abandons a restore that is still loading', async () => {
+    vi.mocked(loadScan).mockResolvedValue({ fileName: 'kept.spz', bytes: new ArrayBuffer(8), alignment: null, savedAt: 1 });
+    const gate = deferred<Loaded>();
+    h.load = () => gate.promise;
+    const { scans, statuses } = setup();
+    const restoring = scans.restore(room);
+    await flush();
+    expect(last(statuses)).toMatchObject({ kind: 'loading', fileName: 'kept.spz' });
+    await scans.remove();
+    gate.resolve(good);
+    await restoring;
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(deleteScan).toHaveBeenCalled();
+    expect(storage.items.has(RESTORING)).toBe(false);
+  });
+});
+
+describe('ScanController restore after a crash', () => {
+  const stored = { fileName: 'kept.spz', bytes: new ArrayBuffer(8), alignment: null, savedAt: 1 };
+
+  it('marks the restore as running while the stored scan opens, and clears the mark when it is ready', async () => {
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    let markedWhileOpening: string | undefined;
+    h.load = async () => {
+      markedWhileOpening = storage.items.get(RESTORING);
+      return good;
+    };
+    const { scans, statuses } = setup();
+    await scans.restore(room);
+    expect(markedWhileOpening).toBe('1');
+    expect(storage.items.has(RESTORING)).toBe(false);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
+  });
+
+  it('clears the mark when the stored scan cannot be read, and says so in its own words', async () => {
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    h.load = async () => {
+      throw new Error('Unable to determine file type');
+    };
+    const { scans, statuses } = setup();
+    await scans.restore(room);
+    expect(storage.items.has(RESTORING)).toBe(false);
+    expect(last(statuses)).toEqual({ kind: 'error', message: "Couldn't read your saved scan. Load it again or remove it." });
+  });
+
+  it('keeps the file-picking message for a file the user picks', async () => {
+    h.load = async () => {
+      throw new Error('Unable to determine file type');
+    };
+    const { scans, statuses } = setup();
+    await scans.open(file('notes.txt'), room);
+    expect(last(statuses)).toEqual({ kind: 'error', message: "Couldn't read this scan. Use a .ply, .spz, .splat or .ksplat export." });
+  });
+
+  it('clears the mark when the page is left mid-restore', async () => {
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    const gate = deferred<Loaded>();
+    h.load = () => gate.promise;
+    const { scans } = setup();
+    const restoring = scans.restore(room);
+    await flush();
+    expect(storage.items.get(RESTORING)).toBe('1');
+    scans.dispose();
+    gate.resolve(good);
+    await restoring;
+    expect(storage.items.has(RESTORING)).toBe(false);
+  });
+
+  it('does not restore when the last restore never finished, says so, and clears the mark', async () => {
+    storage.items.set(RESTORING, '1'); // a tab that died while opening the stored scan
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    const { scans, statuses } = setup();
+    await scans.restore(room);
+    expect(loadScan).not.toHaveBeenCalled();
+    expect(h.layers).toHaveLength(0);
+    expect(last(statuses)).toEqual({ kind: 'error', message: "Your saved scan didn't open last time. Load it again or remove it." });
+    expect(storage.items.has(RESTORING)).toBe(false);
+  });
+
+  it('tries again at the start after that, and Remove still works from the notice', async () => {
+    storage.items.set(RESTORING, '1');
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    const first = setup();
+    await first.scans.restore(room);
+    const second = setup();
+    await second.scans.restore(room);
+    expect(last(second.statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
+    await first.scans.remove();
+    expect(deleteScan).toHaveBeenCalled();
+    expect(last(first.statuses)).toEqual({ kind: 'none' });
+  });
+
+  it('still reports nothing synchronously when it finds the mark', () => {
+    storage.items.set(RESTORING, '1');
+    const { scans, statuses } = setup();
+    void scans.restore(room);
+    expect(statuses).toEqual([]);
+  });
+
+  it('leaves a file opened meanwhile alone when it finds the mark', async () => {
+    storage.items.set(RESTORING, '1');
+    const { scans, statuses } = setup();
+    const restoring = scans.restore(room);
+    await scans.open(file('new.spz'), room);
+    await restoring;
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'new.spz' });
+  });
+
+  it('works as before when localStorage is blocked', async () => {
+    vi.stubGlobal('localStorage', fakeLocalStorage(true));
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    const { scans, statuses } = setup();
+    await scans.restore(room);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
+  });
+
+  it('works as before when there is no localStorage at all', async () => {
+    vi.stubGlobal('localStorage', undefined);
+    vi.mocked(loadScan).mockResolvedValue(stored);
+    const { scans, statuses } = setup();
+    await scans.restore(room);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
+  });
+
+  it('does not set the mark when there is nothing stored', async () => {
+    const { scans } = setup();
+    await scans.restore(room);
+    expect(storage.items.has(RESTORING)).toBe(false);
+  });
+});
+
+describe('scanStatusParts', () => {
+  const ready: Extract<ScanStatus, { kind: 'ready' }> = {
+    kind: 'ready',
+    fileName: 'room.spz',
+    count: 1234,
+    aligned: true,
+    stored: true,
+    alignmentKept: true,
+    visible: true,
+  };
+
+  it('says nothing for no scan, and names the file while it loads', () => {
+    expect(scanStatusParts({ kind: 'none' })).toEqual({ text: '', warning: null });
+    expect(scanStatusParts({ kind: 'loading', fileName: 'room.spz' })).toEqual({ text: 'Loading room.spz…', warning: null });
+  });
+
+  it('has no warning when the scan and its alignment are kept', () => {
+    expect(scanStatusParts(ready)).toEqual({ text: `room.spz: ${(1234).toLocaleString()} splats`, warning: null });
+  });
+
+  it('says the scan is only kept for this page when it is not stored', () => {
+    expect(scanStatusParts({ ...ready, stored: false }).warning).toBe(' · only kept until you leave this page');
+  });
+
+  it('says only the alignment is not kept when the scan is stored but its alignment is not', () => {
+    expect(scanStatusParts({ ...ready, alignmentKept: false }).warning).toBe(' · alignment only kept until you leave this page');
+  });
+
+  it('does not repeat itself when neither is kept: the scan warning covers it', () => {
+    expect(scanStatusParts({ ...ready, stored: false, alignmentKept: false }).warning).toBe(' · only kept until you leave this page');
+  });
+
+  it('keeps "not aligned yet" in the main text, not the warning', () => {
+    expect(scanStatusParts({ ...ready, aligned: false })).toEqual({
+      text: `room.spz: ${(1234).toLocaleString()} splats · not aligned yet`,
+      warning: null,
+    });
+  });
+
+  it('passes an error message through', () => {
+    expect(scanStatusParts({ kind: 'error', message: 'No.' })).toEqual({ text: 'No.', warning: null });
   });
 });

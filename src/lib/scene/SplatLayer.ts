@@ -14,9 +14,44 @@ const CROP_MARGIN = 0.3; // metres of scan kept beyond the room box (walls are r
 const SPARK_IDLE_POLL_MS = 50; // how often dispose() re-checks whether Spark's sort has finished
 const SPARK_IDLE_GIVE_UP_MS = 5000; // after this long, dispose Spark anyway (a sort that threw leaves `sorting` stuck on)
 
-const plain = (v: THREE.Vector3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
-const isFiniteBox = (box: THREE.Box3): boolean =>
-  [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite);
+/** What load() reports about a scan, in the scan's own coordinates (before any alignment). */
+export type SplatInfo = {
+  count: number;
+  min: Vec3; // the box around all splat centres
+  max: Vec3;
+  centre: Vec3; // the mean of the splat centres: with mostly room, it sits in or near the room, unlike the box middle that a few far floaters drag out
+};
+
+/**
+ * One pass over the splat centres for the box and the mean. Null when there are no splats or any centre isn't a finite
+ * number (a NaN or infinite centre poisons the box and the mean, and would make the framing and the alignment NaN).
+ */
+function measure(mesh: SplatMesh): SplatInfo | null {
+  const count = mesh.packedSplats?.numSplats ?? 0;
+  if (count === 0) return null;
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let sumX = 0, sumY = 0, sumZ = 0;
+  let visited = 0;
+  mesh.packedSplats?.forEachSplat((_index, c) => {
+    minX = Math.min(minX, c.x); // Math.min and max carry a NaN through, which the finiteness check below then catches
+    minY = Math.min(minY, c.y);
+    minZ = Math.min(minZ, c.z);
+    maxX = Math.max(maxX, c.x);
+    maxY = Math.max(maxY, c.y);
+    maxZ = Math.max(maxZ, c.z);
+    sumX += c.x;
+    sumY += c.y;
+    sumZ += c.z;
+    visited++;
+  });
+  if (visited === 0) return null;
+  const centre = { x: sumX / visited, y: sumY / visited, z: sumZ / visited };
+  const min = { x: minX, y: minY, z: minZ };
+  const max = { x: maxX, y: maxY, z: maxZ };
+  const all = [...Object.values(min), ...Object.values(max), ...Object.values(centre)];
+  return all.every(Number.isFinite) ? { count, min, max, centre } : null;
+}
 
 /** A phone scan of the room drawn by Spark inside the three.js scene. Browser only. */
 export class SplatLayer {
@@ -31,6 +66,11 @@ export class SplatLayer {
   constructor(renderer: THREE.WebGLRenderer) {
     this.spark = new SparkRenderer({ renderer });
     this.group.name = 'splat-layer';
+    // Spark draws every splat with one transparent mesh (the SparkRenderer), and three.js sorts transparent objects back to
+    // front by their bounding-sphere depth, which for Spark's is the world origin. Whenever the camera puts that origin
+    // behind the rays (they don't write depth), the splats would blend over the rays and hide them. A Group's renderOrder
+    // applies to its whole subtree and the transparent list sorts by it first, so the scan always draws before the rays.
+    this.group.renderOrder = -1;
     this.group.add(this.spark);
   }
 
@@ -38,18 +78,16 @@ export class SplatLayer {
    * Parse a scan file kept on this device. Rejects if Spark can't read the file or it has no splats, or if a newer
    * load() or dispose() came first; in every case the current scan, if any, stays and nothing is left behind.
    */
-  async load(bytes: ArrayBuffer, fileName: string): Promise<{ count: number; min: Vec3; max: Vec3 }> {
+  async load(bytes: ArrayBuffer, fileName: string): Promise<SplatInfo> {
     const id = ++this.loadId;
     const mesh = new SplatMesh({ fileBytes: bytes, fileName, raycastable: true });
     mesh.matrixAutoUpdate = false; // the alignment matrix is set directly
-    let count: number;
-    let box: THREE.Box3;
+    let info: SplatInfo | null;
     try {
       await mesh.initialized;
       if (this.disposed || id !== this.loadId) throw new Error('Scan load superseded');
-      count = mesh.packedSplats?.numSplats ?? 0;
-      box = mesh.getBoundingBox(true);
-      if (count === 0 || !isFiniteBox(box)) throw new Error('Scan has no splats'); // an empty box is ±Infinity
+      info = measure(mesh);
+      if (!info) throw new Error('Scan has no splats');
     } catch (error) {
       mesh.dispose();
       throw error;
@@ -58,7 +96,7 @@ export class SplatLayer {
     this.mesh = mesh;
     this.applyAlignment();
     this.group.add(mesh);
-    return { count, min: plain(box.min), max: plain(box.max) };
+    return info;
   }
 
   get targets(): THREE.Object3D[] {
