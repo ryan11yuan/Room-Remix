@@ -22,8 +22,8 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   ceiling: 'Ceiling',
   wallX0: 'Front wall',
   wallX1: 'Back wall',
-  wallZ0: 'Left wall',
-  wallZ1: 'Right wall',
+  wallZ0: 'Right wall',
+  wallZ1: 'Left wall',
 };
 
 const FURNISHING_LABELS: Record<Furnishing, string> = {
@@ -137,7 +137,7 @@ export function RoomForm() {
 
       <Section title="Speaker and listener (metres)">
         <p className="text-xs text-neutral-500">
-          x runs along the length from the front wall, z across the width from the left wall, y is height.
+          x runs from the front wall toward the back, z from the right wall toward the left (as you face the front wall), y is height.
         </p>
         <div className="flex flex-wrap gap-3">
           <NumberField label="Speaker x" value={room.speaker.x} onChange={(v) => setSpeaker('x', v)} />

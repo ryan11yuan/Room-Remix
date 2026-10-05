@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { defaultRoom } from '@/lib/room/roomState';
 import { earResponse, HEAD_RADIUS, listenerYaw } from './binaural';
+import { computeImageSources } from './imageSource';
 
 describe('listenerYaw', () => {
   it('uses a fixed yaw when given', () => {
@@ -34,5 +36,18 @@ describe('earResponse', () => {
     expect(r.delayLeft).toBe(0);
     expect(r.delayRight).toBeGreaterThan(0);
     expect(r.gainRight[5]).toBeLessThan(1);
+  });
+});
+
+describe('wall sidedness', () => {
+  it('hears the left wall (wallZ1) in the left ear first for a listener facing the front wall', () => {
+    const room = defaultRoom(); // listener faces the speaker near the front wall (x = 0)
+    const yaw = listenerYaw(room.listener, room.speaker);
+    const flat = () => ({ alpha: [0, 0, 0, 0, 0, 0], fix: false });
+    const left = computeImageSources({ dims: room.dims, source: room.speaker, listener: room.listener, maxOrder: 1, lookup: flat })
+      .find((a) => a.hitSurfaces.join() === 'wallZ1')!;
+    const ears = earResponse(left.direction, yaw);
+    expect(ears.delayRight).toBeGreaterThan(0);
+    expect(ears.delayLeft).toBe(0);
   });
 });
