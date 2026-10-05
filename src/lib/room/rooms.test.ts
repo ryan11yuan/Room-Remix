@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultRoom } from './roomState';
 import {
   addRoom,
@@ -6,11 +6,13 @@ import {
   EMPTY_ROOMS,
   findRoom,
   importRoom,
+  isSavable,
   loadRooms,
   MAX_ROOMS,
   newRoomId,
   parseRooms,
   removeRoom,
+  ROOMS_BACKUP_KEY,
   ROOMS_KEY,
   saveRooms,
   selectRoom,
@@ -42,6 +44,10 @@ function fakeStorage(failing = false) {
   };
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('parseRooms and serializeRooms', () => {
   it('round-trips the rooms and which one is open', () => {
     const saved: RoomsFile = { ...file(['a', 100, 'Studio'], ['b', 200, 'Den']), currentId: 'b' };
@@ -54,7 +60,7 @@ describe('parseRooms and serializeRooms', () => {
     }
   });
 
-  it("drops a room it can't read and keeps the others", () => {
+  it("keeps the rooms it can read when other entries are broken", () => {
     const broken = { ...named('Broken'), dims: { length: 0, width: 3, height: 2.4 } };
     const json = JSON.stringify({
       v: 1,
@@ -70,6 +76,7 @@ describe('parseRooms and serializeRooms', () => {
     const parsed = parseRooms(json);
     expect(parsed.rooms.map((r) => [r.id, r.state.name])).toEqual([['a', 'Good']]);
     expect(parsed.currentId).toBe('a');
+    expect(parsed.unreadable).toHaveLength(1); // the room with a broken size is set aside, not thrown away
   });
 
   it("forgets an open room that isn't in the list", () => {
@@ -80,6 +87,25 @@ describe('parseRooms and serializeRooms', () => {
   it('treats a missing save time as the oldest', () => {
     const json = JSON.stringify({ v: 1, currentId: null, rooms: [{ id: 'a', updatedAt: 'yesterday', state: named('A') }] });
     expect(parseRooms(json).rooms[0].updatedAt).toBe(0);
+    const missing = JSON.stringify({ v: 1, currentId: null, rooms: [{ id: 'a', state: named('A') }] });
+    expect(parseRooms(missing).rooms[0].updatedAt).toBe(0);
+  });
+
+  it("sets aside a room it can't read and writes it back untouched", () => {
+    const fromNewerBuild = { id: 'n', updatedAt: 300, state: { ...named('Newer'), v: 2 } };
+    const json = JSON.stringify({ v: 1, currentId: 'a', rooms: [{ id: 'a', updatedAt: 100, state: named('Good') }, fromNewerBuild] });
+    const parsed = parseRooms(json);
+    expect(parsed.rooms.map((r) => r.id)).toEqual(['a']);
+    expect(parsed.unreadable).toEqual([fromNewerBuild]);
+    const changed = addRoom(removeRoom(upsertRoom(selectRoom(parsed, 'a'), 'a', named('Renamed'), 500), 'nope'), 'b', named('B'), 600)!;
+    expect(JSON.parse(serializeRooms(changed)).rooms).toContainEqual(fromNewerBuild);
+    expect(parseRooms(serializeRooms(changed)).unreadable).toEqual([fromNewerBuild]);
+    expect(parseRooms(serializeRooms(changed)).rooms.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('gives a fresh empty file each time', () => {
+    expect(parseRooms(null)).not.toBe(parseRooms(null));
+    expect(parseRooms(null)).not.toBe(EMPTY_ROOMS);
   });
 });
 
@@ -101,6 +127,11 @@ describe('picking a room', () => {
     expect(currentRoom({ ...saved, currentId: 'old' })?.id).toBe('old');
     expect(currentRoom(saved)?.id).toBe('new');
     expect(currentRoom(EMPTY_ROOMS)).toBeNull();
+  });
+
+  it('puts the room added later first when two were saved at the same moment', () => {
+    expect(sortedRooms(file(['first', 5, 'A'], ['second', 5, 'B'], ['third', 5, 'C'])).map((r) => r.id)).toEqual(['third', 'second', 'first']);
+    expect(currentRoom(file(['first', 5, 'A'], ['second', 5, 'B']))?.id).toBe('second');
   });
 });
 
@@ -159,6 +190,9 @@ describe('changing the rooms', () => {
     expect(uniqueName(file(['a', 1, 'My room'], ['b', 2, 'My room 2']), 'My room')).toBe('My room 3');
     const long = 'x'.repeat(80);
     expect(uniqueName(file(['a', 1, long]), long).length).toBeLessThanOrEqual(80);
+    expect(uniqueName(file(['a', 1, 'Den']), `${long} copy`)).toBe(long); // a free name is cut to the 80 a room name holds
+    expect(uniqueName(file(['a', 1, long]), `${long} copy`).length).toBeLessThanOrEqual(80);
+    expect(uniqueName(file(['a', 1, long]), `${long} copy`)).not.toBe(long);
   });
 });
 
@@ -203,6 +237,13 @@ describe('startRooms', () => {
       currentId: 'new',
     });
   });
+
+  it("keeps rooms it can't read when it makes the first room", () => {
+    const stored: RoomsFile = { rooms: [], currentId: null, unreadable: [{ id: 'n', state: 'from a newer build' }] };
+    const next = startRooms(stored, 'new', named('Fresh'), 500);
+    expect(next.rooms).toHaveLength(1);
+    expect(next.unreadable).toEqual(stored.unreadable);
+  });
 });
 
 describe('newRoomId', () => {
@@ -211,6 +252,28 @@ describe('newRoomId', () => {
     const b = newRoomId();
     expect(a).not.toBe('');
     expect(a).not.toBe(b);
+  });
+
+  it('still gives different ids where the browser has no randomUUID', () => {
+    vi.stubGlobal('crypto', undefined);
+    const a = newRoomId();
+    const b = newRoomId();
+    expect(a).not.toBe('');
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('isSavable', () => {
+  it('accepts a normal room', () => {
+    expect(isSavable(named('A'))).toBe(true);
+  });
+
+  it('refuses a room that would not come back from storage', () => {
+    const room = named('A');
+    expect(isSavable({ ...room, dims: { ...room.dims, length: Number.NaN } })).toBe(false);
+    expect(isSavable({ ...room, listener: { ...room.listener, yaw: Number.NaN } })).toBe(false);
+    expect(isSavable({ ...room, calibration: { factor: 0 } })).toBe(false);
+    expect(isSavable({ ...room, calibration: { factor: 1, measuredRt60: Number.POSITIVE_INFINITY } })).toBe(false);
   });
 });
 
@@ -231,5 +294,36 @@ describe('loadRooms and saveRooms', () => {
   it('reports a write that did not happen', () => {
     expect(saveRooms(file(['a', 100, 'A']), null)).toBe(false);
     expect(saveRooms(file(['a', 100, 'A']), fakeStorage(true))).toBe(false);
+  });
+
+  it("keeps a copy of stored data it can't read before writing over it", () => {
+    for (const unreadable of ['{"v":2,"rooms":[{"id":"future"}]}', '{broken']) {
+      const storage = fakeStorage();
+      storage.items.set(ROOMS_KEY, unreadable);
+      expect(loadRooms(storage)).toEqual(EMPTY_ROOMS);
+      expect(saveRooms(file(['a', 100, 'A']), storage)).toBe(true);
+      expect(storage.items.get(ROOMS_BACKUP_KEY)).toBe(unreadable);
+      expect(loadRooms(storage).rooms).toHaveLength(1);
+    }
+  });
+
+  it('makes no backup of a file it can read', () => {
+    const storage = fakeStorage();
+    saveRooms(file(['a', 100, 'A']), storage);
+    saveRooms(file(['a', 100, 'A'], ['b', 200, 'B']), storage);
+    expect(storage.items.has(ROOMS_BACKUP_KEY)).toBe(false);
+  });
+
+  it('reports a write that storage refused, and leaves what was stored', () => {
+    const storage = fakeStorage();
+    saveRooms(file(['a', 100, 'A']), storage);
+    const full = {
+      getItem: storage.getItem,
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+    };
+    expect(saveRooms(file(['a', 100, 'A'], ['b', 200, 'B']), full)).toBe(false);
+    expect(loadRooms(full).rooms).toHaveLength(1);
   });
 });
