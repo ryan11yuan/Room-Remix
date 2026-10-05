@@ -1,43 +1,88 @@
 import type { RoomState } from '@/lib/room/types';
-import type { SimResponse } from './protocol';
+import type { SimRequest, SimResponse } from './protocol';
 import type { AcousticsResult } from './simulate';
 
 export type SimOutput = { now: AcousticsResult; withFixes: AcousticsResult };
 
-type Pending = { resolve: (value: SimOutput) => void; reject: (error: Error) => void };
+export type WorkerLike = {
+  onmessage: ((event: MessageEvent<SimResponse>) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+  postMessage(message: SimRequest): void;
+  terminate(): void;
+};
+export type WorkerFactory = () => WorkerLike;
 
-/** Runs room simulations in a Web Worker so dragging and typing stay smooth. */
+export const SUPERSEDED = 'Superseded by a newer request';
+export const CRASHED = 'The simulation stopped unexpectedly.';
+export const CANCELLED = 'Simulation cancelled';
+
+const createModuleWorker: WorkerFactory = () =>
+  new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike;
+
+type Job = { room: RoomState; sampleRate: number; resolve: (value: SimOutput) => void; reject: (error: Error) => void };
+
+/**
+ * Runs room simulations in a Web Worker, one at a time. While one runs, only the newest waiting request is kept,
+ * so a burst of edits never queues stale work. A crashed worker is replaced on the next request.
+ */
 export class AcousticsClient {
-  private readonly worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-  private readonly pending = new Map<number, Pending>();
+  private worker: WorkerLike | null = null;
+  private running: (Job & { id: number }) | null = null;
+  private waiting: Job | null = null;
   private nextId = 1;
+  private disposed = false;
 
-  constructor() {
-    this.worker.onmessage = (event: MessageEvent<SimResponse>) => {
-      const res = event.data;
-      const pending = this.pending.get(res.id);
-      if (!pending) return;
-      this.pending.delete(res.id);
-      if (res.ok) pending.resolve({ now: res.now, withFixes: res.withFixes });
-      else pending.reject(new Error(res.error));
-    };
-    this.worker.onerror = (event) => {
-      for (const p of this.pending.values()) p.reject(new Error(event.message || "Couldn't simulate this room"));
-      this.pending.clear();
-    };
-  }
+  constructor(private readonly createWorker: WorkerFactory = createModuleWorker) {}
 
   simulate(room: RoomState, sampleRate: number): Promise<SimOutput> {
-    const id = this.nextId++;
+    if (this.disposed) return Promise.reject(new Error(CANCELLED));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.worker.postMessage({ id, room, sampleRate });
+      this.waiting?.reject(new Error(SUPERSEDED));
+      this.waiting = { room, sampleRate, resolve, reject };
+      this.startNext();
     });
   }
 
   dispose(): void {
-    this.worker.terminate();
-    for (const p of this.pending.values()) p.reject(new Error('Simulation cancelled'));
-    this.pending.clear();
+    this.disposed = true;
+    this.worker?.terminate();
+    this.worker = null;
+    this.running?.reject(new Error(CANCELLED));
+    this.waiting?.reject(new Error(CANCELLED));
+    this.running = null;
+    this.waiting = null;
+  }
+
+  private startNext(): void {
+    if (this.running || !this.waiting) return;
+    const job = { ...this.waiting, id: this.nextId++ };
+    this.waiting = null;
+    this.running = job;
+    this.ensureWorker().postMessage({ id: job.id, room: job.room, sampleRate: job.sampleRate });
+  }
+
+  private ensureWorker(): WorkerLike {
+    if (this.worker) return this.worker;
+    const worker = this.createWorker();
+    worker.onmessage = (event) => {
+      const res = event.data;
+      const job = this.running;
+      if (!job || job.id !== res.id) return;
+      this.running = null;
+      if (res.ok) job.resolve({ now: res.now, withFixes: res.withFixes });
+      else job.reject(new Error(res.error));
+      this.startNext();
+    };
+    worker.onerror = (event) => {
+      event.preventDefault?.();
+      const job = this.running;
+      this.running = null;
+      worker.terminate();
+      if (this.worker === worker) this.worker = null; // a fresh one is created for the next job
+      job?.reject(new Error(event.message || CRASHED));
+      this.startNext();
+    };
+    this.worker = worker;
+    return worker;
   }
 }

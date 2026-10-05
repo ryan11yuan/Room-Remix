@@ -4,11 +4,17 @@ import { useEffect, useState } from 'react';
 import { Player } from '@/components/Player';
 import { RoomForm } from '@/components/RoomForm';
 import { ShareButton } from '@/components/ShareButton';
+import { DEFAULT_SAMPLE_RATE, useSimulation } from '@/components/useSimulation';
+import type { ListenMode } from '@/lib/audio/mix';
 import { useRoomStore } from '@/lib/room/store';
 import { decodeRoom } from '@/lib/room/urlCodec';
 
 export default function RoomPage() {
   const setRoom = useRoomStore((s) => s.setRoom);
+  const room = useRoomStore((s) => s.room);
+  const [sampleRate, setSampleRate] = useState(DEFAULT_SAMPLE_RATE);
+  const [mode, setMode] = useState<ListenMode>({ room: true, fixes: false });
+  const sim = useSimulation(room, sampleRate);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,7 +48,7 @@ export default function RoomPage() {
         </div>
         <div className="md:w-80">
           <div className="md:sticky md:top-6">
-            <Player />
+            <Player sim={sim} mode={mode} onModeChange={setMode} onSampleRate={setSampleRate} />
           </div>
         </div>
       </div>

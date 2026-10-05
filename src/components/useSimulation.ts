@@ -1,22 +1,32 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { AcousticsClient, type SimOutput } from '@/lib/acoustics/client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AcousticsClient, SUPERSEDED, type SimOutput } from '@/lib/acoustics/client';
 import { validateRoom } from '@/lib/room/roomState';
 import type { RoomState } from '@/lib/room/types';
+
+/** Simulate before any song is picked; the page re-simulates if the audio context runs at another rate. */
+export const DEFAULT_SAMPLE_RATE = 48000;
 
 export type SimState = {
   status: 'idle' | 'running' | 'ready' | 'error';
   result: SimOutput | null;
   error: string | null;
 };
+export type Simulation = SimState & { retry: () => void };
 
 const DEBOUNCE_MS = 150;
 
+/** True when the result was simulated at the audio context's rate, so its IRs can be loaded into it. */
+export function resultMatchesRate(result: SimOutput | null, sampleRate: number | null): result is SimOutput {
+  return result !== null && sampleRate !== null && result.now.ir.sampleRate === sampleRate;
+}
+
 /** Re-simulates the room in a worker 150 ms after it stops changing. Keeps the last good result on failure. */
-export function useSimulation(room: RoomState, sampleRate: number | null): SimState {
+export function useSimulation(room: RoomState, sampleRate: number): Simulation {
   const clientRef = useRef<AcousticsClient | null>(null);
   const [state, setState] = useState<SimState>({ status: 'idle', result: null, error: null });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const client = new AcousticsClient();
@@ -28,7 +38,6 @@ export function useSimulation(room: RoomState, sampleRate: number | null): SimSt
   }, []);
 
   useEffect(() => {
-    if (sampleRate === null) return;
     const valid = validateRoom(room).length === 0;
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -43,7 +52,9 @@ export function useSimulation(room: RoomState, sampleRate: number | null): SimSt
           if (!cancelled) setState({ status: 'ready', result, error: null });
         },
         (error: Error) => {
-          if (!cancelled) setState((s) => ({ status: 'error', result: s.result, error: error.message }));
+          if (!cancelled && error.message !== SUPERSEDED) {
+            setState((s) => ({ status: 'error', result: s.result, error: error.message }));
+          }
         },
       );
     }, DEBOUNCE_MS);
@@ -51,7 +62,8 @@ export function useSimulation(room: RoomState, sampleRate: number | null): SimSt
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [room, sampleRate]);
+  }, [room, sampleRate, attempt]);
 
-  return state;
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return { ...state, retry };
 }

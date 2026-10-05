@@ -7,7 +7,7 @@ import type { ListenMode } from '@/lib/audio/mix';
 import { rateRt60 } from '@/lib/room/rating';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
-import { useSimulation } from './useSimulation';
+import { resultMatchesRate, type Simulation } from './useSimulation';
 
 function Toggle({
   options,
@@ -39,15 +39,21 @@ function Toggle({
   );
 }
 
-export function Player() {
+type PlayerProps = {
+  sim: Simulation;
+  mode: ListenMode;
+  onModeChange: (mode: ListenMode) => void;
+  onSampleRate: (rate: number) => void;
+};
+
+export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   const room = useRoomStore((s) => s.room);
   const engineRef = useRef<AudioEngine | null>(null);
-  const [sampleRate, setSampleRate] = useState<number | null>(null);
-  const [mode, setMode] = useState<ListenMode>({ room: true, fixes: false });
+  const [engineRate, setEngineRate] = useState<number | null>(null);
   const [songName, setSongName] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sim = useSimulation(room, sampleRate);
+  const ready = resultMatchesRate(sim.result, engineRate);
 
   const valid = validateRoom(room).length === 0;
   const hasFixes = room.fixes.some((f) => f.on);
@@ -57,8 +63,9 @@ export function Player() {
   useEffect(() => () => engineRef.current?.dispose(), []);
 
   useEffect(() => {
-    if (sim.result) engineRef.current?.setIrs(sim.result.now.ir, sim.result.withFixes.ir);
-  }, [sim.result]);
+    const result = sim.result;
+    if (resultMatchesRate(result, engineRate)) engineRef.current?.setIrs(result.now.ir, result.withFixes.ir);
+  }, [sim.result, engineRate]);
 
   useEffect(() => {
     engineRef.current?.setMode({ room: mode.room, fixes: mode.fixes && hasFixes });
@@ -66,9 +73,11 @@ export function Player() {
 
   async function pickSong(file: File) {
     if (!engineRef.current) {
-      engineRef.current = new AudioEngine();
-      engineRef.current.setMode(mode);
-      setSampleRate(engineRef.current.sampleRate);
+      const engine = new AudioEngine();
+      engineRef.current = engine;
+      engine.setMode({ room: mode.room, fixes: mode.fixes && hasFixes });
+      setEngineRate(engine.sampleRate);
+      onSampleRate(engine.sampleRate); // the page re-simulates if this isn't the default rate
     }
     setError(null);
     try {
@@ -117,18 +126,18 @@ export function Player() {
 
       <button
         onClick={() => void togglePlay()}
-        disabled={!songName || !sim.result}
+        disabled={!songName || !ready}
         className="self-start rounded-lg bg-white px-5 py-2 font-semibold text-neutral-950 disabled:opacity-40"
       >
         {playing ? 'Pause' : 'Play'}
       </button>
 
       <div className="flex flex-wrap gap-3">
-        <Toggle options={['Dry', 'In your room']} value={mode.room} onChange={(v) => setMode((m) => ({ ...m, room: v }))} />
+        <Toggle options={['Dry', 'In your room']} value={mode.room} onChange={(v) => onModeChange({ ...mode, room: v })} />
         <Toggle
           options={['Now', 'With fixes']}
           value={mode.fixes}
-          onChange={(v) => setMode((m) => ({ ...m, fixes: v }))}
+          onChange={(v) => onModeChange({ ...mode, fixes: v })}
           disabled={!mode.room || !hasFixes}
         />
       </div>
@@ -146,7 +155,14 @@ export function Player() {
         )}
         {rtNow !== null && rtFixed === null && <p className="text-neutral-500">Add a rug or panel to compare.</p>}
         {sim.status === 'running' && <p className="text-neutral-500">Simulating…</p>}
-        {sim.status === 'error' && <p className="text-red-400">Couldn&apos;t simulate this room. {sim.error}</p>}
+        {sim.status === 'error' && (
+          <p className="text-red-400">
+            Couldn&apos;t simulate this room. {sim.error}{' '}
+            <button onClick={sim.retry} className="underline">
+              Retry
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );
