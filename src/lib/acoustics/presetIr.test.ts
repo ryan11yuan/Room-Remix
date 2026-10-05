@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, gaussian } from './dsp';
 import { pinkGain } from './loudness';
-import { PRESET_MAX_SECONDS, prepareIr, TAIL_FADE_SECONDS } from './presetIr';
+import { PRESET_MAX_SECONDS, prepareIr } from './presetIr';
 import type { StereoIr } from './simulate';
 
 const RATE = 48000;
@@ -51,10 +51,11 @@ describe('prepareIr', () => {
     const source = recording(1);
     const ir = prepareIr(source);
     expect(ir.left.length).toBe(source.left.length);
-    const tail = Math.round(TAIL_FADE_SECONDS * RATE);
-    let energy = 0;
-    for (let i = ir.left.length - tail; i < ir.left.length; i++) energy += ir.left[i] * ir.left[i];
-    expect(energy).toBeGreaterThan(0); // not faded: the recording ended by itself
+    // Ensure we compare against the same recording with a much longer maxSeconds to prove it wasn't faded.
+    const irLonger = prepareIr(source, 100);
+    expect(ir.left[ir.left.length - 1]).toBe(irLonger.left[irLonger.left.length - 1]);
+    expect(Math.abs(ir.left[ir.left.length - 1])).toBeGreaterThan(1e-6); // not faded: a fade would end at exactly zero
+    expect(Math.abs(ir.right[ir.right.length - 1])).toBeGreaterThan(1e-6); // not faded: a fade would end at exactly zero
   });
 
   it('does not change the recording it was given', () => {

@@ -177,5 +177,38 @@ describe('simulateRoom capping', () => {
     expect(ir.left.length).toBe(Math.ceil(MAX_IR_SECONDS * 48000));
     expect(Math.abs(ir.left[ir.left.length - 1])).toBeLessThan(1e-6);
     expect(Math.abs(ir.right[ir.right.length - 1])).toBeLessThan(1e-6);
+
+    // the fade covers the last 0.1 s, not just the last sample
+    const fs = 48000;
+    const fadeDuration = 0.1;
+    const samplesBefore5ms = Math.round(0.005 * fs);
+    const samplesBeforeFade = Math.round(fadeDuration * fs);
+    const beforeFadeStart = ir.left.length - samplesBeforeFade - samplesBefore5ms;
+    const beforeFadeEnd = ir.left.length - samplesBeforeFade;
+    const fadeEnd = ir.left.length;
+    const lastStart = ir.left.length - samplesBefore5ms;
+
+    // RMS of 5 ms before the fade starts
+    let beforeRms = 0;
+    for (let i = beforeFadeStart; i < beforeFadeEnd; i++) beforeRms += ir.left[i] * ir.left[i];
+    beforeRms = Math.sqrt(beforeRms / (beforeFadeEnd - beforeFadeStart));
+    expect(beforeRms).toBeGreaterThan(0); // tail was still ringing
+
+    // RMS of the last 5 ms (mostly faded)
+    let lastRms = 0;
+    for (let i = lastStart; i < fadeEnd; i++) lastRms += ir.left[i] * ir.left[i];
+    lastRms = Math.sqrt(lastRms / (fadeEnd - lastStart));
+    expect(lastRms).toBeLessThan(0.2 * beforeRms); // fade is substantial over the 0.1 s window
+
+    // Same checks for right channel
+    beforeRms = 0;
+    for (let i = beforeFadeStart; i < beforeFadeEnd; i++) beforeRms += ir.right[i] * ir.right[i];
+    beforeRms = Math.sqrt(beforeRms / (beforeFadeEnd - beforeFadeStart));
+    expect(beforeRms).toBeGreaterThan(0);
+
+    lastRms = 0;
+    for (let i = lastStart; i < fadeEnd; i++) lastRms += ir.right[i] * ir.right[i];
+    lastRms = Math.sqrt(lastRms / (fadeEnd - lastStart));
+    expect(lastRms).toBeLessThan(0.2 * beforeRms);
   });
 });
