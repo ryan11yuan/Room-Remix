@@ -60,33 +60,24 @@ describe('scanStore', () => {
     expect((error as Error).name).toBeTruthy();
   });
 
-  it('rejects with a real error on constraint violation inside a transaction', async () => {
+  it('rejects with the real error when a write fails inside the transaction', async () => {
     const factory = new IDBFactory();
-    await saveScan(scan(), undefined, factory);
-
-    const forceConstraintError = async (): Promise<unknown> => {
-      return new Promise((resolve, reject) => {
-        const request = factory.open('room-remix', 1);
-        request.onsuccess = () => {
-          const db = request.result;
-          const tx = db.transaction('scans', 'readwrite');
-          const store = tx.objectStore('scans');
-          const addRequest = store.add(scan(), 'current');
-          addRequest.onerror = () => reject(addRequest.error);
-          addRequest.onsuccess = () => reject(new Error('Should have failed'));
-          tx.onerror = () => reject(tx.error);
-          tx.onabort = () => reject(tx.error ?? new Error('Storage was aborted'));
-          tx.oncomplete = () => resolve(null);
-        };
-        request.onerror = () => reject(request.error);
-      });
-    };
-
-    const error = await forceConstraintError().then(
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open('room-remix', 1);
+      request.onupgradeneeded = () =>
+        request.result.createObjectStore('scans').createIndex('byName', 'fileName', { unique: true });
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+    await saveScan(scan(), 'a', factory);
+    const error = await saveScan(scan(), 'b', factory).then(
       () => null,
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).name).toBeTruthy();
+    expect((error as Error).name).toBe('ConstraintError');
   });
 });
