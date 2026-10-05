@@ -22,6 +22,8 @@ export type Arrival = {
   points: Vec3[];
   hitSurfaces: SurfaceId[];
   hitFixes: boolean;
+  hitAbsorption: number[]; // mean absorption over the bands at each bounce, in travel order
+  hitFix: boolean[]; // whether each bounce landed on a rug or panel, in travel order
 };
 
 type Axis = { key: 'x' | 'y' | 'z'; size: (d: Dims) => number; low: SurfaceId; high: SurfaceId };
@@ -83,6 +85,8 @@ function trace(input: ImageSourceInput, n: [number, number, number]): Arrival {
   const reflection = new Array<number>(NUM_BANDS).fill(1);
   const hits: Vec3[] = [];
   const hitSurfaces: SurfaceId[] = [];
+  const hitAbsorption: number[] = [];
+  const hitFix: boolean[] = [];
   let hitFixes = false;
   for (const c of crossings) {
     const p: Vec3 = {
@@ -96,6 +100,8 @@ function trace(input: ImageSourceInput, n: [number, number, number]): Arrival {
     hitFixes ||= fix;
     hits.push(p);
     hitSurfaces.push(c.surface);
+    hitAbsorption.push(alpha.reduce((sum, a) => sum + a, 0) / alpha.length);
+    hitFix.push(fix);
   }
 
   const distance = Math.hypot(dir.x, dir.y, dir.z);
@@ -114,6 +120,8 @@ function trace(input: ImageSourceInput, n: [number, number, number]): Arrival {
     points: [source, ...hits, listener],
     hitSurfaces,
     hitFixes,
+    hitAbsorption,
+    hitFix,
   };
 }
 

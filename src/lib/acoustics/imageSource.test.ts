@@ -81,6 +81,18 @@ describe('computeImageSources', () => {
     expect(ceiling.hitFixes).toBe(false);
   });
 
+  it('records the absorption and fix flag at every bounce', () => {
+    const lookup = (surface: SurfaceId, p: Vec3) =>
+      surface === 'floor' && p.x > 1.5 && p.x < 2.5 ? { alpha: flat(0.6), fix: true } : plain();
+    const arrivals = computeImageSources({ dims, source, listener, maxOrder: 1, lookup });
+    const direct = arrivals.find((a) => a.order === 0)!;
+    const floor = arrivals.find((a) => a.hitSurfaces.join() === 'floor')!;
+    expect(direct.hitAbsorption).toEqual([]);
+    expect(direct.hitFix).toEqual([]);
+    expect(floor.hitAbsorption[0]).toBeCloseTo(0.6, 12);
+    expect(floor.hitFix).toEqual([true]);
+  });
+
   it('measures path energy as the mean squared band gain', () => {
     const direct = computeImageSources({ dims, source, listener, maxOrder: 0, lookup: plain, air: noAir })[0];
     expect(pathEnergy(direct)).toBeCloseTo(0.25, 9);
