@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { defaultRoom } from './roomState';
-import { addRoom, loadRooms, MAX_ROOMS, ROOMS_KEY, saveRooms, selectRoom, upsertRoom, type RoomsFile } from './rooms';
+import { addRoom, loadRooms, MAX_ROOMS, removeRoom, ROOMS_KEY, saveRooms, selectRoom, upsertRoom, type RoomsFile } from './rooms';
 import { CONFLICT_NOTICE, FULL_NOTICE, LINK_NOTICE, RoomSession, UNSAVED_NOTICE, type SessionEnv } from './session';
 import { useRoomStore } from './store';
 import type { RoomState } from './types';
@@ -45,6 +45,8 @@ function setup(
   let tab: string | null = options.tabRoom ?? null;
   let clock = 1000;
   let ids = 0;
+  const dropped: string[] = [];
+  const pruned: string[][] = [];
   const env: SessionEnv = {
     storage,
     readLink: () => link,
@@ -59,6 +61,8 @@ function setup(
     setTabRoom: (id) => {
       tab = id;
     },
+    dropScan: (roomId) => void dropped.push(roomId),
+    pruneScans: (roomIds) => void pruned.push([...roomIds].sort()),
   };
   return {
     session: new RoomSession(env),
@@ -69,6 +73,8 @@ function setup(
       link = code;
     },
     tab: () => tab,
+    dropped,
+    pruned,
   };
 }
 
@@ -316,6 +322,38 @@ describe('RoomSession save', () => {
     expect(store().roomId).toBe('a');
     expect(store().notice).toBeNull();
   });
+
+  it("doesn't bring back a room another tab deleted when nothing was changed here", async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    saveRooms(removeRoom(t.saved(), 'a'), t.storage); // another tab deletes the room that is open here
+    t.session.save(); // this tab closes without having changed anything
+    expect(t.saved().rooms.map((r) => r.id)).toEqual(['b']);
+  });
+
+  it('saves the room again when it was edited here after another tab deleted it', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    saveRooms(removeRoom(t.saved(), 'a'), t.storage);
+    store().update((r) => ({ ...r, name: 'Still wanted' }));
+    t.session.save();
+    expect(t.saved().rooms.map((r) => r.state.name).sort()).toEqual(['Den', 'Still wanted']);
+  });
+
+  it('says so when both tabs changed the room and no copy can be made', async () => {
+    const storage = fakeStorage();
+    const rooms = Array.from({ length: MAX_ROOMS }, (_, i) => ({ id: `r${i}`, updatedAt: i, state: named(`Room ${i}`) }));
+    saveRooms({ rooms, currentId: 'r3' }, storage);
+    const t = setup({ storage });
+    await t.session.start();
+    saveRooms(upsertRoom(t.saved(), 'r3', named('Renamed elsewhere'), 500), t.storage);
+    store().update((r) => ({ ...r, furnishing: 'bare' }));
+    t.session.save();
+    expect(store().notice).toBe(FULL_NOTICE);
+    expect(store().roomId).toBe('r3');
+    expect(t.saved().rooms).toHaveLength(MAX_ROOMS);
+    expect(t.saved().rooms.find((r) => r.id === 'r3')?.state.furnishing).toBe('bare');
+  });
 });
 
 describe('RoomSession rooms', () => {
@@ -430,6 +468,28 @@ describe('RoomSession rooms', () => {
     t.session.refresh();
     expect(store().room.name).toBe('Renamed elsewhere');
     expect(store().roomId).toBe('a');
+  });
+});
+
+describe('RoomSession and scans', () => {
+  it("drops a deleted room's scan", async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    t.session.remove('b');
+    t.session.remove('a');
+    expect(t.dropped).toEqual(['b', 'a']);
+  });
+
+  it('prunes scans at the start, keeping those of every saved room', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    expect(t.pruned).toEqual([['a', 'b']]);
+  });
+
+  it("doesn't prune when the rooms couldn't be saved: the list may be incomplete", async () => {
+    const t = setup({ storage: fakeStorage(true) });
+    await t.session.start();
+    expect(t.pruned).toEqual([]);
   });
 });
 

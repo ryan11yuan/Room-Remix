@@ -24,8 +24,7 @@ export const LINK_NOTICE = "This link couldn't be fully loaded.";
 export const FULL_NOTICE = `You have ${MAX_ROOMS} saved rooms. Delete one to add another.`;
 export const UNSAVED_NOTICE =
   "This browser isn't keeping your rooms (its storage is blocked or full). They will be gone when you close this page.";
-export const CONFLICT_NOTICE =
-  'This room was changed in another tab. What you had here was saved as a copy, and you are now in the copy.';
+export const CONFLICT_NOTICE = 'This room was also changed in another tab. Your version was saved as a copy in My rooms.';
 
 /** What a session needs from the browser, so tests can stand in for it. */
 export type SessionEnv = {
@@ -40,6 +39,10 @@ export type SessionEnv = {
   /** The room this tab had open last. It survives a reload of the tab; another tab has its own. */
   tabRoom: () => string | null;
   setTabRoom: (id: string) => void;
+  /** Delete a room's stored scan. Fire and forget. */
+  dropScan: (roomId: string) => void;
+  /** Delete the stored scans of every room not listed. Fire and forget. */
+  pruneScans: (roomIds: string[]) => void;
 };
 
 /**
@@ -98,6 +101,9 @@ export class RoomSession {
       target = file.currentId;
     }
     this.write(file);
+    // Scans whose room is gone (deleted in another tab, or stored before scans were kept per room) are dropped.
+    // Not when the rooms couldn't be saved: then they may not have been read either, and the list would be incomplete.
+    if (!this.unsaved) this.env.pruneScans(file.rooms.map((room) => room.id));
     this.show(file, target);
   }
 
@@ -113,6 +119,7 @@ export class RoomSession {
     const local = stateKey(room);
     const stored = findRoom(file, roomId);
     const theirs = stored ? stateKey(stored.state) : null;
+    if (!stored && local === this.seen) return; // deleted in another tab and not changed here since: it stays deleted
     if (stored && theirs !== null && this.seen !== null && theirs !== this.seen && theirs !== local) {
       if (local === this.seen) return this.adopt(stored.state, theirs);
       const copy = addRoom(file, this.env.newId(), { ...room, name: uniqueName(file, `${room.name} copy`) }, this.env.now());
@@ -121,7 +128,8 @@ export class RoomSession {
         this.notify(CONFLICT_NOTICE);
         return this.show(copy, copy.currentId);
       }
-      // "My rooms" is full, so no copy can be made: this tab's version is saved over the other tab's, below.
+      // "My rooms" is full, so no copy can be made: say so, and save this tab's version over the other tab's, below.
+      this.notify(FULL_NOTICE);
     }
     const next = upsertRoom(file, roomId, room, this.env.now());
     if (next !== file) this.write(next);
@@ -161,6 +169,7 @@ export class RoomSession {
     if (wasOpen) file = startRooms(file, this.env.newId(), defaultRoom(), this.env.now()); // never leave this tab without a room
     this.write(file);
     if (wasOpen) this.show(file, file.currentId);
+    this.env.dropScan(id);
   }
 
   /**

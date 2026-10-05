@@ -27,7 +27,7 @@ const UNREADABLE = "Couldn't read this scan. Use a .ply, .spz, .splat or .ksplat
 const SAVED_UNREADABLE = "Couldn't read your saved scan. Load it again or remove it."; // the scan kept on this device, not a file just picked
 const INTERRUPTED = "Your saved scan didn't open last time. Load it again or remove it.";
 const SIZE_FIRST = "Enter the room's size first.";
-/** Set while a stored scan is being opened. Still there at the next start means the tab died (or was closed) mid-open. */
+/** Holds the key of the room whose stored scan is being opened. Still there at the next start means the tab died (or was closed) mid-open. */
 const RESTORING_KEY = 'room-remix:restoring';
 const SUPERSEDED = 'Scan load superseded'; // SplatLayer.load's rejection when a newer load or dispose() overtook it
 const centre = (dims: Dims): Vec3 => ({ x: dims.length / 2, y: 0, z: dims.width / 2 });
@@ -39,9 +39,9 @@ const isFiniteAlignment = (a: Alignment) =>
 const isFiniteVec = (v: Vec3) => [v.x, v.y, v.z].every(Number.isFinite);
 
 // localStorage can be missing or throw (blocked, full, private windows), and then restoring works as it did without the marker.
-function setRestoreMarker(): void {
+function setRestoreMarker(key: string): void {
   try {
-    localStorage.setItem(RESTORING_KEY, '1');
+    localStorage.setItem(RESTORING_KEY, key);
   } catch {
     // no marker: a crash loop can't be detected here
   }
@@ -53,12 +53,15 @@ function clearRestoreMarker(): void {
     // nothing to clear
   }
 }
-/** Whether the last restore never finished; clears the marker so the start after this one tries again. */
-function takeRestoreMarker(): boolean {
+/**
+ * Whether the last restore of this room's scan never finished. Clears the marker, so the start after this one tries
+ * again. A marker left by another room stays for that room.
+ */
+function takeRestoreMarker(key: string): boolean {
   try {
-    const found = localStorage.getItem(RESTORING_KEY) !== null;
-    if (found) localStorage.removeItem(RESTORING_KEY);
-    return found;
+    if (localStorage.getItem(RESTORING_KEY) !== key) return false;
+    localStorage.removeItem(RESTORING_KEY);
+    return true;
   } catch {
     return false;
   }
@@ -106,15 +109,22 @@ export class ScanController {
   constructor(
     private readonly scene: RoomScene,
     private readonly report: Report,
+    private key: string, // the open room's id: its scan is stored under it
   ) {}
 
+  /** The room whose scan this controller shows and stores. */
+  get roomKey(): string {
+    return this.key;
+  }
+
   async restore(room: RoomState): Promise<void> {
-    const interrupted = takeRestoreMarker();
+    const key = this.key;
+    const interrupted = takeRestoreMarker(key);
     const gen = this.storeGen;
     let stored: StoredScan | null;
     try {
       // The await (even of null) keeps every report after this call returns, so a view can start it from an effect.
-      stored = await (interrupted ? null : loadScan());
+      stored = await (interrupted ? null : loadScan(key));
     } catch {
       return; // nothing usable stored: start without a scan
     }
@@ -126,7 +136,7 @@ export class ScanController {
       return;
     }
     if (!stored) return;
-    setRestoreMarker();
+    setRestoreMarker(key);
     try {
       await this.show(stored.bytes, stored.fileName, stored.alignment, stored.savedAt, room.dims);
     } finally {
@@ -137,6 +147,7 @@ export class ScanController {
   async open(file: File, room: RoomState): Promise<void> {
     // One load at a time: two overlapping layer loads could leave two meshes in the layer.
     if (this.status.kind === 'loading' || this.align) return;
+    const key = this.key;
     const gen = this.storeGen;
     this.setStatus({ kind: 'loading', fileName: file.name });
     let bytes: ArrayBuffer;
@@ -152,13 +163,13 @@ export class ScanController {
     const keepGen = this.storeGen;
     const savedAt = Date.now();
     // Shown as kept until the save says otherwise, so a slow save doesn't flash a "not kept" warning.
-    const stored = await this.keep(keepGen, { fileName: file.name, bytes, alignment: null, savedAt });
+    const stored = await this.keep(keepGen, key, { fileName: file.name, bytes, alignment: null, savedAt });
     if (id !== this.scanId || keepGen !== this.storeGen) return; // another scan, or none, is on screen by now
     this.storedAt = stored ? savedAt : null;
     this.reportStored(stored);
     // Aligned while the save was still running: the stored copy doesn't have that alignment yet.
     if (stored && this.alignment) {
-      const ok = await this.writeAlignment(this.alignment, savedAt);
+      const ok = await this.writeAlignment(this.alignment, savedAt, key);
       if (id === this.scanId) this.reportAlignmentKept(ok);
     }
   }
@@ -212,10 +223,10 @@ export class ScanController {
     this.endAlignment(room);
     // Before any await, so " · not aligned yet" goes away together with the outline view.
     if (this.status.kind === 'ready') this.setStatus({ ...this.status, aligned: true });
-    // Only the stored scan gets the alignment: while another scan is on screen, 'current' holds a different one.
+    // Only the stored scan gets the alignment: while a scan that couldn't be saved is on screen, storage holds none for it.
     if (this.storedAt === null) return;
     const id = this.scanId;
-    const ok = await this.writeAlignment(alignment, this.storedAt);
+    const ok = await this.writeAlignment(alignment, this.storedAt, this.key);
     if (id === this.scanId) this.reportAlignmentKept(ok);
   }
 
@@ -242,6 +253,29 @@ export class ScanController {
 
   async remove(): Promise<void> {
     this.storeGen++; // a save still retrying stops, and a load still running is abandoned
+    this.clearScreen();
+    try {
+      await deleteScan(this.key);
+    } catch {
+      // the scan stays in storage and comes back the next time the page loads
+    }
+  }
+
+  /**
+   * Another room was opened: take this room's scan off the screen (it stays stored) and show the other room's, if it has
+   * one. An alignment in progress ends. A load or save still running for the room being left no longer touches the screen.
+   */
+  async switchRoom(key: string, room: RoomState): Promise<void> {
+    if (key === this.key) return;
+    this.key = key;
+    this.storeGen++;
+    this.latestDims = room.dims;
+    this.clearScreen();
+    await this.restore(room);
+  }
+
+  /** No scan on screen: the plain room, with nothing being aligned. Storage is not touched. */
+  private clearScreen(): void {
     this.align = null;
     this.alignment = null;
     this.bounds = null;
@@ -251,11 +285,6 @@ export class ScanController {
     this.setStatus({ kind: 'none' });
     this.applyShell();
     this.reportStep(null);
-    try {
-      await deleteScan();
-    } catch {
-      // the scan stays in storage and comes back the next time the page loads
-    }
   }
 
   dispose(): void {
@@ -316,22 +345,22 @@ export class ScanController {
    * the one on screen; it may also free the room the save needed) and try once more. `gen` is the `storeGen` the scan was
    * shown under: once remove() or another scan has moved it on, this stops quietly instead of touching storage again.
    */
-  private async keep(gen: number, scan: StoredScan): Promise<boolean> {
+  private async keep(gen: number, key: string, scan: StoredScan): Promise<boolean> {
     try {
-      await saveScan(scan);
+      await saveScan(scan, key);
       return true;
     } catch {
       // fall through to the retry
     }
     if (gen !== this.storeGen) return false;
     try {
-      await deleteScan();
+      await deleteScan(key);
     } catch {
       // nothing to drop, or it can't be dropped
     }
     if (gen !== this.storeGen) return false;
     try {
-      await saveScan(scan);
+      await saveScan(scan, key);
       return true;
     } catch {
       return false;
@@ -339,9 +368,9 @@ export class ScanController {
   }
 
   /** Write the alignment onto the stored record saved at `savedAt`. False when it fails or that record isn't what is in storage. */
-  private async writeAlignment(alignment: Alignment, savedAt: number): Promise<boolean> {
+  private async writeAlignment(alignment: Alignment, savedAt: number, key: string): Promise<boolean> {
     try {
-      return await updateScanAlignment(alignment, savedAt);
+      return await updateScanAlignment(alignment, savedAt, key);
     } catch {
       return false; // the alignment still applies for this session
     }

@@ -1,9 +1,8 @@
 import type { Alignment } from './alignment';
 
-/** A scan kept in this browser only. It is never uploaded. */
+/** A scan kept in this browser only, one per room, under the room's id. It is never uploaded. */
 export type StoredScan = { fileName: string; bytes: ArrayBuffer; alignment: Alignment | null; savedAt: number };
 
-export const CURRENT_SCAN = 'current';
 const DB_NAME = 'room-remix';
 const DB_VERSION = 1;
 const STORE = 'scans';
@@ -47,13 +46,13 @@ async function withStore<T>(
 
 const browserIndexedDB = () => globalThis.indexedDB;
 
-export function saveScan(scan: StoredScan, key = CURRENT_SCAN, factory: IDBFactory = browserIndexedDB()): Promise<void> {
+export function saveScan(scan: StoredScan, key: string, factory: IDBFactory = browserIndexedDB()): Promise<void> {
   return withStore(factory, 'readwrite', async (store) => {
     await done(store.put(scan, key));
   });
 }
 
-export function loadScan(key = CURRENT_SCAN, factory: IDBFactory = browserIndexedDB()): Promise<StoredScan | null> {
+export function loadScan(key: string, factory: IDBFactory = browserIndexedDB()): Promise<StoredScan | null> {
   return withStore(factory, 'readonly', async (store) => ((await done(store.get(key))) as StoredScan | undefined) ?? null);
 }
 
@@ -65,7 +64,7 @@ export function loadScan(key = CURRENT_SCAN, factory: IDBFactory = browserIndexe
 export function updateScanAlignment(
   alignment: Alignment | null,
   expectedSavedAt: number,
-  key = CURRENT_SCAN,
+  key: string,
   factory: IDBFactory = browserIndexedDB(),
 ): Promise<boolean> {
   return withStore(factory, 'readwrite', async (store) => {
@@ -76,8 +75,18 @@ export function updateScanAlignment(
   });
 }
 
-export function deleteScan(key = CURRENT_SCAN, factory: IDBFactory = browserIndexedDB()): Promise<void> {
+export function deleteScan(key: string, factory: IDBFactory = browserIndexedDB()): Promise<void> {
   return withStore(factory, 'readwrite', async (store) => {
     await done(store.delete(key));
+  });
+}
+
+/** Delete every stored scan whose key isn't in `keep`: the scans of rooms that no longer exist. Resolves how many went. */
+export function pruneScans(keep: readonly string[], factory: IDBFactory = browserIndexedDB()): Promise<number> {
+  return withStore(factory, 'readwrite', async (store) => {
+    const keys = await done(store.getAllKeys());
+    const stale = keys.filter((key) => typeof key !== 'string' || !keep.includes(key));
+    await Promise.all(stale.map((key) => done(store.delete(key))));
+    return stale.length;
   });
 }

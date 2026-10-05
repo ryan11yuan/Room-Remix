@@ -115,6 +115,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, () => true);
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
+  const roomId = useRoomStore((s) => s.roomId);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RoomScene | null>(null);
@@ -129,6 +130,14 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     taps: 0,
     hint: null,
   });
+  // Another room was opened: walk mode, panel placing and any message stay behind with the room they belonged to.
+  const [shownRoomId, setShownRoomId] = useState(roomId);
+  if (roomId !== shownRoomId) {
+    setShownRoomId(roomId);
+    setWalking(false);
+    setPlacing(false);
+    setMessage(null);
+  }
   const aligning = alignStep.step !== null;
   const picking = alignStep.step === 'floor' || alignStep.step === 'corners'; // choosing points on the scan: the camera stays on it
   const scanReady = scanStatus.kind === 'ready' ? scanStatus : null;
@@ -177,10 +186,14 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     }
     sceneRef.current = scene;
     // Each mount (React's strict mode runs this twice) gets its own controller; its reports arrive after an await or from a click.
-    const scans = new ScanController(scene, {
-      status: setScanStatus,
-      step: (step, taps, hint) => setAlignStep({ step, taps, hint }),
-    });
+    const scans = new ScanController(
+      scene,
+      {
+        status: setScanStatus,
+        step: (step, taps, hint) => setAlignStep({ step, taps, hint }),
+      },
+      useRoomStore.getState().roomId ?? 'unsaved', // the page shows this view only once a room is open
+    );
     scanRef.current = scans;
     void scans.restore(useRoomStore.getState().room);
     const observer = new ResizeObserver(([entry]) => scene.resize(entry.contentRect.width, entry.contentRect.height));
@@ -205,6 +218,14 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   useEffect(() => {
     sceneRef.current?.setWalking(walking); // after setRoom above: walk mode starts from the scene's room
   }, [walking, webgl]);
+
+  useEffect(() => {
+    const scans = scanRef.current;
+    if (!roomId || !scans || scans.roomKey === roomId) return; // the first room's scan is restored where the controller is made
+    const opened = useRoomStore.getState().room;
+    sceneRef.current?.setCameraPreset(opened, 'corner'); // a different room: frame it afresh
+    void scans.switchRoom(roomId, opened);
+  }, [roomId, webgl]);
 
   /** Leave walk mode now, not after the re-render: otherwise the next frame pulls the camera back to the listener's head. */
   const stopWalking = () => {

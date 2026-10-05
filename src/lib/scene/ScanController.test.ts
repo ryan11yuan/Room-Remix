@@ -4,7 +4,7 @@ import type { Dims, Vec3 } from '@/lib/room/types';
 import type { Alignment } from './alignment';
 import type { RoomScene } from './RoomScene';
 import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from './ScanController';
-import { deleteScan, loadScan, saveScan, updateScanAlignment } from './scanStore';
+import { deleteScan, loadScan, saveScan, updateScanAlignment, type StoredScan } from './scanStore';
 
 type Loaded = { count: number; min: Vec3; max: Vec3; centre: Vec3 };
 type FakeLayer = { crops: Array<Dims | null>; alignments: Array<Alignment | null>; visible: boolean[]; disposed: boolean };
@@ -63,7 +63,7 @@ function deferred<T>() {
 }
 
 /** `onStatus` runs inside each status report, so a test can act at an exact moment (before the first await of a load, say). */
-function setup(onStatus?: (status: ScanStatus, scans: ScanController) => void) {
+function setup(onStatus?: (status: ScanStatus, scans: ScanController) => void, key = 'room-a') {
   const scene = {
     renderer: {},
     addLayer: vi.fn(),
@@ -77,13 +77,17 @@ function setup(onStatus?: (status: ScanStatus, scans: ScanController) => void) {
   };
   const statuses: ScanStatus[] = [];
   const steps: Array<[ScanUiStep, number, string | null]> = [];
-  const scans = new ScanController(scene as unknown as RoomScene, {
-    status: (s) => {
-      statuses.push(s);
-      onStatus?.(s, scans);
+  const scans = new ScanController(
+    scene as unknown as RoomScene,
+    {
+      status: (s) => {
+        statuses.push(s);
+        onStatus?.(s, scans);
+      },
+      step: (step, taps, hint) => steps.push([step, taps, hint]),
     },
-    step: (step, taps, hint) => steps.push([step, taps, hint]),
-  });
+    key,
+  );
   return { scene, scans, statuses, steps };
 }
 
@@ -145,7 +149,7 @@ describe('ScanController opening a file', () => {
       alignmentKept: true,
       visible: true,
     });
-    expect(saveScan).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'room.spz', alignment: null }));
+    expect(saveScan).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'room.spz', alignment: null }), 'room-a');
     expect(h.layers[0].crops).toEqual([]); // unaligned: no crop
     expect(last(scene.setShellStyle.mock.calls)[0]).toBe('tinted');
   });
@@ -179,6 +183,8 @@ describe('ScanController opening a file', () => {
     expect(saveScan).toHaveBeenCalledTimes(2);
     const [firstSave, secondSave] = vi.mocked(saveScan).mock.invocationCallOrder;
     const [deleted] = vi.mocked(deleteScan).mock.invocationCallOrder;
+    expect(deleteScan).toHaveBeenCalledWith('room-a');
+    expect(saveScan).toHaveBeenLastCalledWith(expect.anything(), 'room-a'); // the retry too
     expect(firstSave).toBeLessThan(deleted);
     expect(deleted).toBeLessThan(secondSave);
     expect(last(statuses)).toMatchObject({ kind: 'ready', stored: true });
@@ -302,6 +308,7 @@ describe('ScanController restore', () => {
     vi.mocked(loadScan).mockResolvedValue({ fileName: 'kept.spz', bytes: new ArrayBuffer(8), alignment, savedAt: 1 });
     const { scans, scene, statuses } = setup();
     await scans.restore(room);
+    expect(loadScan).toHaveBeenCalledWith('room-a');
     expect(last(statuses)).toEqual({
       kind: 'ready',
       fileName: 'kept.spz',
@@ -427,7 +434,7 @@ describe('ScanController aligning', () => {
     const { scans, scene, steps, statuses } = await alignedScan();
     await scans.finish(room);
     const savedAt = vi.mocked(saveScan).mock.calls[0][0].savedAt; // the write is for the record this scan was saved as
-    expect(updateScanAlignment).toHaveBeenCalledWith(last(h.layers[0].alignments), savedAt);
+    expect(updateScanAlignment).toHaveBeenCalledWith(last(h.layers[0].alignments), savedAt, 'room-a');
     expect(h.layers[0].crops).toEqual([room.dims]);
     expect(scene.setScanTargets).toHaveBeenLastCalledWith([]);
     expect(scene.setShellStyle).toHaveBeenLastCalledWith('outline');
@@ -742,7 +749,7 @@ describe('ScanController remove', () => {
     await scans.remove();
     expect(h.layers[0].disposed).toBe(true);
     expect(scene.removeLayer).toHaveBeenCalledTimes(1);
-    expect(deleteScan).toHaveBeenCalled();
+    expect(deleteScan).toHaveBeenCalledWith('room-a');
     expect(last(statuses)).toEqual({ kind: 'none' });
     expect(scene.setShellStyle).toHaveBeenLastCalledWith('tinted');
     expect(scene.setRoomItemsVisible).toHaveBeenLastCalledWith(true);
@@ -759,7 +766,7 @@ describe('ScanController remove', () => {
     await scans.open(file('notes.txt'), room);
     expect(last(statuses)).toMatchObject({ kind: 'error' });
     await scans.remove();
-    expect(deleteScan).toHaveBeenCalled();
+    expect(deleteScan).toHaveBeenCalledWith('room-a');
     expect(last(statuses)).toEqual({ kind: 'none' });
   });
 
@@ -842,7 +849,7 @@ describe('ScanController storage follows the scan on screen', () => {
     scans.tap({ x: 4, y: 0, z: 0 }, room);
     await scans.finish(room);
     expect(updateScanAlignment).toHaveBeenCalledTimes(1);
-    expect(updateScanAlignment).toHaveBeenCalledWith(expect.objectContaining({ scale: expect.any(Number) }), 2000);
+    expect(updateScanAlignment).toHaveBeenCalledWith(expect.objectContaining({ scale: expect.any(Number) }), 2000, 'room-a');
     now.mockRestore();
   });
 
@@ -972,7 +979,7 @@ describe('ScanController Remove while a scan is loading', () => {
     gate.resolve(good);
     await restoring;
     expect(last(statuses)).toEqual({ kind: 'none' });
-    expect(deleteScan).toHaveBeenCalled();
+    expect(deleteScan).toHaveBeenCalledWith('room-a');
     expect(storage.items.has(RESTORING)).toBe(false);
   });
 });
@@ -989,7 +996,7 @@ describe('ScanController restore after a crash', () => {
     };
     const { scans, statuses } = setup();
     await scans.restore(room);
-    expect(markedWhileOpening).toBe('1');
+    expect(markedWhileOpening).toBe('room-a');
     expect(storage.items.has(RESTORING)).toBe(false);
     expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
   });
@@ -1021,7 +1028,7 @@ describe('ScanController restore after a crash', () => {
     const { scans } = setup();
     const restoring = scans.restore(room);
     await flush();
-    expect(storage.items.get(RESTORING)).toBe('1');
+    expect(storage.items.get(RESTORING)).toBe('room-a');
     scans.dispose();
     gate.resolve(good);
     await restoring;
@@ -1029,7 +1036,7 @@ describe('ScanController restore after a crash', () => {
   });
 
   it('does not restore when the last restore never finished, says so, and clears the mark', async () => {
-    storage.items.set(RESTORING, '1'); // a tab that died while opening the stored scan
+    storage.items.set(RESTORING, 'room-a'); // a tab that died while opening the stored scan
     vi.mocked(loadScan).mockResolvedValue(stored);
     const { scans, statuses } = setup();
     await scans.restore(room);
@@ -1040,7 +1047,7 @@ describe('ScanController restore after a crash', () => {
   });
 
   it('tries again at the start after that, and Remove still works from the notice', async () => {
-    storage.items.set(RESTORING, '1');
+    storage.items.set(RESTORING, 'room-a');
     vi.mocked(loadScan).mockResolvedValue(stored);
     const first = setup();
     await first.scans.restore(room);
@@ -1048,19 +1055,19 @@ describe('ScanController restore after a crash', () => {
     await second.scans.restore(room);
     expect(last(second.statuses)).toMatchObject({ kind: 'ready', fileName: 'kept.spz' });
     await first.scans.remove();
-    expect(deleteScan).toHaveBeenCalled();
+    expect(deleteScan).toHaveBeenCalledWith('room-a');
     expect(last(first.statuses)).toEqual({ kind: 'none' });
   });
 
   it('still reports nothing synchronously when it finds the mark', () => {
-    storage.items.set(RESTORING, '1');
+    storage.items.set(RESTORING, 'room-a');
     const { scans, statuses } = setup();
     void scans.restore(room);
     expect(statuses).toEqual([]);
   });
 
   it('leaves a file opened meanwhile alone when it finds the mark', async () => {
-    storage.items.set(RESTORING, '1');
+    storage.items.set(RESTORING, 'room-a');
     const { scans, statuses } = setup();
     const restoring = scans.restore(room);
     await scans.open(file('new.spz'), room);
@@ -1088,6 +1095,109 @@ describe('ScanController restore after a crash', () => {
     const { scans } = setup();
     await scans.restore(room);
     expect(storage.items.has(RESTORING)).toBe(false);
+  });
+});
+
+describe('ScanController rooms', () => {
+  const saved = (fileName: string): StoredScan => ({ fileName, bytes: new ArrayBuffer(8), alignment: null, savedAt: 5 });
+
+  it("keeps an opened scan under its room's key", async () => {
+    const { scans } = setup();
+    await scans.open(file('room.spz'), room);
+    expect(saveScan).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'room.spz' }), 'room-a');
+  });
+
+  it("restores its own room's scan", async () => {
+    const { scans, statuses } = setup(undefined, 'room-b');
+    vi.mocked(loadScan).mockImplementation(async (key) => (key === 'room-b' ? saved('b.spz') : null));
+    await scans.restore(room);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+  });
+
+  it("takes the scan off the screen without deleting it when another room opens, and shows that room's scan", async () => {
+    const { scans, scene, statuses } = setup();
+    await scans.open(file('a.spz'), room);
+    vi.mocked(loadScan).mockImplementation(async (key) => (key === 'room-b' ? saved('b.spz') : null));
+    await scans.switchRoom('room-b', room);
+    expect(h.layers[0].disposed).toBe(true);
+    expect(deleteScan).not.toHaveBeenCalled();
+    expect(statuses).toContainEqual({ kind: 'none' });
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+    expect(scans.roomKey).toBe('room-b');
+    expect(scene.setTapMode).toHaveBeenLastCalledWith('none');
+  });
+
+  it('shows the plain box when the other room has no scan', async () => {
+    const { scans, scene, statuses } = setup();
+    await scans.open(file('a.spz'), room);
+    await scans.switchRoom('room-b', room);
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(last(scene.setShellStyle.mock.calls)[0]).toBe('tinted');
+  });
+
+  it('does nothing when the same room is opened again', async () => {
+    const { scans, statuses } = setup();
+    await scans.open(file('a.spz'), room);
+    const before = statuses.length;
+    await scans.switchRoom('room-a', room);
+    expect(statuses.length).toBe(before);
+    expect(h.layers[0].disposed).toBe(false);
+  });
+
+  it('never shows a scan that was still loading for the room that was left', async () => {
+    const { scans, statuses } = setup();
+    const loading = deferred<Loaded>();
+    h.load = () => loading.promise;
+    const opening = scans.open(file('slow.spz'), room);
+    await flush();
+    await scans.switchRoom('room-b', room);
+    loading.resolve(good);
+    await opening;
+    expect(last(statuses)).toEqual({ kind: 'none' });
+    expect(statuses.some((s) => s.kind === 'ready')).toBe(false);
+    expect(saveScan).not.toHaveBeenCalled();
+  });
+
+  it('ends an alignment that was in progress', async () => {
+    const { scans, scene, steps } = setup();
+    await scans.open(file('a.spz'), room);
+    scans.startAlignment();
+    await scans.switchRoom('room-b', room);
+    expect(last(steps)).toEqual([null, 0, null]);
+    expect(scene.setTapMode).toHaveBeenLastCalledWith('none');
+    expect(scene.setRoomItemsVisible).toHaveBeenLastCalledWith(true);
+  });
+
+  it("removes only the open room's scan", async () => {
+    const { scans } = setup();
+    await scans.switchRoom('room-b', room);
+    await scans.open(file('b.spz'), room);
+    await scans.remove();
+    expect(deleteScan).toHaveBeenCalledTimes(1);
+    expect(deleteScan).toHaveBeenCalledWith('room-b');
+  });
+
+  it("writes a finished alignment to its own room's record", async () => {
+    const t = await alignedScan();
+    await t.scans.finish(room);
+    expect(updateScanAlignment).toHaveBeenCalledWith(expect.anything(), expect.any(Number), 'room-a');
+  });
+
+  it("is not stopped by a crash that happened while opening another room's scan", async () => {
+    storage.items.set(RESTORING, 'room-a');
+    const { scans, statuses } = setup(undefined, 'room-b');
+    vi.mocked(loadScan).mockResolvedValue(saved('b.spz'));
+    await scans.restore(room);
+    expect(last(statuses)).toMatchObject({ kind: 'ready', fileName: 'b.spz' });
+  });
+
+  it("doesn't reopen a scan whose last open never finished", async () => {
+    storage.items.set(RESTORING, 'room-a');
+    const { scans, statuses } = setup();
+    vi.mocked(loadScan).mockResolvedValue(saved('a.spz'));
+    await scans.restore(room);
+    expect(last(statuses)).toMatchObject({ kind: 'error' });
+    expect(loadScan).not.toHaveBeenCalled();
   });
 });
 

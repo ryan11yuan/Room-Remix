@@ -5,6 +5,7 @@ import { watchEdits } from '@/lib/room/autosave';
 import { newRoomId, ROOMS_KEY, type RoomsStorage } from '@/lib/room/rooms';
 import { RoomSession } from '@/lib/room/session';
 import { decodeRoom } from '@/lib/room/urlCodec';
+import { deleteScan, pruneScans } from '@/lib/scene/scanStore';
 
 const AUTOSAVE_MS = 400;
 const TAB_ROOM_KEY = 'room-remix:tab-room'; // sessionStorage: this tab's own room, kept across a reload
@@ -42,6 +43,8 @@ export function roomSession(): RoomSession {
         // this tab just won't remember its room across a reload
       }
     },
+    dropScan: (roomId) => void deleteScan(roomId).catch(() => {}), // a scan that can't be dropped now is pruned at a later start
+    pruneScans: (roomIds) => void pruneScans(roomIds).catch(() => {}),
   });
   return session;
 }
