@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { RayPath } from '@/lib/acoustics/rays';
 import type { DragTarget } from '@/lib/room/placement';
 import type { RoomState, Vec3, WallId } from '@/lib/room/types';
-import { cameraPreset, type CameraPreset } from './layout';
+import { boxView, cameraPreset, type CameraPreset } from './layout';
 import {
   buildFixes,
   buildListener,
@@ -16,18 +16,25 @@ import {
 } from './objects';
 import { RaysObject } from './RaysObject';
 
+/** What a tap on the canvas does: nothing, place a panel on a wall, or pick a point on the room scan. */
+export type TapMode = 'none' | 'panel' | 'scan';
+/** How the room's own walls are drawn: tinted surfaces and a grid, just the edges, or not at all. */
+export type ShellStyle = 'tinted' | 'outline' | 'hidden';
+
 export type SceneCallbacks = {
   onDrag: (target: DragTarget, point: Vec3) => void;
   onWallTap: (wall: WallId, point: Vec3) => void;
+  /** Scan mode: where a tap first hit a scan target. */
+  onScanTap: (point: Vec3) => void;
 };
 
 const TAP_SLOP_PX = 6;
 const GRAZING = 0.1; // ~6°: below this, pixels map to metres too coarsely to drag
 const FORWARD = new THREE.Vector3(0, 0, 1);
 
-/** The 3D room: draws the shell, handles, fixes and rays, and turns pointer input into drags and wall taps. */
+/** The 3D room: draws the shell, handles, fixes and rays, and turns pointer input into drags, wall taps and scan taps. */
 export class RoomScene {
-  private readonly renderer: THREE.WebGLRenderer;
+  private readonly webgl: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.05, 200);
   private readonly controls: OrbitControls;
@@ -42,7 +49,13 @@ export class RoomScene {
   private preset: CameraPreset = 'corner';
   private dimsKey = '';
   private userMoved = false; // the user has orbited or zoomed since the last preset, so a resized room mustn't yank the camera
-  private placingPanel = false;
+  private shellStyle: ShellStyle = 'tinted';
+  private raysOn = true; // the rays toggle; rays show only when the room items are also on
+  private roomItemsOn = true; // speaker, listener, fixes and rays
+  private tapMode: TapMode = 'none';
+  private scanTargets: THREE.Object3D[] = [];
+  private onScreen = true; // the canvas is in view; when it isn't, the loop skips updating and drawing
+  private readonly visibility: IntersectionObserver;
   private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number; offset: { x: number; z: number } } | null = null;
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
   private extraPointer = false; // another finger or button joined the press, so it's a gesture, not a tap
@@ -51,8 +64,8 @@ export class RoomScene {
     private readonly canvas: HTMLCanvasElement,
     private readonly callbacks: SceneCallbacks,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.webgl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.scene.background = new THREE.Color(0x0a0a0a);
     this.scene.add(this.speaker, this.listener, this.rays.object);
     // Capture phase: claim a drag before OrbitControls (a bubble-phase listener on the same canvas) starts orbiting.
@@ -65,11 +78,31 @@ export class RoomScene {
     this.controls.addEventListener('start', () => {
       this.userMoved = true; // 'start' fires only on user interaction
     });
-    this.renderer.setAnimationLoop((time) => {
+    // Entries arrive oldest first, so the last one is the canvas's current state.
+    this.visibility = new IntersectionObserver((entries) => {
+      for (const entry of entries) this.onScreen = entry.isIntersecting;
+    });
+    this.visibility.observe(canvas);
+    this.webgl.setAnimationLoop((time) => {
+      if (!this.onScreen) return; // scrolled out of view: don't spend the GPU on a canvas nobody can see
       this.controls.update();
       this.rays.tick(time / 1000);
-      this.renderer.render(this.scene, this.camera);
+      this.webgl.render(this.scene, this.camera);
     });
+  }
+
+  /** The WebGL renderer, so another layer (such as a splat renderer) can draw into the same context. */
+  get renderer(): THREE.WebGLRenderer {
+    return this.webgl;
+  }
+
+  /** Add an extra object (such as a room scan) to the scene. The caller owns it and disposes it. */
+  addLayer(object: THREE.Object3D): void {
+    this.scene.add(object);
+  }
+
+  removeLayer(object: THREE.Object3D): void {
+    this.scene.remove(object);
   }
 
   setRoom(room: RoomState): void {
@@ -83,6 +116,7 @@ export class RoomScene {
       }
       this.shell = buildShell(room);
       this.scene.add(this.shell);
+      this.applyShellStyle();
       this.shellKey = shellKey;
     }
     const fixesKey = JSON.stringify([room.dims, room.fixes]);
@@ -92,6 +126,7 @@ export class RoomScene {
         disposeTree(this.fixes);
       }
       this.fixes = buildFixes(room);
+      this.fixes.visible = this.roomItemsOn;
       this.scene.add(this.fixes);
       this.fixesKey = fixesKey;
     }
@@ -109,21 +144,60 @@ export class RoomScene {
   }
 
   setRaysVisible(visible: boolean): void {
-    this.rays.object.visible = visible;
+    this.raysOn = visible;
+    this.rays.object.visible = this.raysOn && this.roomItemsOn;
   }
 
-  setPlacingPanel(placing: boolean): void {
-    this.placingPanel = placing;
-    this.canvas.style.cursor = placing ? 'crosshair' : '';
+  /** Show or hide the speaker, listener, fixes and rays together (rays also need their own toggle on). */
+  setRoomItemsVisible(visible: boolean): void {
+    this.roomItemsOn = visible;
+    this.speaker.visible = visible;
+    this.listener.visible = visible;
+    if (this.fixes) this.fixes.visible = visible;
+    this.rays.object.visible = this.raysOn && visible;
+  }
+
+  setShellStyle(style: ShellStyle): void {
+    this.shellStyle = style;
+    this.applyShellStyle();
+  }
+
+  /** Wall meshes that are switched off still raycast, so panel taps keep working in the outline and hidden styles. */
+  private applyShellStyle(): void {
+    if (!this.shell) return;
+    const style = this.shellStyle;
+    for (const child of this.shell.children) {
+      if (child.userData.surface) child.visible = style === 'tinted';
+      else if (child.name === 'edges') child.visible = style !== 'hidden';
+      else if (child.name === 'grid') child.visible = style === 'tinted';
+    }
+  }
+
+  setTapMode(mode: TapMode): void {
+    this.tapMode = mode;
+    this.canvas.style.cursor = mode === 'none' ? '' : 'crosshair';
+  }
+
+  /** The objects a tap hits in scan mode (searched recursively). */
+  setScanTargets(objects: THREE.Object3D[]): void {
+    this.scanTargets = objects;
   }
 
   setCameraPreset(room: RoomState, preset: CameraPreset): void {
     this.preset = preset;
-    this.userMoved = false; // choosing a preset hands framing back to the app
+    this.moveCamera(cameraPreset(room, preset));
+  }
+
+  /** Look at a box (such as a scan's bounds) from outside it. */
+  frameBox(min: Vec3, max: Vec3): void {
+    this.moveCamera(boxView(min, max));
+  }
+
+  private moveCamera({ position, target }: { position: Vec3; target: Vec3 }): void {
+    this.userMoved = false; // choosing a view hands framing back to the app
     // With damping off, update() applies and clears any leftover orbit momentum, so the new view doesn't keep drifting.
     this.controls.enableDamping = false;
     this.controls.update();
-    const { position, target } = cameraPreset(room, preset);
     this.camera.position.set(position.x, position.y, position.z);
     this.controls.target.set(target.x, target.y, target.z);
     this.controls.update();
@@ -131,13 +205,14 @@ export class RoomScene {
   }
 
   resize(width: number, height: number): void {
-    this.renderer.setSize(width, height, false);
+    this.webgl.setSize(width, height, false);
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
   }
 
   dispose(): void {
-    this.renderer.setAnimationLoop(null);
+    this.webgl.setAnimationLoop(null);
+    this.visibility.disconnect();
     this.canvas.removeEventListener('pointerdown', this.onPointerDown, { capture: true });
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
@@ -145,7 +220,7 @@ export class RoomScene {
     this.controls.dispose();
     for (const object of [this.shell, this.fixes, this.speaker, this.listener]) if (object) disposeTree(object);
     this.rays.dispose();
-    this.renderer.dispose();
+    this.webgl.dispose();
   }
 
   private aim(event: PointerEvent): void {
@@ -166,7 +241,8 @@ export class RoomScene {
     if (this.dragging) return;
     this.extraPointer = false;
     this.down = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-    if (this.placingPanel) return;
+    // A tap mode owns the press; hidden room items can't be grabbed (the raycaster doesn't check `visible`).
+    if (this.tapMode !== 'none' || !this.roomItemsOn) return;
     this.aim(event);
     const rugs = this.fixes?.children.filter((c) => (c.userData.handle as Handle).kind === 'rug') ?? [];
     const hit = this.raycaster.intersectObjects([this.speaker, this.listener, ...rugs], true)[0];
@@ -206,10 +282,16 @@ export class RoomScene {
     this.down = null;
     this.extraPointer = false;
     const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
-    if (wasDragging || extra || !this.placingPanel || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
+    if (wasDragging || extra || this.tapMode === 'none' || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
+
+    this.aim(event);
+    if (this.tapMode === 'scan') {
+      const scanHit = this.raycaster.intersectObjects(this.scanTargets, true)[0];
+      if (scanHit) this.callbacks.onScanTap({ x: scanHit.point.x, y: scanHit.point.y, z: scanHit.point.z });
+      return;
+    }
 
     // Take the first wall whose inside faces the camera: the one you see, even when looking in from outside.
-    this.aim(event);
     const walls = this.shell?.children.filter((c) => String(c.userData.surface ?? '').startsWith('wall')) ?? [];
     const hit = this.raycaster.intersectObjects(walls, false).find((h) => {
       const inward = FORWARD.clone().applyQuaternion(h.object.quaternion);

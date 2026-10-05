@@ -74,3 +74,10 @@ export function cameraPreset(room: RoomState, preset: CameraPreset): { position:
     }
   }
 }
+
+/** Look at the centre of a box (e.g. a scan's bounds) from outside, on the +x, +y, +z diagonal. */
+export function boxView(min: Vec3, max: Vec3): { position: Vec3; target: Vec3 } {
+  const target = vec((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2);
+  const reach = 1.6 * Math.max(Math.hypot(max.x - min.x, max.y - min.y, max.z - min.z), 0.5) / Math.sqrt(3);
+  return { position: vec(target.x + reach, target.y + reach, target.z + reach), target };
+}

@@ -124,6 +124,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           setMessage(refusal);
           if (!refusal) setPlacing(false);
         },
+        onScanTap: () => {}, // wired up when the scan tools arrive
       });
     } catch (error) {
       console.error(error); // three logs WebGL context failures itself; this makes any other constructor bug visible
@@ -153,7 +154,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   }, [raysOn, webgl]);
 
   useEffect(() => {
-    sceneRef.current?.setPlacingPanel(placing);
+    sceneRef.current?.setTapMode(placing ? 'panel' : 'none');
   }, [placing, webgl]);
 
   if (!webgl) {

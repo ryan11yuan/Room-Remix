@@ -97,4 +97,9 @@ describe('applyDrag', () => {
     expect(next.fixes[0]).toBe(room.fixes[0]);
     expect(next.fixes[1]).toMatchObject({ kind: 'rug', x: 4 - 1.15, z: 0.8 });
   });
+
+  it('ignores drags while a room size is being edited', () => {
+    const room: RoomState = { ...defaultRoom(), dims: { length: Number.NaN, width: 3.5, height: 2.6 } };
+    expect(applyDrag(room, { kind: 'speaker' }, { x: 2, y: 0, z: 2 })).toBe(room);
+  });
 });

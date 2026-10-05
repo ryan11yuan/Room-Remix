@@ -61,6 +61,8 @@ export function findFreePanelSpot(room: RoomState): PanelFix | null {
 
 /** Move a dragged item to a floor-plan point: x and z follow the pointer, height and yaw stay, and it stays in the room. */
 export function applyDrag(room: RoomState, target: DragTarget, point: Vec3): RoomState {
+  const { length, width, height } = room.dims;
+  if (![length, width, height].every((d) => Number.isFinite(d) && d > 0)) return room; // a size is mid-edit
   switch (target.kind) {
     case 'speaker':
       return { ...room, speaker: clampPosition(room.dims, { ...room.speaker, x: point.x, z: point.z }) };

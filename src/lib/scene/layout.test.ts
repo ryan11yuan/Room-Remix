@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { toSurfaceCoords } from '@/lib/room/geometry';
 import { defaultRoom } from '@/lib/room/roomState';
 import { SURFACE_IDS } from '@/lib/room/types';
-import { cameraPreset, fixQuad, surfacePoint, surfaceQuad } from './layout';
+import { boxView, cameraPreset, fixQuad, surfacePoint, surfaceQuad } from './layout';
 
 const dims = { length: 4, width: 3.5, height: 2.6 };
 
@@ -67,5 +67,15 @@ describe('cameraPreset', () => {
     expect(distance(position, listener)).toBeCloseTo(0.2, 9);
     // On the segment toward the speaker: the remaining distance is the full gap minus the 0.2 m stepped off.
     expect(distance(position, speaker)).toBeCloseTo(distance(listener, speaker) - 0.2, 9);
+  });
+});
+
+describe('boxView', () => {
+  it('looks at the centre of a box from outside it', () => {
+    const { position, target } = boxView({ x: -1, y: 0, z: -2 }, { x: 3, y: 2, z: 2 });
+    expect(target).toEqual({ x: 1, y: 1, z: 0 });
+    expect(position.x).toBeGreaterThan(3);
+    expect(position.y).toBeGreaterThan(2);
+    expect(position.z).toBeGreaterThan(2);
   });
 });
