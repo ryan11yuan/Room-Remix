@@ -18,7 +18,6 @@ function done<T>(request: IDBRequest<T>): Promise<T> {
 function finished(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error ?? new Error('Storage was aborted'));
   });
 }
