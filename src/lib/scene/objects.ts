@@ -6,6 +6,7 @@ import { LISTENER_COLOR, MATERIAL_COLORS, SPEAKER_COLOR } from './colors';
 import { fixQuad, surfaceQuad, type Quad } from './layout';
 
 const PANEL_THICKNESS = 0.04;
+const PICK_RADIUS = 0.25; // invisible grab sphere: ~44 pt at the default view on a phone
 
 /** What a mesh stands for when it's picked: stored in `userData.handle`. */
 export type Handle = DragTarget | { kind: 'panel'; index: number };
@@ -56,10 +57,20 @@ export function buildShell(room: RoomState): THREE.Group {
   return group;
 }
 
+/** An invisible sphere that still catches the raycaster (it doesn't check `visible`), so a fingertip can grab a small handle. */
+function buildPickSphere(handle: Handle): THREE.Mesh {
+  const pick = new THREE.Mesh(new THREE.SphereGeometry(PICK_RADIUS, 12, 8), new THREE.MeshBasicMaterial());
+  pick.visible = false;
+  pick.name = 'pick';
+  pick.userData = { handle };
+  return pick;
+}
+
 export function buildSpeaker(): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.32, 0.22), new THREE.MeshBasicMaterial({ color: SPEAKER_COLOR }));
   mesh.name = 'speaker';
   mesh.userData = { handle: { kind: 'speaker' } satisfies Handle };
+  mesh.add(buildPickSphere({ kind: 'speaker' }));
   return mesh;
 }
 
@@ -75,6 +86,7 @@ export function buildListener(): THREE.Group {
     part.userData = { handle: { kind: 'listener' } satisfies Handle };
     group.add(part);
   }
+  group.add(buildPickSphere({ kind: 'listener' }));
   return group;
 }
 

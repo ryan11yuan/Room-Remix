@@ -57,6 +57,21 @@ describe('handles', () => {
     for (const part of listener.children) expect(part.userData.handle).toEqual({ kind: 'listener' });
   });
 
+  it('gives the speaker and listener invisible finger-sized grab spheres', () => {
+    const cases = [
+      { object: buildSpeaker() as THREE.Object3D, handle: { kind: 'speaker' } },
+      { object: buildListener() as THREE.Object3D, handle: { kind: 'listener' } },
+    ];
+    for (const { object, handle } of cases) {
+      const pick = object.getObjectByName('pick') as THREE.Mesh;
+      expect(pick.visible).toBe(false);
+      expect(pick.userData.handle).toEqual(handle);
+      expect((pick.geometry as THREE.SphereGeometry).parameters.radius).toBeGreaterThanOrEqual(0.25);
+      const ray = new THREE.Raycaster(new THREE.Vector3(0.2, 0, -5), new THREE.Vector3(0, 0, 1));
+      expect(ray.intersectObject(object, true).some((h) => h.object === pick)).toBe(true); // hit 0.2 m off-centre
+    }
+  });
+
   it('tags fixes with their index and fades switched-off ones', () => {
     const room: RoomState = {
       ...defaultRoom(),
