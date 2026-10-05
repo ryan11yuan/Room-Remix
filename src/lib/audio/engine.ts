@@ -5,13 +5,22 @@ export const CROSSFADE_SECONDS = 0.05;
 const MASTER_GAIN = 0.5; // −6 dB headroom: convolving with a dense room IR raises peaks well above the dry track's
 // Safety limiter before the output: catches the rare peak that still overshoots, instead of hard clipping.
 const LIMITER: DynamicsCompressorOptions = { threshold: -1, knee: 0, ratio: 20, attack: 0.003, release: 0.1 };
+const MAX_WARM_UP_SECONDS = 0.5; // a new convolver runs silently up to this long so it holds the playing music's reverb
+const RETIRE_MARGIN_MS = 50; // disconnect the faded-out convolver this long after its fade ends, to absorb timer jitter
 
+type Pair = { conv: ConvolverNode; gain: GainNode };
+
+/**
+ * One room's reverb. `active` is the pair being heard. A new IR gets its own `pending` pair, which warms up
+ * silently, then crossfades in; when the fade ends it becomes `active` and the old pair is disconnected.
+ */
 type Slot = {
-  convolvers: [ConvolverNode, ConvolverNode];
-  gains: [GainNode, GainNode];
-  active: 0 | 1;
   out: GainNode;
-  loaded: boolean;
+  active: Pair | null;
+  pending: Pair | null;
+  ir: StereoIr | null; // raw IR of `pending ?? active`, to skip reloading an identical one
+  fadeEnd: number; // context time at which `pending` is fully faded in
+  retireTimer?: ReturnType<typeof setTimeout>;
 };
 
 /** Plays one song dry, through the "now" room, or through the room with fixes, switching without clicks. */
@@ -91,6 +100,7 @@ export class AudioEngine {
   }
 
   dispose(): void {
+    for (const slot of [this.slots.now, this.slots.withFixes]) clearTimeout(slot.retireTimer);
     this.source?.stop();
     void this.ctx.close();
   }
@@ -98,45 +108,92 @@ export class AudioEngine {
   private createSlot(master: GainNode): Slot {
     const out = new GainNode(this.ctx, { gain: 0 });
     out.connect(master);
-    const pair = (): [ConvolverNode, GainNode] => {
-      const conv = new ConvolverNode(this.ctx, { disableNormalization: true });
-      const gain = new GainNode(this.ctx, { gain: 0 });
-      conv.connect(gain).connect(out);
-      return [conv, gain];
-    };
-    const [c0, g0] = pair();
-    const [c1, g1] = pair();
-    return { convolvers: [c0, c1], gains: [g0, g1], active: 0, out, loaded: false };
+    return { out, active: null, pending: null, ir: null, fadeEnd: 0 };
   }
 
   private loadSlot(slot: Slot, ir: StereoIr): void {
-    const idle = slot.active === 0 ? 1 : 0;
-    const old = slot.convolvers[idle];
-    try {
-      this.input.disconnect(old);
-    } catch {
-      // never connected yet
-    }
-    old.disconnect();
+    if (sameIr(slot.ir, ir)) return; // the simulation is deterministic, so an unchanged room gives an identical IR
+    const buffer = this.irBuffer(ir); // before touching the slot, so a bad IR leaves it as it was
+    slot.ir = ir;
+    const t = this.ctx.currentTime;
+    if (slot.pending && t >= slot.fadeEnd) this.finishSwap(slot); // the pending pair is already fully faded in
 
+    if (!slot.active || this.ctx.state !== 'running') {
+      // Nothing is audible (first IR, or the context isn't running), so there is no reverb to keep: switch at once.
+      this.dropPending(slot);
+      if (slot.active) this.disconnectPair(slot.active);
+      slot.active = this.connectPair(slot, buffer, 1);
+      return;
+    }
+
+    if (slot.pending) {
+      // A newer IR replaces one still warming up or fading in, which was never fully heard.
+      this.dropPending(slot);
+      ramp(slot.active.gain.gain, 1, t); // cancels any fade-out of the heard pair and brings it back to full gain
+    }
+
+    // Warm up: the new convolver fills with the music already playing before it is heard, so the reverb never dips.
+    const warm = Math.min(ir.left.length / ir.sampleRate, MAX_WARM_UP_SECONDS);
+    const start = t + warm;
+    const old = slot.active;
+    const fresh = this.connectPair(slot, buffer, 0);
+    fresh.gain.gain.setValueAtTime(0, start);
+    fresh.gain.gain.linearRampToValueAtTime(1, start + CROSSFADE_SECONDS);
+    old.gain.gain.setValueAtTime(1, start);
+    old.gain.gain.linearRampToValueAtTime(0, start + CROSSFADE_SECONDS);
+    slot.pending = fresh;
+    slot.fadeEnd = start + CROSSFADE_SECONDS;
+    this.scheduleRetire(slot, old, fresh);
+  }
+
+  /** Retires `old` once the audio clock has passed the end of the crossfade, checking again if it lags the timer. */
+  private scheduleRetire(slot: Slot, old: Pair, fresh: Pair): void {
+    const remaining = slot.fadeEnd - this.ctx.currentTime;
+    slot.retireTimer = setTimeout(() => {
+      if (slot.active !== old || slot.pending !== fresh) return; // superseded: not ours to retire any more
+      if (this.ctx.currentTime < slot.fadeEnd) this.scheduleRetire(slot, old, fresh);
+      else this.finishSwap(slot);
+    }, remaining * 1000 + RETIRE_MARGIN_MS);
+  }
+
+  /** The pending pair has faded in: disconnect the old pair and make the pending one active. */
+  private finishSwap(slot: Slot): void {
+    clearTimeout(slot.retireTimer);
+    slot.retireTimer = undefined;
+    if (slot.active) this.disconnectPair(slot.active);
+    slot.active = slot.pending;
+    slot.pending = null;
+  }
+
+  private dropPending(slot: Slot): void {
+    clearTimeout(slot.retireTimer);
+    slot.retireTimer = undefined;
+    if (slot.pending) this.disconnectPair(slot.pending);
+    slot.pending = null;
+  }
+
+  private irBuffer(ir: StereoIr): AudioBuffer {
     const normalized = normalizeIr(ir);
     const buffer = this.ctx.createBuffer(2, normalized.left.length, normalized.sampleRate);
     buffer.getChannelData(0).set(normalized.left);
     buffer.getChannelData(1).set(normalized.right);
-    const conv = new ConvolverNode(this.ctx, { disableNormalization: true, buffer });
-    this.input.connect(conv);
-    conv.connect(slot.gains[idle]);
-    slot.convolvers[idle] = conv;
+    return buffer;
+  }
 
-    const t = this.ctx.currentTime;
-    if (slot.loaded) {
-      ramp(slot.gains[idle].gain, 1, t);
-      ramp(slot.gains[slot.active].gain, 0, t);
-    } else {
-      slot.gains[idle].gain.setValueAtTime(1, t);
-    }
-    slot.active = idle;
-    slot.loaded = true;
+  /** input → convolver → its own gain → slot output. */
+  private connectPair(slot: Slot, buffer: AudioBuffer, gain: number): Pair {
+    const pair = {
+      conv: new ConvolverNode(this.ctx, { disableNormalization: true, buffer }),
+      gain: new GainNode(this.ctx, { gain }),
+    };
+    this.input.connect(pair.conv).connect(pair.gain).connect(slot.out);
+    return pair;
+  }
+
+  private disconnectPair(pair: Pair): void {
+    this.input.disconnect(pair.conv);
+    pair.conv.disconnect();
+    pair.gain.disconnect();
   }
 
   private applyMode(seconds: number): void {
@@ -153,4 +210,14 @@ function ramp(param: AudioParam, value: number, t: number, seconds = CROSSFADE_S
   param.setValueAtTime(param.value, t);
   if (seconds > 0) param.linearRampToValueAtTime(value, t + seconds);
   else param.setValueAtTime(value, t);
+}
+
+/** Same sample rate, same length and exactly the same samples. */
+function sameIr(a: StereoIr | null, b: StereoIr): boolean {
+  if (!a || a.sampleRate !== b.sampleRate || a.left.length !== b.left.length || a.right.length !== b.right.length) {
+    return false;
+  }
+  for (let i = 0; i < a.left.length; i++) if (a.left[i] !== b.left[i]) return false;
+  for (let i = 0; i < a.right.length; i++) if (a.right[i] !== b.right[i]) return false;
+  return true;
 }
