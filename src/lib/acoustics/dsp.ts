@@ -96,6 +96,13 @@ export function highPass(signal: Float32Array | Float64Array, sampleRate: number
   }
 }
 
+/** Fade the last `seconds` of a signal to silence with a raised cosine, in place, so a cut-off tail doesn't click. */
+export function fadeTail(signal: Float32Array, sampleRate: number, seconds: number): void {
+  const n = Math.min(signal.length, Math.round(seconds * sampleRate));
+  const start = signal.length - n;
+  for (let i = 0; i < n; i++) signal[start + i] *= 0.5 * (1 + Math.cos((Math.PI * (i + 1)) / n));
+}
+
 export const CROSSOVERS = [177, 354, 707, 1414, 2828];
 const HALF_WIDTH_OCTAVES = 0.25;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyBandMasks, bandMasks, bandNoise, createRng, fft, gaussian, highPass, nextPow2 } from './dsp';
+import { applyBandMasks, bandMasks, bandNoise, createRng, fadeTail, fft, gaussian, highPass, nextPow2 } from './dsp';
 
 describe('nextPow2', () => {
   it('rounds up to a power of two', () => {
@@ -108,5 +108,24 @@ describe('highPass', () => {
     const signal = Float64Array.from(input);
     highPass(signal, 48000, 40);
     expect(Math.abs(rms(signal, 48000) / rms(input, 48000) / Math.SQRT1_2 - 1)).toBeLessThan(0.02);
+  });
+});
+
+describe('fadeTail', () => {
+  it('fades the last stretch to zero and leaves the rest alone', () => {
+    const signal = new Float32Array(1000).fill(1);
+    fadeTail(signal, 1000, 0.1); // the last 100 samples
+    expect(signal[899]).toBe(1);
+    expect(signal[950]).toBeGreaterThan(0.3);
+    expect(signal[950]).toBeLessThan(0.7);
+    expect(signal[999]).toBeCloseTo(0, 6);
+    for (let i = 901; i < 1000; i++) expect(signal[i]).toBeLessThanOrEqual(signal[i - 1]);
+  });
+
+  it('fades the whole of a signal shorter than the fade', () => {
+    const signal = new Float32Array(10).fill(1);
+    fadeTail(signal, 1000, 0.1);
+    expect(signal[9]).toBeCloseTo(0, 6);
+    expect(signal[0]).toBeLessThan(1);
   });
 });

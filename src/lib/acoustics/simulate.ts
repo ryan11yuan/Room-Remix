@@ -3,7 +3,7 @@ import { absorptionArea, makeSurfaceLookup } from './absorption';
 import { NUM_BANDS, SPEED_OF_SOUND, type Bands } from './bands';
 import { earResponse, listenerYaw } from './binaural';
 import { diffuseBounceFactor, diffuseGains } from './diffuse';
-import { applyBandMasks, bandMasks, bandNoise, highPass, nextPow2 } from './dsp';
+import { applyBandMasks, bandMasks, bandNoise, fadeTail, highPass, nextPow2 } from './dsp';
 import { computeImageSources, type Arrival } from './imageSource';
 import { toRayPath, type RayPath } from './rays';
 import { eyring, midRt60, roomVolume, totalSurfaceArea } from './reverbTime';
@@ -13,9 +13,10 @@ export const IR_MAX_ORDER = 10;
 export const MAX_PATHS = 200;
 /** The modelled speaker's bass limit. It also removes the image model's coherent DC build-up. */
 export const SPEAKER_LOW_CUT_HZ = 40;
+export const TAIL_FADE_SECONDS = 0.1;
 
 const MAX_TRANSITION_SECONDS = 0.08;
-const TAIL_FADE_SECONDS = 0.005;
+const EARLY_TAIL_RAMP_SECONDS = 0.005;
 const FILTER_PAD = 4096;
 const NOISE_SEED = { left: 1, right: 2 };
 const LN_1000 = 6.907755; // 60 dB decay in nepers
@@ -60,6 +61,11 @@ export function simulateRoom(room: RoomState, sampleRate: number): AcousticsResu
   addTail(rt60.bands, roomVolume(room.dims), transition, sampleRate, left, right);
   highPass(left, sampleRate, SPEAKER_LOW_CUT_HZ);
   highPass(right, sampleRate, SPEAKER_LOW_CUT_HZ);
+  if (seconds === MAX_IR_SECONDS) {
+    // The cap cut a tail that was still ringing: fade it, or the cut is heard as a click.
+    fadeTail(left, sampleRate, TAIL_FADE_SECONDS);
+    fadeTail(right, sampleRate, TAIL_FADE_SECONDS);
+  }
 
   const paths = inEarly
     .map((a) => toRayPath(a, bounce))
@@ -118,7 +124,7 @@ function addTail(
 ): void {
   const sigma0 = Math.sqrt((4 * Math.PI * SPEED_OF_SOUND) / (volume * sampleRate));
   const start = Math.floor(transition * sampleRate);
-  const fade = Math.max(1, Math.round(TAIL_FADE_SECONDS * sampleRate));
+  const fade = Math.max(1, Math.round(EARLY_TAIL_RAMP_SECONDS * sampleRate));
   const noiseLength = Math.ceil(MAX_IR_SECONDS * sampleRate);
 
   for (const [out, seed] of [

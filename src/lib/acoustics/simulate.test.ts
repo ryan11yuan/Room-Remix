@@ -160,3 +160,22 @@ describe('simulateBoth', () => {
     expect(withFixes.rt60.mid).toBeCloseTo(now.rt60.mid, 12);
   });
 });
+
+describe('simulateRoom capping', () => {
+  it('fades out an impulse response that the length cap cut short', () => {
+    // A bare tiled room rings for longer than the cap.
+    const room = defaultRoom();
+    const bare: RoomState = {
+      ...room,
+      dims: { length: 12, width: 9, height: 4 },
+      furnishing: 'bare',
+      surfaces: { floor: 'tile', ceiling: 'concrete', wallX0: 'concrete', wallX1: 'concrete', wallZ0: 'concrete', wallZ1: 'concrete' },
+      speaker: { x: 2, y: 1.2, z: 3 },
+      listener: { x: 8, y: 1.2, z: 5, yaw: 'faceSpeaker' },
+    };
+    const { ir } = simulateRoom(bare, 48000);
+    expect(ir.left.length).toBe(Math.ceil(MAX_IR_SECONDS * 48000));
+    expect(Math.abs(ir.left[ir.left.length - 1])).toBeLessThan(1e-6);
+    expect(Math.abs(ir.right[ir.right.length - 1])).toBeLessThan(1e-6);
+  });
+});
