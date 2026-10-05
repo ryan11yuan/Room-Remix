@@ -230,6 +230,7 @@ export function RoomForm() {
           {errors.map((e) => (
             <li key={`${e.field}:${e.message}`}>{e.message}</li>
           ))}
+          <li className="font-medium">Changes to this room aren&apos;t saved until this is fixed.</li>
         </ul>
       )}
     </div>

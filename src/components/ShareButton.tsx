@@ -17,6 +17,7 @@ export function ShareButton() {
   const [prepared, setPrepared] = useState<{ room: RoomState; code: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [manualLink, setManualLink] = useState<string | null>(null); // shown to copy by hand when the browser won't copy
+  const [unsupported, setUnsupported] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function ShareButton() {
         (code) => {
           if (!cancelled) setPrepared({ room, code });
         },
-        () => {}, // no link can be made in this browser: the button's click path reports it
+        () => {}, // no link can be made in this browser: a click says so
       );
     }, PREPARE_MS);
     return () => {
@@ -59,13 +60,13 @@ export function ShareButton() {
 
   function share() {
     if (prepared?.room === room) copy(prepared.code);
-    else void encodeRoom(room).then(copy, () => {}); // clicked before the link was ready
+    else void encodeRoom(room).then(copy, () => setUnsupported(true)); // clicked before the link was ready
   }
 
   return (
     <div className="relative">
       <button onClick={share} disabled={!valid} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm disabled:opacity-40">
-        {copied ? 'Link copied' : 'Share link'}
+        {unsupported ? "Sharing isn't supported in this browser" : copied ? 'Link copied' : 'Share link'}
       </button>
       <span role="status" className="sr-only">
         {copied ? 'Link copied' : ''}

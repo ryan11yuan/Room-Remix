@@ -1,14 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Player } from '@/components/Player';
 import { RoomForm } from '@/components/RoomForm';
+import { RoomsMenu } from '@/components/RoomsMenu';
 import { RoomView } from '@/components/RoomView';
 import { ShareButton } from '@/components/ShareButton';
 import { useRoomSession } from '@/components/useRoomSession';
 import { DEFAULT_SAMPLE_RATE, useSimulation } from '@/components/useSimulation';
 import type { ListenMode } from '@/lib/audio/mix';
-import { isSavable } from '@/lib/room/rooms';
 import { useRoomStore } from '@/lib/room/store';
 
 export default function RoomPage() {
@@ -38,20 +38,28 @@ export default function RoomPage() {
 /** The open room: 3D view, player and form. Shown once the saved rooms have been read. */
 function RoomWorkspace() {
   const room = useRoomStore((s) => s.room);
+  const update = useRoomStore((s) => s.update);
   const [sampleRate, setSampleRate] = useState(DEFAULT_SAMPLE_RATE);
   const [mode, setMode] = useState<ListenMode>({ room: true, fixes: false });
   const sim = useSimulation(room, sampleRate);
-  const savable = useMemo(() => isSavable(room), [room]);
 
   return (
     <>
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Your room</h1>
-        <ShareButton />
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="sr-only">Your room</h1>
+        <input
+          aria-label="Room name"
+          value={room.name}
+          maxLength={80}
+          placeholder="Untitled room"
+          onChange={(e) => update((r) => ({ ...r, name: e.target.value }))}
+          className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-2xl font-bold hover:border-neutral-700 focus:border-neutral-500"
+        />
+        <div className="flex gap-2">
+          <RoomsMenu />
+          <ShareButton />
+        </div>
       </header>
-      <p role="status" className="text-sm text-amber-200 empty:sr-only">
-        {savable ? '' : "Changes to this room aren't being saved until the problems listed below are fixed."}
-      </p>
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="min-w-0 lg:flex-1">
           <RoomView mode={mode} />
