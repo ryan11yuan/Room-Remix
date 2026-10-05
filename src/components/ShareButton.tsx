@@ -1,35 +1,83 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
+import type { RoomState } from '@/lib/room/types';
 import { encodeRoom } from '@/lib/room/urlCodec';
 
-const LABELS = { idle: 'Share link', copied: 'Link copied', failed: 'Copy the link from the address bar' } as const;
+const PREPARE_MS = 300; // the room changes on every drag frame: make the link once it settles
+const COPIED_MS = 3000;
+const linkFor = (code: string) => `${window.location.origin}${window.location.pathname}#${code}`;
 
 export function ShareButton() {
   const room = useRoomStore((s) => s.room);
-  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const valid = validateRoom(room).length === 0;
+  // The link for `room`, made ahead of the click: Safari only lets a click copy when nothing is awaited first.
+  const [prepared, setPrepared] = useState<{ room: RoomState; code: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [manualLink, setManualLink] = useState<string | null>(null); // shown to copy by hand when the browser won't copy
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  async function share() {
-    const code = await encodeRoom(room);
-    window.history.replaceState(null, '', `#${code}`);
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setStatus('copied');
-    } catch {
-      setStatus('failed');
-    }
-    setTimeout(() => setStatus('idle'), 3000);
+  useEffect(() => {
+    if (!valid) return;
+    let cancelled = false;
+    const wait = setTimeout(() => {
+      void encodeRoom(room).then((code) => {
+        if (!cancelled) setPrepared({ room, code });
+      });
+    }, PREPARE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(wait);
+    };
+  }, [room, valid]);
+
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+
+  function copy(code: string) {
+    const link = linkFor(code);
+    const showCopied = () => {
+      setManualLink(null);
+      setCopied(true);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
+    };
+    // navigator.clipboard is missing on plain-http pages, and the write is refused without permission.
+    const written = navigator.clipboard?.writeText(link);
+    if (written) written.then(showCopied, () => setManualLink(link));
+    else setManualLink(link);
+  }
+
+  function share() {
+    if (prepared?.room === room) copy(prepared.code);
+    else void encodeRoom(room).then(copy); // clicked before the link was ready
   }
 
   return (
-    <button
-      onClick={() => void share()}
-      disabled={validateRoom(room).length > 0}
-      className="rounded-lg border border-neutral-700 px-4 py-2 text-sm disabled:opacity-40"
-    >
-      {LABELS[status]}
-    </button>
+    <div className="relative">
+      <button onClick={share} disabled={!valid} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm disabled:opacity-40">
+        {copied ? 'Link copied' : 'Share link'}
+      </button>
+      <span role="status" className="sr-only">
+        {copied ? 'Link copied' : ''}
+      </span>
+      {manualLink && (
+        <div className="absolute right-0 top-full z-10 mt-2 flex w-72 flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3 text-sm">
+          <label className="flex flex-col gap-1">
+            <span>Copy this link:</span>
+            <input
+              readOnly
+              value={manualLink}
+              onFocus={(e) => e.target.select()}
+              className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5"
+            />
+          </label>
+          <button onClick={() => setManualLink(null)} className="self-end rounded-md border border-neutral-700 px-3 py-1">
+            Done
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
