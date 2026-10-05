@@ -31,7 +31,8 @@ const fragmentShader = /* glsl */ `
     float behind = uFront - vArc;                          // metres since the pulse passed this point
     float pulse = behind < 0.0 ? 0.0 : exp(-behind / 0.5); // bright head with a short fading trail
     float level = (0.08 + pulse) * vEnergy * (0.25 + 0.75 * vStrength);
-    gl_FragColor = vec4(uColor * level, level);
+    gl_FragColor = vec4(uColor, level); // additive blending multiplies by alpha once
+    #include <colorspace_fragment>
   }
 `;
 
@@ -40,6 +41,8 @@ export class RaysObject {
   readonly object: THREE.LineSegments;
   private readonly material: THREE.ShaderMaterial;
   private loopSeconds = 1;
+  private epoch = 0; // clock time the current pulse cycle counts from
+  private lastSeconds = 0;
 
   constructor() {
     this.material = new THREE.ShaderMaterial({
@@ -56,6 +59,7 @@ export class RaysObject {
   }
 
   setPaths(paths: RayPath[]): void {
+    const phase = (this.lastSeconds - this.epoch) % this.loopSeconds;
     const b = buildRayBuffers(paths);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(b.positions, 3));
@@ -65,11 +69,13 @@ export class RaysObject {
     this.object.geometry.dispose();
     this.object.geometry = geometry;
     this.loopSeconds = b.maxArc / PULSE_SPEED + PAUSE_SECONDS;
+    this.epoch = this.lastSeconds - Math.min(phase, this.loopSeconds);
   }
 
   /** Advance the pulse; `seconds` is any steadily increasing clock. */
   tick(seconds: number): void {
-    this.material.uniforms.uFront.value = (seconds % this.loopSeconds) * PULSE_SPEED;
+    this.lastSeconds = seconds;
+    this.material.uniforms.uFront.value = ((seconds - this.epoch) % this.loopSeconds) * PULSE_SPEED;
   }
 
   /** How far the pulse has travelled along every path, in metres. */

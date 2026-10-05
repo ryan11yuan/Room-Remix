@@ -23,4 +23,16 @@ describe('RaysObject', () => {
     expect(rays.front).toBeCloseTo(0.5 * PULSE_SPEED, 6);
     rays.dispose();
   });
+
+  it('keeps the pulse where it is when the paths change mid-flight', () => {
+    const rays = new RaysObject();
+    rays.setPaths([direct]);
+    rays.tick(100.3);
+    const before = rays.front;
+    const longer: RayPath = { ...direct, points: [direct.points[0], { x: 3, y: 1, z: 4.2 }] };
+    rays.setPaths([longer]);
+    rays.tick(100.3);
+    expect(rays.front).toBeCloseTo(before, 9);
+    rays.dispose();
+  });
 });
