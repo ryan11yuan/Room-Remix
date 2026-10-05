@@ -2,7 +2,7 @@
 
 import { MATERIALS } from '@/lib/acoustics/materials';
 import { LIMITS } from '@/lib/room/constants';
-import { surfaceSize } from '@/lib/room/geometry';
+import { findFreePanelSpot } from '@/lib/room/placement';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 import {
@@ -85,13 +85,8 @@ export function RoomForm() {
     }));
   const addPanel = () =>
     update((r) => {
-      // Next free spot along each wall in turn: 0.6 m panels, 0.1 m apart, u = 0.5 + 0.7·k (in tenths, so 2.6 not 2.5999…).
-      const spots = (['wallZ1', 'wallZ0', 'wallX1', 'wallX0'] as const).map((wall) => {
-        const k = r.fixes.filter((f) => f.kind === 'panel' && f.wall === wall).length;
-        return { wall, u: (5 + 7 * k) / 10 };
-      });
-      const spot = spots.find((s) => s.u + 0.3 <= surfaceSize(r.dims, s.wall).u) ?? spots[0];
-      return { ...r, fixes: [...r.fixes, { kind: 'panel', wall: spot.wall, u: spot.u, v: 1.2, on: true }] };
+      const spot = findFreePanelSpot(r);
+      return spot ? { ...r, fixes: [...r.fixes, spot] } : r;
     });
 
   return (
@@ -168,7 +163,7 @@ export function RoomForm() {
           </button>
           <button
             onClick={addPanel}
-            disabled={panelCount >= LIMITS.maxPanels}
+            disabled={panelCount >= LIMITS.maxPanels || findFreePanelSpot(room) === null}
             className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm disabled:opacity-40"
           >
             + Panel

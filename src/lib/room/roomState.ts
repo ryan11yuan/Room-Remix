@@ -1,5 +1,5 @@
 import { LIMITS } from './constants';
-import { fixFits } from './geometry';
+import { fixFits, fixRect, rectsOverlap } from './geometry';
 import type { RoomState, Vec3 } from './types';
 
 export type RoomError = { field: string; message: string };
@@ -25,8 +25,9 @@ export function defaultRoom(): RoomState {
   };
 }
 
+const EPS = 1e-9; // positions clamped exactly to a bound (e.g. 1.9 − 0.3) must not fail on float noise
 const between = (value: number, lo: number, hi: number) =>
-  Number.isFinite(value) && value >= lo && value <= hi;
+  Number.isFinite(value) && value >= lo - EPS && value <= hi + EPS;
 
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
@@ -64,5 +65,14 @@ export function validateRoom(room: RoomState): RoomError[] {
       });
     }
   });
+
+  room.fixes.forEach((fix, i) => {
+    if (fix.kind !== 'panel') return;
+    const clash = room.fixes
+      .slice(0, i)
+      .some((other) => other.kind === 'panel' && other.wall === fix.wall && rectsOverlap(fixRect(other), fixRect(fix)));
+    if (clash) errors.push({ field: `fixes.${i}`, message: "Panels can't overlap." });
+  });
+
   return errors;
 }

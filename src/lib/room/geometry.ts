@@ -59,6 +59,10 @@ export function clippedArea(r: Rect, size: { u: number; v: number }): number {
   return du > 0 && dv > 0 ? du * dv : 0;
 }
 
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.u0 < b.u1 && b.u0 < a.u1 && a.v0 < b.v1 && b.v0 < a.v1;
+}
+
 export function fixFits(dims: Dims, fix: Fix): boolean {
   const size = surfaceSize(dims, fixSurface(fix));
   const r = fixRect(fix);

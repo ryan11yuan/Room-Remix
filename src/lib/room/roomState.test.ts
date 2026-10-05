@@ -70,11 +70,17 @@ describe('validateRoom', () => {
   it('allows at most one rug and eight panels', () => {
     const room = defaultRoom();
     expect(fields({ ...room, fixes: [rug(2, 1.75), rug(2, 1.75)] })).toEqual(['fixes']);
-    expect(fields({ ...room, fixes: Array.from({ length: 9 }, () => panel(2, 1.2)) })).toEqual(['fixes']);
+    expect(fields({ ...room, fixes: Array.from({ length: 9 }, () => panel(2, 1.2)) })).toContain('fixes');
   });
 
   it('rejects fixes that do not fit', () => {
     const room = defaultRoom();
     expect(fields({ ...room, fixes: [rug(0.5, 1.75)] })).toEqual(['fixes.0']);
+  });
+
+  it('rejects panels that overlap on the same wall', () => {
+    const room = defaultRoom();
+    expect(fields({ ...room, fixes: [panel(2, 1.2), panel(2.3, 1.2)] })).toEqual(['fixes.1']);
+    expect(fields({ ...room, fixes: [panel(1, 1.2), panel(1.6, 1.2)] })).toEqual([]); // touching edges are fine
   });
 });
