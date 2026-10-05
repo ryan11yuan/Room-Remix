@@ -125,7 +125,8 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           if (!refusal) setPlacing(false);
         },
       });
-    } catch {
+    } catch (error) {
+      console.error(error); // three logs WebGL context failures itself; this makes any other constructor bug visible
       markWebGLUnavailable(); // re-renders to the notice through the store
       return;
     }
