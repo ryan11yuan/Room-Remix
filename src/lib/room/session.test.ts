@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { defaultRoom } from './roomState';
-import { addRoom, loadRooms, MAX_ROOMS, ROOMS_KEY, saveRooms, type RoomsFile } from './rooms';
-import { FULL_NOTICE, LINK_NOTICE, RoomSession, UNSAVED_NOTICE, type SessionEnv } from './session';
+import { addRoom, loadRooms, MAX_ROOMS, ROOMS_KEY, saveRooms, selectRoom, upsertRoom, type RoomsFile } from './rooms';
+import { CONFLICT_NOTICE, FULL_NOTICE, LINK_NOTICE, RoomSession, UNSAVED_NOTICE, type SessionEnv } from './session';
 import { useRoomStore } from './store';
 import type { RoomState } from './types';
 
@@ -27,21 +27,38 @@ function fakeStorage(failing = false) {
   };
 }
 
-/** A session over fakes. `links` maps share codes to the rooms they decode to; any other code is unreadable. */
-function setup(options: { storage?: ReturnType<typeof fakeStorage> | null; links?: Record<string, RoomState> } = {}) {
+/**
+ * A session over fakes. `links` maps share codes to the rooms they decode to (any other code is unreadable), or `decode`
+ * replaces decoding altogether. `tabRoom` is the room this tab had open before; `stuckLink` makes clearing the address bar throw.
+ */
+function setup(
+  options: {
+    storage?: ReturnType<typeof fakeStorage> | null;
+    links?: Record<string, RoomState>;
+    decode?: SessionEnv['decode'];
+    tabRoom?: string;
+    stuckLink?: boolean;
+  } = {},
+) {
   const storage = options.storage === undefined ? fakeStorage() : options.storage;
   let link = '';
+  let tab: string | null = options.tabRoom ?? null;
   let clock = 1000;
   let ids = 0;
   const env: SessionEnv = {
     storage,
     readLink: () => link,
     clearLink: () => {
+      if (options.stuckLink) throw new Error('SecurityError');
       link = '';
     },
-    decode: async (code) => options.links?.[code] ?? null,
+    decode: options.decode ?? (async (code) => options.links?.[code] ?? null),
     now: () => ++clock,
     newId: () => `id-${++ids}`,
+    tabRoom: () => tab,
+    setTabRoom: (id) => {
+      tab = id;
+    },
   };
   return {
     session: new RoomSession(env),
@@ -51,6 +68,7 @@ function setup(options: { storage?: ReturnType<typeof fakeStorage> | null; links
     setLink: (code: string) => {
       link = code;
     },
+    tab: () => tab,
   };
 }
 
@@ -146,6 +164,76 @@ describe('RoomSession start', () => {
     await t.session.start();
     expect(store().room.dims.length).toBeNaN();
   });
+
+  it('reopens the room this tab had open before a reload, not the one another tab opened last', async () => {
+    const t = setup({ storage: storageWith('b', ['a', 100, 'Studio'], ['b', 200, 'Den']), tabRoom: 'a' });
+    await t.session.start();
+    expect(store().roomId).toBe('a');
+  });
+
+  it("opens the usual room when this tab's old room is gone", async () => {
+    const t = setup({ storage: storageWith('b', ['a', 100, 'Studio'], ['b', 200, 'Den']), tabRoom: 'deleted' });
+    await t.session.start();
+    expect(store().roomId).toBe('b');
+  });
+
+  it('stays in its room when started again after another tab opened a different one', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    saveRooms(selectRoom(t.saved(), 'b'), t.storage); // another tab opens b
+    await t.session.start(); // this page's view mounts again
+    expect(store().roomId).toBe('a');
+  });
+
+  it('treats a link that fails to decode as one it cannot read', async () => {
+    const t = setup({
+      storage: storageWith('a', ['a', 100, 'Mine']),
+      decode: async () => {
+        throw new Error('corrupt');
+      },
+    });
+    t.setLink('code');
+    await t.session.start();
+    expect(store().notice).toBe(LINK_NOTICE);
+    expect(store().roomId).toBe('a');
+    expect(t.link()).toBe('');
+  });
+
+  it("still opens the linked room when the address bar can't be changed", async () => {
+    const t = setup({ links: { code: named('Shared') }, stuckLink: true });
+    t.setLink('code');
+    await t.session.start();
+    expect(store().room.name).toBe('Shared');
+  });
+
+  it('lets the newest of two overlapping starts win', async () => {
+    const waiting: Record<string, (room: RoomState | null) => void> = {};
+    const t = setup({
+      decode: (code) =>
+        new Promise((resolve) => {
+          waiting[code] = resolve;
+        }),
+    });
+    t.setLink('one');
+    const first = t.session.start();
+    t.setLink('two');
+    const second = t.session.start();
+    waiting.two(named('Two'));
+    waiting.one(named('One'));
+    await Promise.all([first, second]);
+    expect(store().room.name).toBe('Two');
+    expect(t.saved().rooms.map((r) => r.state.name)).toEqual(['Two']);
+  });
+
+  it('drops the link notice once a link loads', async () => {
+    const t = setup({ links: { code: named('Shared') } });
+    t.setLink('garbage');
+    await t.session.start();
+    expect(store().notice).toBe(LINK_NOTICE);
+    t.setLink('code');
+    await t.session.start();
+    expect(store().notice).toBeNull();
+  });
 });
 
 describe('RoomSession save', () => {
@@ -203,6 +291,30 @@ describe('RoomSession save', () => {
     const t = setup();
     t.session.save();
     expect(t.storage!.items.has(ROOMS_KEY)).toBe(false);
+  });
+
+  it('keeps both versions when another tab changed the room too', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio']) });
+    await t.session.start();
+    saveRooms(upsertRoom(t.saved(), 'a', named('Renamed elsewhere'), 500), t.storage); // another tab renames it
+    store().update((r) => ({ ...r, furnishing: 'bare' }));
+    t.session.save();
+    expect(store().roomId).not.toBe('a');
+    expect(store().room.name).toBe('Studio copy');
+    expect(store().room.furnishing).toBe('bare');
+    expect(store().notice).toBe(CONFLICT_NOTICE);
+    expect(t.saved().rooms.map((r) => r.state.name).sort()).toEqual(['Renamed elsewhere', 'Studio copy']);
+  });
+
+  it("doesn't save its stale copy over another tab's newer one", async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio']) });
+    await t.session.start();
+    saveRooms(upsertRoom(t.saved(), 'a', named('Renamed elsewhere'), 500), t.storage);
+    t.session.save(); // the page is closing, say: nothing was changed here
+    expect(t.saved().rooms[0].state.name).toBe('Renamed elsewhere');
+    expect(store().room.name).toBe('Renamed elsewhere');
+    expect(store().roomId).toBe('a');
+    expect(store().notice).toBeNull();
   });
 });
 
@@ -293,6 +405,32 @@ describe('RoomSession rooms', () => {
     expect(store().roomId).toBe('a');
     expect(store().room.name).toBe('Unsaved edit');
   });
+
+  it('remembers the open room for this tab', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    expect(t.tab()).toBe('a');
+    t.session.open('b');
+    expect(t.tab()).toBe('b');
+  });
+
+  it('stays in its room when a third room is deleted while another tab has a different one open', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den'], ['c', 300, 'Loft']) });
+    await t.session.start();
+    saveRooms(selectRoom(t.saved(), 'b'), t.storage); // another tab opens b
+    t.session.remove('c');
+    expect(store().roomId).toBe('a');
+    expect(t.saved().rooms.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it("follows another tab's edit to the open room when nothing was changed here", async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio']) });
+    await t.session.start();
+    saveRooms(upsertRoom(t.saved(), 'a', named('Renamed elsewhere'), 500), t.storage);
+    t.session.refresh();
+    expect(store().room.name).toBe('Renamed elsewhere');
+    expect(store().roomId).toBe('a');
+  });
 });
 
 describe('RoomSession without working storage', () => {
@@ -315,5 +453,13 @@ describe('RoomSession without working storage', () => {
     await t.session.start();
     expect(store().roomId).not.toBeNull();
     expect(store().notice).toBe(UNSAVED_NOTICE);
+  });
+
+  it('shows the storage warning together with a link problem', async () => {
+    const t = setup({ storage: fakeStorage(true) });
+    t.setLink('garbage');
+    await t.session.start();
+    expect(store().notice).toContain(UNSAVED_NOTICE);
+    expect(store().notice).toContain(LINK_NOTICE);
   });
 });

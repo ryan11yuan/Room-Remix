@@ -11,6 +11,7 @@ import {
   selectRoom,
   sortedRooms,
   startRooms,
+  stateKey,
   uniqueName,
   upsertRoom,
   type RoomsFile,
@@ -23,6 +24,8 @@ export const LINK_NOTICE = "This link couldn't be fully loaded.";
 export const FULL_NOTICE = `You have ${MAX_ROOMS} saved rooms. Delete one to add another.`;
 export const UNSAVED_NOTICE =
   "This browser isn't keeping your rooms (its storage is blocked or full). They will be gone when you close this page.";
+export const CONFLICT_NOTICE =
+  'This room was changed in another tab. What you had here was saved as a copy, and you are now in the copy.';
 
 /** What a session needs from the browser, so tests can stand in for it. */
 export type SessionEnv = {
@@ -34,6 +37,9 @@ export type SessionEnv = {
   decode: (code: string) => Promise<RoomState | null>;
   now: () => number;
   newId: () => string;
+  /** The room this tab had open last. It survives a reload of the tab; another tab has its own. */
+  tabRoom: () => string | null;
+  setTabRoom: (id: string) => void;
 };
 
 /**
@@ -43,38 +49,83 @@ export type SessionEnv = {
 export class RoomSession {
   private unsaved: RoomsFile | null = null; // the rooms while storage can't be written: they last until the page closes
   private warned = false; // UNSAVED_NOTICE has been shown
+  private seen: string | null = null; // the open room as this tab last read it from, or wrote it to, the saved rooms
+  private starts = 0; // start() calls so far: of two that overlap, the newer one wins
 
   constructor(private readonly env: SessionEnv) {}
 
   /**
-   * Open a room: the shared link's if the address bar has one, else the one open last, else a first room.
-   * Safe to call again: a link pasted into the address bar later opens the same way.
+   * Open a room: the shared link's if the address bar has one, else the one this tab had open, else the one open last,
+   * else a first room. Safe to call again: with a room already open, only a link changes which room that is.
    */
   async start(): Promise<void> {
+    const run = ++this.starts;
     const code = this.env.readLink();
-    const linked = code ? await this.env.decode(code) : null;
-    if (code) this.env.clearLink(); // read once: later edits mustn't leave a stale link in the address bar
+    let linked: RoomState | null = null;
+    if (code) {
+      try {
+        linked = await this.env.decode(code);
+      } catch {
+        linked = null; // a link that can't be decoded is a link that can't be read
+      }
+      if (run !== this.starts) return; // a newer start (another link) took over while this one was decoding
+      try {
+        this.env.clearLink(); // read once: later edits mustn't leave a stale link in the address bar
+      } catch {
+        // the address bar can't be changed here (a sandboxed frame): the link stays, and opens the same room again
+      }
+    }
     this.save();
     let file = this.read();
-    let notice: string | null = code && !linked ? LINK_NOTICE : null;
+    let target: string | null = null;
     if (linked) {
       const imported = importRoom(file, linked, this.env.newId(), this.env.now());
-      if (imported) file = imported;
-      else notice = FULL_NOTICE;
+      if (imported) {
+        file = imported;
+        target = imported.currentId;
+        this.clearNotice(LINK_NOTICE); // an earlier link's failure no longer applies
+      } else {
+        this.notify(FULL_NOTICE);
+      }
+    } else if (code) {
+      this.notify(LINK_NOTICE);
     }
-    file = startRooms(file, this.env.newId(), defaultRoom(), this.env.now());
+    if (!target && useRoomStore.getState().roomId) return this.refresh(); // a room is open here already: stay in it
+    if (!target) {
+      // This tab's own room first (it was reloaded), then the room open last in any tab, then a first room.
+      const mine = findRoom(file, this.env.tabRoom());
+      file = mine ? selectRoom(file, mine.id) : startRooms(file, this.env.newId(), defaultRoom(), this.env.now());
+      target = file.currentId;
+    }
     this.write(file);
-    if (notice) useRoomStore.getState().setNotice(notice);
-    this.show(file);
+    this.show(file, target);
   }
 
-  /** Save the open room now, if it will come back from storage. A room that is mid-edit isn't saved: its last good version stays. */
+  /**
+   * Save the open room now, if it can be stored. A room that is mid-edit isn't saved: its last good version stays.
+   * If another tab saved this room in the meantime, nothing of theirs is overwritten: with no edits here this tab takes
+   * their version; with edits here, this tab's version is saved as a copy and the tab carries on in the copy.
+   */
   save(): void {
     const { roomId, room } = useRoomStore.getState();
     if (!roomId || !isSavable(room)) return;
     const file = this.read();
+    const local = stateKey(room);
+    const stored = findRoom(file, roomId);
+    const theirs = stored ? stateKey(stored.state) : null;
+    if (stored && theirs !== null && this.seen !== null && theirs !== this.seen && theirs !== local) {
+      if (local === this.seen) return this.adopt(stored.state, theirs);
+      const copy = addRoom(file, this.env.newId(), { ...room, name: uniqueName(file, `${room.name} copy`) }, this.env.now());
+      if (copy) {
+        this.write(copy);
+        this.notify(CONFLICT_NOTICE);
+        return this.show(copy, copy.currentId);
+      }
+      // "My rooms" is full, so no copy can be made: this tab's version is saved over the other tab's, below.
+    }
     const next = upsertRoom(file, roomId, room, this.env.now());
     if (next !== file) this.write(next);
+    this.seen = local;
   }
 
   /** Open another saved room. */
@@ -83,7 +134,7 @@ export class RoomSession {
     const file = selectRoom(this.read(), id);
     if (file.currentId !== id) return this.refresh(); // deleted in another tab meanwhile
     this.write(file);
-    this.show(file);
+    this.show(file, id);
   }
 
   /** Add a fresh room and open it. */
@@ -99,17 +150,31 @@ export class RoomSession {
     });
   }
 
-  /** Delete a saved room. Deleting the open one opens the newest that is left, or a fresh room when none is. */
+  /**
+   * Delete a saved room. Deleting the open one opens another: the one open last in any tab, else the newest, else a
+   * fresh room. Deleting any other room leaves this tab where it is.
+   */
   remove(id: string): void {
-    if (useRoomStore.getState().roomId !== id) this.save();
-    const file = startRooms(removeRoom(this.read(), id), this.env.newId(), defaultRoom(), this.env.now());
+    const wasOpen = useRoomStore.getState().roomId === id;
+    if (!wasOpen) this.save();
+    let file = removeRoom(this.read(), id);
+    if (wasOpen) file = startRooms(file, this.env.newId(), defaultRoom(), this.env.now()); // never leave this tab without a room
     this.write(file);
-    this.show(file);
+    if (wasOpen) this.show(file, file.currentId);
   }
 
-  /** Re-read the saved rooms for the list (another tab changed them). The open room is left alone. */
+  /**
+   * Another tab changed the saved rooms: re-read the list. If it changed the open room and nothing was changed here,
+   * this tab takes that version; otherwise the open room is left alone (save() sorts it out).
+   */
   refresh(): void {
-    useRoomStore.getState().setRooms(sortedRooms(this.read()));
+    const file = this.read();
+    const store = useRoomStore.getState();
+    store.setRooms(sortedRooms(file));
+    const stored = findRoom(file, store.roomId);
+    if (!stored || this.seen === null) return;
+    const theirs = stateKey(stored.state);
+    if (theirs !== this.seen && stateKey(store.room) === this.seen) this.adopt(stored.state, theirs);
   }
 
   private add(make: (file: RoomsFile) => RoomState | null): void {
@@ -118,9 +183,9 @@ export class RoomSession {
     const state = make(file);
     if (!state) return;
     const added = addRoom(file, this.env.newId(), state, this.env.now());
-    if (!added) return useRoomStore.getState().setNotice(FULL_NOTICE);
+    if (!added) return this.notify(FULL_NOTICE);
     this.write(added);
-    this.show(added);
+    this.show(added, added.currentId);
   }
 
   private read(): RoomsFile {
@@ -130,17 +195,38 @@ export class RoomSession {
   private write(file: RoomsFile): void {
     const kept = saveRooms(file, this.env.storage);
     this.unsaved = kept ? null : file;
-    const store = useRoomStore.getState();
-    store.setRooms(sortedRooms(file));
+    useRoomStore.getState().setRooms(sortedRooms(file));
     if (!kept && !this.warned) {
       this.warned = true;
-      store.setNotice(UNSAVED_NOTICE);
+      this.notify(UNSAVED_NOTICE);
     }
   }
 
-  /** Put the file's open room into the store, unless it is the room already open: its unsaved edits must survive. */
-  private show(file: RoomsFile): void {
-    const room = findRoom(file, file.currentId);
-    if (room && room.id !== useRoomStore.getState().roomId) useRoomStore.getState().openRoom(room.id, room.state);
+  /** Put a saved room into the store, unless it is the room already open: its unsaved edits must survive. */
+  private show(file: RoomsFile, id: string | null): void {
+    const room = findRoom(file, id);
+    if (!room || room.id === useRoomStore.getState().roomId) return;
+    this.seen = stateKey(room.state);
+    this.env.setTabRoom(room.id);
+    useRoomStore.getState().openRoom(room.id, room.state);
+  }
+
+  /** Take another tab's version of the open room. */
+  private adopt(state: RoomState, key: string): void {
+    this.seen = key;
+    useRoomStore.getState().setRoom(state);
+  }
+
+  /** Add a message to the notice. Messages add up until the user dismisses them, so one never hides another. */
+  private notify(message: string): void {
+    const store = useRoomStore.getState();
+    if (store.notice?.includes(message)) return;
+    store.setNotice(store.notice ? `${store.notice} ${message}` : message);
+  }
+
+  private clearNotice(message: string): void {
+    const store = useRoomStore.getState();
+    if (!store.notice?.includes(message)) return;
+    store.setNotice(store.notice.replace(message, '').trim() || null);
   }
 }

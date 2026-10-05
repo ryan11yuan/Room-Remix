@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import { watchEdits } from '@/lib/room/autosave';
 import { newRoomId, ROOMS_KEY, type RoomsStorage } from '@/lib/room/rooms';
 import { RoomSession } from '@/lib/room/session';
-import { useRoomStore } from '@/lib/room/store';
 import { decodeRoom } from '@/lib/room/urlCodec';
 
 const AUTOSAVE_MS = 400;
+const TAB_ROOM_KEY = 'room-remix:tab-room'; // sessionStorage: this tab's own room, kept across a reload
 
 function browserStorage(): RoomsStorage {
   try {
@@ -27,6 +28,20 @@ export function roomSession(): RoomSession {
     decode: decodeRoom,
     now: Date.now,
     newId: newRoomId,
+    tabRoom: () => {
+      try {
+        return window.sessionStorage.getItem(TAB_ROOM_KEY);
+      } catch {
+        return null;
+      }
+    },
+    setTabRoom: (id) => {
+      try {
+        window.sessionStorage.setItem(TAB_ROOM_KEY, id);
+      } catch {
+        // this tab just won't remember its room across a reload
+      }
+    },
   });
   return session;
 }
@@ -36,33 +51,25 @@ export function useRoomSession(): void {
   useEffect(() => {
     const rooms = roomSession();
     void rooms.start();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const saveNow = () => {
-      clearTimeout(timer);
-      timer = undefined;
-      rooms.save();
+    const edits = watchEdits(() => rooms.save(), AUTOSAVE_MS);
+    const onLink = () => {
+      if (window.location.hash.length > 1) void rooms.start(); // a link pasted into the address bar while the page is open
     };
-    const unsubscribe = useRoomStore.subscribe((state, previous) => {
-      if (state.room === previous.room || state.roomId !== previous.roomId) return; // opening a room isn't an edit
-      clearTimeout(timer);
-      timer = setTimeout(saveNow, AUTOSAVE_MS);
-    });
-    const onLink = () => void rooms.start(); // a link pasted into the address bar while the page is open
     const onHidden = () => {
-      if (document.visibilityState === 'hidden') saveNow(); // the last chance on phones, where pagehide may not fire
+      if (document.visibilityState === 'hidden') edits.flush(); // the last chance on phones, where pagehide may not fire
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === ROOMS_KEY) rooms.refresh(); // another tab changed the rooms
+      if (event.key === null || event.key === ROOMS_KEY) rooms.refresh(); // another tab changed (or cleared) the rooms
     };
     window.addEventListener('hashchange', onLink);
-    window.addEventListener('pagehide', saveNow);
+    window.addEventListener('pagehide', edits.flush);
     document.addEventListener('visibilitychange', onHidden);
     window.addEventListener('storage', onStorage);
     return () => {
-      saveNow();
-      unsubscribe();
+      edits.flush();
+      edits.stop();
       window.removeEventListener('hashchange', onLink);
-      window.removeEventListener('pagehide', saveNow);
+      window.removeEventListener('pagehide', edits.flush);
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('storage', onStorage);
     };

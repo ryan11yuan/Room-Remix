@@ -23,9 +23,12 @@ export function ShareButton() {
     if (!valid) return;
     let cancelled = false;
     const wait = setTimeout(() => {
-      void encodeRoom(room).then((code) => {
-        if (!cancelled) setPrepared({ room, code });
-      });
+      void encodeRoom(room).then(
+        (code) => {
+          if (!cancelled) setPrepared({ room, code });
+        },
+        () => {}, // no link can be made in this browser: the button's click path reports it
+      );
     }, PREPARE_MS);
     return () => {
       cancelled = true;
@@ -43,15 +46,20 @@ export function ShareButton() {
       clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
     };
-    // navigator.clipboard is missing on plain-http pages, and the write is refused without permission.
-    const written = navigator.clipboard?.writeText(link);
+    // navigator.clipboard (or its writeText) is missing on plain-http pages, and the write is refused without permission.
+    let written: Promise<void> | undefined;
+    try {
+      written = navigator.clipboard?.writeText?.(link);
+    } catch {
+      written = undefined;
+    }
     if (written) written.then(showCopied, () => setManualLink(link));
     else setManualLink(link);
   }
 
   function share() {
     if (prepared?.room === room) copy(prepared.code);
-    else void encodeRoom(room).then(copy); // clicked before the link was ready
+    else void encodeRoom(room).then(copy, () => {}); // clicked before the link was ready
   }
 
   return (

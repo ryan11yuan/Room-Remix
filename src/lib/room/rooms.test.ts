@@ -19,6 +19,7 @@ import {
   serializeRooms,
   sortedRooms,
   startRooms,
+  stateKey,
   uniqueName,
   upsertRoom,
   type RoomsFile,
@@ -101,6 +102,13 @@ describe('parseRooms and serializeRooms', () => {
     expect(JSON.parse(serializeRooms(changed)).rooms).toContainEqual(fromNewerBuild);
     expect(parseRooms(serializeRooms(changed)).unreadable).toEqual([fromNewerBuild]);
     expect(parseRooms(serializeRooms(changed)).rooms.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it("keeps every room it can't read, however many there are", () => {
+    const entries = Array.from({ length: 60 }, (_, i) => ({ id: `n${i}`, updatedAt: i, state: { ...named(`Newer ${i}`), v: 2 } }));
+    const parsed = parseRooms(JSON.stringify({ v: 1, currentId: null, rooms: entries }));
+    expect(parsed.unreadable).toHaveLength(60);
+    expect(parseRooms(serializeRooms(parsed)).unreadable).toHaveLength(60);
   });
 
   it('gives a fresh empty file each time', () => {
@@ -274,6 +282,23 @@ describe('isSavable', () => {
     expect(isSavable({ ...room, listener: { ...room.listener, yaw: Number.NaN } })).toBe(false);
     expect(isSavable({ ...room, calibration: { factor: 0 } })).toBe(false);
     expect(isSavable({ ...room, calibration: { factor: 1, measuredRt60: Number.POSITIVE_INFINITY } })).toBe(false);
+  });
+});
+
+describe('stateKey', () => {
+  it('is the same for the same room whatever order its keys were written in', () => {
+    const room = named('A');
+    const reordered = { calibration: room.calibration, fixes: room.fixes, listener: room.listener, speaker: room.speaker } as RoomState;
+    Object.assign(reordered, { furnishing: room.furnishing, surfaces: room.surfaces, dims: room.dims, name: room.name, v: room.v });
+    expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(room));
+    expect(stateKey(reordered)).toBe(stateKey(room));
+  });
+
+  it('differs when the room differs, and still works for a room that is mid-edit', () => {
+    const room = named('A');
+    expect(stateKey({ ...room, furnishing: 'bare' })).not.toBe(stateKey(room));
+    const midEdit = { ...room, dims: { ...room.dims, length: Number.NaN } };
+    expect(stateKey(midEdit)).not.toBe(stateKey(room));
   });
 });
 

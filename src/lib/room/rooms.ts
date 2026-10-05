@@ -22,7 +22,16 @@ const NAME_LENGTH = 80; // what `migrate` keeps of a room's name
 
 const empty = (): RoomsFile => ({ rooms: [], currentId: null }); // a fresh one each time: a caller may hold on to it
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const sameState = (a: RoomState, b: RoomState) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * A state as text with its keys in the stored order, so two states compare equal whatever order their keys were written
+ * in. A state that can't be stored (mid-edit) is given as it is.
+ */
+export function stateKey(state: RoomState): string {
+  const plain: unknown = JSON.parse(JSON.stringify(state));
+  return JSON.stringify(migrate(plain) ?? plain);
+}
+const sameState = (a: RoomState, b: RoomState) => stateKey(a) === stateKey(b);
 
 /** The stored value as this version's rooms file, or null when it isn't one: broken, or written by another version. */
 function readFile(json: string | null): { rooms: unknown[]; currentId: unknown } | null {
@@ -50,7 +59,7 @@ export function parseRooms(json: string | null): RoomsFile {
     ids.add(entry.id);
     const state = migrate(entry.state);
     if (!state) {
-      if (unreadable.length < MAX_ROOMS) unreadable.push(entry);
+      unreadable.push(entry); // every one: they only ever come from storage, so they can't pile up
       continue;
     }
     const updatedAt = typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt) ? entry.updatedAt : 0;
