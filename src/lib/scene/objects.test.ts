@@ -73,4 +73,13 @@ describe('handles', () => {
     expect(((fixes.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity).toBe(0.9);
     expect(((fixes.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity).toBe(0.25);
   });
+
+  it('keeps a panel box inside the room, on its wall', () => {
+    const room: RoomState = { ...defaultRoom(), fixes: [{ kind: 'panel', wall: 'wallZ1', u: 2, v: 1.2, on: true }] };
+    const panel = buildFixes(room).children[0];
+    panel.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(panel);
+    expect(box.max.z).toBeLessThanOrEqual(room.dims.width + 1e-9); // doesn't poke through the wall at z = width
+    expect(box.max.z).toBeGreaterThan(room.dims.width - 0.1); // still right against it
+  });
 });

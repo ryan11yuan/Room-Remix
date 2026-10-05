@@ -5,6 +5,8 @@ import { SURFACE_IDS, type RoomState, type SurfaceId } from '@/lib/room/types';
 import { LISTENER_COLOR, MATERIAL_COLORS, SPEAKER_COLOR } from './colors';
 import { fixQuad, surfaceQuad, type Quad } from './layout';
 
+const PANEL_THICKNESS = 0.04;
+
 /** What a mesh stands for when it's picked: stored in `userData.handle`. */
 export type Handle = DragTarget | { kind: 'panel'; index: number };
 
@@ -101,9 +103,10 @@ export function buildFixes(room: RoomState): THREE.Group {
     const geometry =
       fix.kind === 'rug'
         ? new THREE.PlaneGeometry(quad.width, quad.height)
-        : new THREE.BoxGeometry(quad.width, quad.height, 0.04);
+        : new THREE.BoxGeometry(quad.width, quad.height, PANEL_THICKNESS);
     const mesh = new THREE.Mesh(geometry, material);
     placeOnQuad(mesh, quad);
+    if (fix.kind === 'panel') mesh.translateZ(PANEL_THICKNESS / 2); // local Z is the inward normal: sit on the wall, not in it
     const handle: Handle = fix.kind === 'rug' ? { kind: 'rug', index } : { kind: 'panel', index };
     mesh.userData = { handle };
     group.add(mesh);
