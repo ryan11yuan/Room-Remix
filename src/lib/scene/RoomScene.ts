@@ -73,6 +73,8 @@ export class RoomScene {
   }
 
   setRoom(room: RoomState): void {
+    const { length, width, height } = room.dims;
+    if (![length, width, height].every((d) => Number.isFinite(d) && d > 0)) return; // mid-edit: keep showing the last good room
     const shellKey = JSON.stringify([room.dims, room.surfaces]);
     if (shellKey !== this.shellKey) {
       if (this.shell) {
