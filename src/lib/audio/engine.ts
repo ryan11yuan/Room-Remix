@@ -2,6 +2,9 @@ import type { StereoIr } from '@/lib/acoustics/simulate';
 import { downmixToMono, modeGains, normalizeIr, type ListenMode } from './mix';
 
 export const CROSSFADE_SECONDS = 0.05;
+const MASTER_GAIN = 0.5; // −6 dB headroom: convolving with a dense room IR raises peaks well above the dry track's
+// Safety limiter before the output: catches the rare peak that still overshoots, instead of hard clipping.
+const LIMITER: DynamicsCompressorOptions = { threshold: -1, knee: 0, ratio: 20, attack: 0.003, release: 0.1 };
 
 type Slot = {
   convolvers: [ConvolverNode, ConvolverNode];
@@ -28,8 +31,8 @@ export class AudioEngine {
     const nav = navigator as Navigator & { audioSession?: { type: string } };
     if (nav.audioSession) nav.audioSession.type = 'playback'; // keep playing with the iPhone silent switch on
     this.ctx = new AudioContext({ latencyHint: 'playback' });
-    const master = new GainNode(this.ctx);
-    master.connect(this.ctx.destination);
+    const master = new GainNode(this.ctx, { gain: MASTER_GAIN });
+    master.connect(new DynamicsCompressorNode(this.ctx, LIMITER)).connect(this.ctx.destination);
     this.input = new GainNode(this.ctx);
     this.dry = new GainNode(this.ctx, { gain: 0 });
     this.input.connect(this.dry).connect(master);
