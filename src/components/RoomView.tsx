@@ -9,6 +9,8 @@ import { applyDrag, clampPosition, panelAt, panelOverlaps } from '@/lib/room/pla
 import { useRoomStore } from '@/lib/room/store';
 import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
+// Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
+import { ScanController, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
 
 const PRESET_LABELS: Record<CameraPreset, string> = { top: 'Top', corner: 'Corner', listener: "Listener's view" };
 const SPEAKER_HEIGHTS = [
@@ -21,6 +23,45 @@ const LISTENER_HEIGHTS = [
   { label: 'Standing', y: 1.6 },
 ];
 const buttonClass = 'rounded-md border border-neutral-700 px-3 py-1.5 disabled:opacity-40';
+const ONE_DEG = Math.PI / 180;
+const FIVE_DEG = Math.PI / 36;
+/** Fine-tuning steps for the scan, in the room's axes: x runs toward the back wall, z toward the left wall. */
+const NUDGES: { label: string; change: { yaw?: number; scale?: number; x?: number; z?: number } }[] = [
+  { label: 'Turn −5°', change: { yaw: -FIVE_DEG } },
+  { label: 'Turn −1°', change: { yaw: -ONE_DEG } },
+  { label: 'Turn +1°', change: { yaw: ONE_DEG } },
+  { label: 'Turn +5°', change: { yaw: FIVE_DEG } },
+  { label: 'Smaller', change: { scale: 0.99 } },
+  { label: 'Bigger', change: { scale: 1.01 } },
+  { label: '← Front', change: { x: -0.05 } },
+  { label: 'Back →', change: { x: 0.05 } },
+  { label: 'Right', change: { z: -0.05 } },
+  { label: 'Left', change: { z: 0.05 } },
+];
+
+function scanStatusText(status: ScanStatus): string {
+  switch (status.kind) {
+    case 'none':
+      return '';
+    case 'loading':
+      return `Loading ${status.fileName}…`;
+    case 'ready':
+      return `${status.fileName}: ${status.count.toLocaleString()} splats${status.aligned ? '' : ' · not aligned yet'}${status.stored ? '' : ' · only kept until you leave this page'}`;
+    case 'error':
+      return status.message;
+  }
+}
+
+function alignBanner(step: Exclude<ScanUiStep, null>, taps: number): string {
+  switch (step) {
+    case 'floor':
+      return `Step 1 of 3: tap 3 spots on the floor (${taps}/3)`;
+    case 'corners':
+      return `Step 2 of 3: tap the front-right floor corner, then the back-right one (${taps}/2). They're the two ends of the right wall as you face the front wall.`;
+    case 'nudge':
+      return 'Step 3 of 3: line the box up with your room';
+  }
+}
 
 let webglSupport: boolean | undefined;
 const webglListeners = new Set<() => void>();
@@ -90,9 +131,18 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RoomScene | null>(null);
+  const scanRef = useRef<ScanController | null>(null);
   const [raysOn, setRaysOn] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<ScanStatus>({ kind: 'none' });
+  const [alignStep, setAlignStep] = useState<{ step: ScanUiStep; taps: number; hint: string | null }>({
+    step: null,
+    taps: 0,
+    hint: null,
+  });
+  const aligning = alignStep.step !== null;
+  const scanReady = scanStatus.kind === 'ready' ? scanStatus : null;
 
   const withFixes = mode.room && mode.fixes;
   const paths = useMemo(() => computeRayPaths(withFixes ? room : withoutFixes(room)), [room, withFixes]);
@@ -124,7 +174,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           setMessage(refusal);
           if (!refusal) setPlacing(false);
         },
-        onScanTap: () => {}, // wired up when the scan tools arrive
+        onScanTap: (point) => scanRef.current?.tap(point, useRoomStore.getState().room),
       });
     } catch (error) {
       console.error(error); // three logs WebGL context failures itself; this makes any other constructor bug visible
@@ -132,10 +182,19 @@ export function RoomView({ mode }: { mode: ListenMode }) {
       return;
     }
     sceneRef.current = scene;
+    // Each mount (React's strict mode runs this twice) gets its own controller; its reports arrive after an await or from a click.
+    const scans = new ScanController(scene, {
+      status: setScanStatus,
+      step: (step, taps, hint) => setAlignStep({ step, taps, hint }),
+    });
+    scanRef.current = scans;
+    void scans.restore(useRoomStore.getState().room);
     const observer = new ResizeObserver(([entry]) => scene.resize(entry.contentRect.width, entry.contentRect.height));
     observer.observe(container);
     return () => {
       observer.disconnect();
+      scans.dispose(); // before the scene: it takes its layer out of the scene
+      scanRef.current = null;
       scene.dispose();
       sceneRef.current = null;
     };
@@ -143,6 +202,10 @@ export function RoomView({ mode }: { mode: ListenMode }) {
 
   useEffect(() => {
     sceneRef.current?.setRoom(room);
+  }, [room, webgl]);
+
+  useEffect(() => {
+    scanRef.current?.setRoom(room); // keeps the scan's crop in step with the room size
   }, [room, webgl]);
 
   useEffect(() => {
@@ -154,8 +217,9 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   }, [raysOn, webgl]);
 
   useEffect(() => {
+    if (alignStep.step === 'floor' || alignStep.step === 'corners') return; // the scan controller owns the tap mode while picking points
     sceneRef.current?.setTapMode(placing ? 'panel' : 'none');
-  }, [placing, webgl]);
+  }, [placing, alignStep.step, webgl]);
 
   if (!webgl) {
     return (
@@ -179,7 +243,32 @@ export function RoomView({ mode }: { mode: ListenMode }) {
             Tap a wall to place the panel
           </p>
         )}
+        {alignStep.step && (
+          <div role="status" className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-1 px-3 text-center text-sm">
+            <p className="rounded-md bg-neutral-950/80 px-2 py-1 text-neutral-100">{alignBanner(alignStep.step, alignStep.taps)}</p>
+            {alignStep.hint && <p className="rounded-md bg-neutral-950/80 px-2 py-1 text-amber-200">{alignStep.hint}</p>}
+          </div>
+        )}
       </div>
+      {aligning && (
+        <div role="group" aria-label="Line up the scan" className="flex flex-wrap items-center gap-2 text-sm">
+          {alignStep.step === 'nudge' && (
+            <>
+              {NUDGES.map((n) => (
+                <button key={n.label} onClick={() => scanRef.current?.nudge(n.change, room)} className={buttonClass}>
+                  {n.label}
+                </button>
+              ))}
+              <button onClick={() => void scanRef.current?.finish(room)} className={buttonClass}>
+                Done
+              </button>
+            </>
+          )}
+          <button onClick={() => scanRef.current?.cancelAlignment(room)} className={buttonClass}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {(Object.keys(PRESET_LABELS) as CameraPreset[]).map((preset) => (
           <button key={preset} onClick={() => sceneRef.current?.setCameraPreset(room, preset)} className={buttonClass}>
@@ -191,7 +280,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
         </button>
         <button
           aria-pressed={placing}
-          disabled={!placing && panelCount >= LIMITS.maxPanels}
+          disabled={aligning || (!placing && panelCount >= LIMITS.maxPanels)}
           onClick={() => {
             setPlacing((v) => !v);
             setMessage(null);
@@ -215,6 +304,57 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           }
         />
       </div>
+      <div role="group" aria-label="Room scan" className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-neutral-400">Room scan</span>
+        <label
+          className={`${buttonClass} cursor-pointer has-disabled:cursor-not-allowed has-disabled:opacity-40 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-neutral-300`}
+        >
+          {scanReady ? 'Replace scan' : 'Load scan'}
+          <input
+            type="file"
+            accept=".ply,.spz,.splat,.ksplat"
+            className="sr-only"
+            disabled={scanStatus.kind === 'loading' || aligning}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ''; // so picking the same file again still fires
+              if (file) void scanRef.current?.open(file, room);
+            }}
+          />
+        </label>
+        {scanReady && !aligning && (
+          <>
+            <button
+              onClick={() => {
+                setPlacing(false); // placing a panel and picking scan points both want the taps
+                setMessage(null);
+                scanRef.current?.startAlignment();
+              }}
+              className={buttonClass}
+            >
+              Align scan
+            </button>
+            <button
+              aria-pressed={!scanReady.visible}
+              onClick={() => scanRef.current?.setVisible(!scanReady.visible)}
+              className={`${buttonClass} aria-pressed:bg-neutral-800`}
+            >
+              Hide scan
+            </button>
+            <button onClick={() => void scanRef.current?.remove()} className={buttonClass}>
+              Remove scan
+            </button>
+          </>
+        )}
+        <span role="status" className={`min-w-0 wrap-break-word ${scanStatus.kind === 'error' ? 'text-amber-200' : 'text-neutral-400'}`}>
+          {scanStatusText(scanStatus)}
+        </span>
+      </div>
+      {scanReady && scanReady.count > SPLAT_WARN_COUNT && (
+        <p role="status" className="text-sm text-amber-200">
+          This scan has {(scanReady.count / 1_000_000).toFixed(1)} million splats and may be slow on your phone.
+        </p>
+      )}
       <p className="text-xs text-neutral-500">
         Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.
         Rays show the room as you&apos;re hearing it.

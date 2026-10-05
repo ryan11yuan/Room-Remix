@@ -190,7 +190,9 @@ export class RoomScene {
 
   /** Look at a box (such as a scan's bounds) from outside it. */
   frameBox(min: Vec3, max: Vec3): void {
+    if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite)) return; // an empty box has infinite corners: stay put
     this.moveCamera(boxView(min, max));
+    this.userMoved = true; // the scan view isn't a room preset: a room-size edit mustn't snap back to one
   }
 
   private moveCamera({ position, target }: { position: Vec3; target: Vec3 }): void {
