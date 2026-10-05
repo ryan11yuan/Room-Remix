@@ -59,10 +59,13 @@ describe('cameraPreset', () => {
     expect(position.z).toBeGreaterThan(room.dims.width);
   });
 
-  it("puts the camera at the listener's head looking at the speaker", () => {
-    expect(cameraPreset(room, 'listener')).toEqual({
-      position: { x: 3, y: 1.1, z: 1.9 },
-      target: { x: 0.6, y: 1.0, z: 1.4 },
-    });
+  it("puts the camera 0.2 m in front of the listener's head, looking at the speaker", () => {
+    const { position, target } = cameraPreset(room, 'listener');
+    const { listener, speaker } = room;
+    const distance = (a: typeof position, b: typeof position) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    expect(target).toEqual(speaker);
+    expect(distance(position, listener)).toBeCloseTo(0.2, 9);
+    // On the segment toward the speaker: the remaining distance is the full gap minus the 0.2 m stepped off.
+    expect(distance(position, speaker)).toBeCloseTo(distance(listener, speaker) - 0.2, 9);
   });
 });

@@ -62,10 +62,15 @@ export function cameraPreset(room: RoomState, preset: CameraPreset): { position:
       return { position: vec(L / 2, H + 1.3 * Math.max(L, W), W / 2 + 0.01), target: vec(L / 2, 0, W / 2) };
     case 'corner':
       return { position: vec(1.45 * L, 1.7 * H, 1.45 * W), target: vec(L / 2, H / 3, W / 2) };
-    case 'listener':
+    case 'listener': {
+      // Start 0.2 m in front of the head, toward the speaker, so the listener's own nose doesn't fill the view.
+      const from = room.listener;
+      const to = room.speaker;
+      const ahead = 0.2 / (Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) || 1);
       return {
-        position: vec(room.listener.x, room.listener.y, room.listener.z),
-        target: vec(room.speaker.x, room.speaker.y, room.speaker.z),
+        position: vec(from.x + (to.x - from.x) * ahead, from.y + (to.y - from.y) * ahead, from.z + (to.z - from.z) * ahead),
+        target: vec(to.x, to.y, to.z),
       };
+    }
   }
 }

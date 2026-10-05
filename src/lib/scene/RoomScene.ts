@@ -40,8 +40,9 @@ export class RoomScene {
   private fixesKey = '';
   private framed = false;
   private placingPanel = false;
-  private dragging: { target: DragTarget; plane: THREE.Plane } | null = null;
-  private down: { x: number; y: number } | null = null;
+  private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number } | null = null;
+  private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
+  private extraPointer = false; // another finger or button joined the press, so it's a gesture, not a tap
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -108,10 +109,14 @@ export class RoomScene {
   }
 
   setCameraPreset(room: RoomState, preset: CameraPreset): void {
+    // With damping off, update() applies and clears any leftover orbit momentum, so the new view doesn't keep drifting.
+    this.controls.enableDamping = false;
+    this.controls.update();
     const { position, target } = cameraPreset(room, preset);
     this.camera.position.set(position.x, position.y, position.z);
     this.controls.target.set(target.x, target.y, target.z);
     this.controls.update();
+    this.controls.enableDamping = true;
   }
 
   resize(width: number, height: number): void {
@@ -142,7 +147,14 @@ export class RoomScene {
   }
 
   private readonly onPointerDown = (event: PointerEvent) => {
-    this.down = { x: event.clientX, y: event.clientY };
+    // Only a primary-button press by the primary pointer starts a drag or tap; a second finger or another button just cancels a tap.
+    if (!event.isPrimary || event.button !== 0) {
+      if (this.down) this.extraPointer = true;
+      return;
+    }
+    if (this.dragging) return;
+    this.extraPointer = false;
+    this.down = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
     if (this.placingPanel) return;
     this.aim(event);
     const rugs = this.fixes?.children.filter((c) => (c.userData.handle as Handle).kind === 'rug') ?? [];
@@ -150,28 +162,33 @@ export class RoomScene {
     const handle = hit?.object.userData.handle as Handle | undefined;
     if (!handle || handle.kind === 'panel') return;
     const height = handle.kind === 'speaker' ? this.speaker.position.y : handle.kind === 'listener' ? this.listener.position.y : 0;
-    this.dragging = { target: handle, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -height) };
+    this.dragging = { target: handle, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), pointerId: event.pointerId };
     this.controls.enabled = false;
     this.canvas.setPointerCapture(event.pointerId);
   };
 
   private readonly onPointerMove = (event: PointerEvent) => {
-    if (!this.dragging) return;
+    if (!this.dragging || event.pointerId !== this.dragging.pointerId) return;
     this.aim(event);
     const point = this.raycaster.ray.intersectPlane(this.dragging.plane, new THREE.Vector3());
     if (point) this.callbacks.onDrag(this.dragging.target, { x: point.x, y: point.y, z: point.z });
   };
 
   private readonly onPointerUp = (event: PointerEvent) => {
-    const wasDragging = this.dragging !== null;
+    const wasDragging = this.dragging?.pointerId === event.pointerId;
     if (wasDragging) {
       this.dragging = null;
       this.controls.enabled = true;
       if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
     }
-    const moved = this.down ? Math.hypot(event.clientX - this.down.x, event.clientY - this.down.y) : Infinity;
+    // Only the pointer that owns the press can end it or make it a tap; an extra finger lifting changes nothing.
+    const press = this.down;
+    if (!press || press.pointerId !== event.pointerId) return;
+    const extra = this.extraPointer;
     this.down = null;
-    if (wasDragging || !this.placingPanel || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
+    this.extraPointer = false;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    if (wasDragging || extra || !this.placingPanel || event.type === 'pointercancel' || moved > TAP_SLOP_PX) return;
 
     // Take the first wall whose inside faces the camera: the one you see, even when looking in from outside.
     this.aim(event);

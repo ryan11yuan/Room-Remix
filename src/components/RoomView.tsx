@@ -22,14 +22,24 @@ const LISTENER_HEIGHTS = [
 ];
 const buttonClass = 'rounded-md border border-neutral-700 px-3 py-1.5 disabled:opacity-40';
 
-const subscribeNever = () => () => {};
 let webglSupport: boolean | undefined;
-/** Probed once and cached: React calls this on every render, and browsers cap how many WebGL contexts can live. */
+const webglListeners = new Set<() => void>();
+function subscribeWebGL(listener: () => void) {
+  webglListeners.add(listener);
+  return () => {
+    webglListeners.delete(listener);
+  };
+}
+/** The renderer failed to start even though the probe passed: switch every view to the notice. */
+function markWebGLUnavailable() {
+  webglSupport = false;
+  webglListeners.forEach((l) => l());
+}
+/** Probed once and cached: React calls this on every render, and browsers cap how many WebGL contexts can live. three.js needs WebGL 2. */
 function hasWebGL(): boolean {
   if (webglSupport === undefined) {
     try {
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+      const gl = document.createElement('canvas').getContext('webgl2');
       webglSupport = gl !== null;
       gl?.getExtension('WEBGL_lose_context')?.loseContext(); // free the probe context right away
     } catch {
@@ -74,7 +84,7 @@ function HeightSelect({
 }
 
 export function RoomView({ mode }: { mode: ListenMode }) {
-  const webgl = useSyncExternalStore(subscribeNever, hasWebGL, () => true);
+  const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, () => true);
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,23 +101,34 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!webgl || !canvas || !container) return;
-    const scene = new RoomScene(canvas, {
-      onDrag: (target, point) => update((r) => applyDrag(r, target, point)),
-      onWallTap: (wall, point) => {
-        let refused = false;
-        update((r) => {
-          const panel = panelAt(r.dims, wall, point);
-          if (panelOverlaps(r, panel)) {
-            refused = true;
-            return r;
-          }
-          return { ...r, fixes: [...r.fixes, panel] };
-        });
-        setMessage(refused ? "Panels can't overlap. Tap an empty part of a wall." : null);
-        if (!refused) setPlacing(false);
-      },
-    });
+    // `webgl` is the server's `true` during hydration, so ask the probe too: this effect can run before the store catches up.
+    if (!webgl || !hasWebGL() || !canvas || !container) return;
+    let scene: RoomScene;
+    try {
+      scene = new RoomScene(canvas, {
+        onDrag: (target, point) => update((r) => applyDrag(r, target, point)),
+        onWallTap: (wall, point) => {
+          let refusal: string | null = null;
+          update((r) => {
+            if (r.fixes.filter((f) => f.kind === 'panel').length >= LIMITS.maxPanels) {
+              refusal = `You've placed the maximum of ${LIMITS.maxPanels} panels.`;
+              return r;
+            }
+            const panel = panelAt(r.dims, wall, point);
+            if (panelOverlaps(r, panel)) {
+              refusal = "Panels can't overlap. Tap an empty part of a wall.";
+              return r;
+            }
+            return { ...r, fixes: [...r.fixes, panel] };
+          });
+          setMessage(refusal);
+          if (!refusal) setPlacing(false);
+        },
+      });
+    } catch {
+      markWebGLUnavailable(); // re-renders to the notice through the store
+      return;
+    }
     sceneRef.current = scene;
     const observer = new ResizeObserver(([entry]) => scene.resize(entry.contentRect.width, entry.contentRect.height));
     observer.observe(container);
