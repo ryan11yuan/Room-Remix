@@ -2,13 +2,15 @@ import type { RoomState, Vec3 } from '@/lib/room/types';
 import { absorptionArea, makeSurfaceLookup } from './absorption';
 import { mapBands, NUM_BANDS, SPEED_OF_SOUND, type Bands } from './bands';
 import { earResponse, listenerYaw } from './binaural';
-import { applyBandMasks, bandMasks, bandNoise, nextPow2 } from './dsp';
+import { applyBandMasks, bandMasks, bandNoise, highPass, nextPow2 } from './dsp';
 import { computeImageSources, pathEnergy, type Arrival } from './imageSource';
 import { eyring, MAX_MEAN_ALPHA, midRt60, roomVolume, totalSurfaceArea } from './reverbTime';
 
 export const MAX_IR_SECONDS = 4;
 export const IR_MAX_ORDER = 10;
 export const MAX_PATHS = 200;
+/** The modelled speaker's bass limit. It also removes the image model's coherent DC build-up. */
+export const SPEAKER_LOW_CUT_HZ = 40;
 
 const MAX_TRANSITION_SECONDS = 0.08;
 const TAIL_FADE_SECONDS = 0.005;
@@ -74,6 +76,8 @@ export function simulateRoom(room: RoomState, sampleRate: number): AcousticsResu
 
   renderEarly(early, listenerYaw(room.listener, room.speaker), transition, sampleRate, left, right);
   addTail(rt60.bands, roomVolume(room.dims), transition, sampleRate, left, right);
+  highPass(left, sampleRate, SPEAKER_LOW_CUT_HZ);
+  highPass(right, sampleRate, SPEAKER_LOW_CUT_HZ);
 
   const paths = early
     .map((a) => ({ points: a.points, energy: pathEnergy(a), hitFixes: a.hitFixes }))

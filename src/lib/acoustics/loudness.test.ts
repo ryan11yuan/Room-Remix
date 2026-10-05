@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { defaultRoom } from '@/lib/room/roomState';
-import { createRng, fft, gaussian, nextPow2 } from './dsp';
+import { createRng, fft, gaussian, highPass, nextPow2 } from './dsp';
 import { normalizeLoudness, pinkGain } from './loudness';
-import { simulateRoom, type StereoIr } from './simulate';
+import { SPEAKER_LOW_CUT_HZ, simulateRoom, type StereoIr } from './simulate';
 
-/** Seeded noise with an exact 1/f power spectrum between 50 Hz and min(16 kHz, Nyquist). */
-function pinkNoise(length: number, sampleRate: number, seed: number): Float64Array {
+/** Seeded noise with an exact 1/f power spectrum between `lowHz` and min(`highHz`, Nyquist). */
+function pinkNoise(length: number, sampleRate: number, seed: number, lowHz = 50, highHz = 16000): Float64Array {
   const n = nextPow2(length);
   const rng = createRng(seed);
   const re = new Float64Array(n);
   const im = new Float64Array(n);
   for (let i = 0; i < n; i++) re[i] = gaussian(rng);
   fft(re, im);
-  const top = Math.min(16000, sampleRate / 2);
+  const top = Math.min(highHz, sampleRate / 2);
   for (let k = 0; k < n; k++) {
     const f = (Math.min(k, n - k) * sampleRate) / n;
-    const g = f >= 50 && f <= top ? 1 / Math.sqrt(f) : 0;
+    const g = f >= lowHz && f <= top ? 1 / Math.sqrt(f) : 0;
     re[k] *= g;
     im[k] *= g;
   }
@@ -95,5 +95,17 @@ describe('normalizeLoudness', () => {
   it('plays pink noise at the dry level through a simulated room', () => {
     const ir = simulateRoom(defaultRoom(), 16000).ir;
     expect(Math.abs(wetVsDry(normalizeLoudness(ir)))).toBeLessThan(1);
+  });
+
+  it('plays broadband music-like noise at the dry level through a simulated room at 48 kHz', () => {
+    // 20 Hz–20 kHz: wider than the weighting band, so bass the weighting ignores would show up here.
+    const ir = normalizeLoudness(simulateRoom(defaultRoom(), 48000).ir);
+    const length = 1 << 17;
+    const noise = pinkNoise(length, 48000, 9, 20, 20000);
+    const dry = Float64Array.from(noise);
+    highPass(dry, 48000, SPEAKER_LOW_CUT_HZ); // Dry plays through the same speaker roll-off
+    const from = ir.left.length;
+    const wet = (power(convolve(noise, ir.left), from, length) + power(convolve(noise, ir.right), from, length)) / 2;
+    expect(Math.abs(10 * Math.log10(wet / power(dry, from, length)))).toBeLessThan(1);
   });
 });

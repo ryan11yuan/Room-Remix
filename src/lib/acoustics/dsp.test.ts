@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyBandMasks, bandMasks, bandNoise, createRng, fft, gaussian, nextPow2 } from './dsp';
+import { applyBandMasks, bandMasks, bandNoise, createRng, fft, gaussian, highPass, nextPow2 } from './dsp';
 
 describe('nextPow2', () => {
   it('rounds up to a power of two', () => {
@@ -77,5 +77,36 @@ describe('bandNoise', () => {
     const b = createRng(11);
     expect(Array.from({ length: 5 }, () => a())).toEqual(Array.from({ length: 5 }, () => b()));
     expect(bandNoise(500, 16000, 11)[2]).not.toEqual(bandNoise(500, 16000, 12)[2]);
+  });
+});
+
+describe('highPass', () => {
+  const rms = (x: Float64Array, from: number) => {
+    let s = 0;
+    for (let i = from; i < x.length; i++) s += x[i] * x[i];
+    return Math.sqrt(s / (x.length - from));
+  };
+  const sine = (hz: number, length: number, sampleRate: number) =>
+    Float64Array.from({ length }, (_, i) => Math.sin((2 * Math.PI * hz * i) / sampleRate));
+
+  it('removes a constant (DC) input', () => {
+    const signal = new Float64Array(48000).fill(1);
+    highPass(signal, 48000, 40);
+    expect(Math.abs(signal[signal.length - 1])).toBeLessThan(1e-3);
+  });
+
+  it('passes 1 kHz at unit gain', () => {
+    const signal = sine(1000, 48000, 48000);
+    highPass(signal, 48000, 40);
+    const peak = Math.max(...signal.subarray(24000).map(Math.abs));
+    expect(peak).toBeGreaterThan(0.99);
+    expect(peak).toBeLessThan(1.01);
+  });
+
+  it('is 3 dB down at the cutoff', () => {
+    const input = sine(40, 96000, 48000); // 2 s
+    const signal = Float64Array.from(input);
+    highPass(signal, 48000, 40);
+    expect(Math.abs(rms(signal, 48000) / rms(input, 48000) / Math.SQRT1_2 - 1)).toBeLessThan(0.02);
   });
 });

@@ -1,4 +1,4 @@
-import type { StereoIr } from '@/lib/acoustics/simulate';
+import { SPEAKER_LOW_CUT_HZ, type StereoIr } from '@/lib/acoustics/simulate';
 import { downmixToMono, modeGains, type ListenMode } from './mix';
 
 export const CROSSFADE_SECONDS = 0.05;
@@ -44,7 +44,10 @@ export class AudioEngine {
     master.connect(new DynamicsCompressorNode(this.ctx, LIMITER)).connect(this.ctx.destination);
     this.input = new GainNode(this.ctx);
     this.dry = new GainNode(this.ctx, { gain: 0 });
-    this.input.connect(this.dry).connect(master);
+    // Dry gets the same speaker roll-off as the rooms, which have it baked into their IRs.
+    // Web Audio's highpass Q is in dB: −3.01 dB is Butterworth (1/√2).
+    const speaker = new BiquadFilterNode(this.ctx, { type: 'highpass', frequency: SPEAKER_LOW_CUT_HZ, Q: -3.0103 });
+    this.input.connect(speaker).connect(this.dry).connect(master);
     this.slots = { now: this.createSlot(master), withFixes: this.createSlot(master) };
     this.applyMode(0);
   }
