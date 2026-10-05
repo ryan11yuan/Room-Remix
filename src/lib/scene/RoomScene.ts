@@ -39,7 +39,9 @@ export class RoomScene {
   private fixes: THREE.Group | null = null;
   private shellKey = '';
   private fixesKey = '';
-  private framed = false;
+  private preset: CameraPreset = 'corner';
+  private dimsKey = '';
+  private userMoved = false; // the user has orbited or zoomed since the last preset, so a resized room mustn't yank the camera
   private placingPanel = false;
   private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number; offset: { x: number; z: number } } | null = null;
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
@@ -60,6 +62,9 @@ export class RoomScene {
     canvas.addEventListener('pointercancel', this.onPointerUp);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
+    this.controls.addEventListener('start', () => {
+      this.userMoved = true; // 'start' fires only on user interaction
+    });
     this.renderer.setAnimationLoop((time) => {
       this.controls.update();
       this.rays.tick(time / 1000);
@@ -90,9 +95,10 @@ export class RoomScene {
     }
     placeSpeaker(this.speaker, room);
     placeListener(this.listener, room);
-    if (!this.framed) {
-      this.setCameraPreset(room, 'corner');
-      this.framed = true;
+    const dimsKey = JSON.stringify(room.dims);
+    if (dimsKey !== this.dimsKey) {
+      this.dimsKey = dimsKey;
+      if (!this.userMoved) this.setCameraPreset(room, this.preset); // re-frame for a new or resized room unless the user has taken over the camera
     }
   }
 
@@ -110,6 +116,8 @@ export class RoomScene {
   }
 
   setCameraPreset(room: RoomState, preset: CameraPreset): void {
+    this.preset = preset;
+    this.userMoved = false; // choosing a preset hands framing back to the app
     // With damping off, update() applies and clears any leftover orbit momentum, so the new view doesn't keep drifting.
     this.controls.enableDamping = false;
     this.controls.update();
