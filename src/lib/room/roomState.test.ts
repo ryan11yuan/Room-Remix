@@ -83,4 +83,10 @@ describe('validateRoom', () => {
     expect(fields({ ...room, fixes: [panel(2, 1.2), panel(2.3, 1.2)] })).toEqual(['fixes.1']);
     expect(fields({ ...room, fixes: [panel(1, 1.2), panel(1.6, 1.2)] })).toEqual([]); // touching edges are fine
   });
+
+  it('accepts panels that exactly touch, whatever the float rounding', () => {
+    const room = defaultRoom();
+    expect(fields({ ...room, fixes: [panel(0.4, 1.2), panel(1.0, 1.2)] })).toEqual([]);
+    expect(fields({ ...room, fixes: [panel(2, 0.68), panel(2, 1.88)] })).toEqual([]);
+  });
 });

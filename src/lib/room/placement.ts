@@ -1,5 +1,5 @@
 import { LIMITS, PANEL_SIZE, RUG_SIZES } from './constants';
-import { fixRect, rectsOverlap, surfaceSize, toSurfaceCoords } from './geometry';
+import { GEOMETRY_EPS, fixRect, rectsOverlap, surfaceSize, toSurfaceCoords } from './geometry';
 import type { Dims, PanelFix, RoomState, RugFix, Vec3, WallId } from './types';
 
 /** What a pointer drag in the 3D view can move. */
@@ -51,7 +51,7 @@ export function findFreePanelSpot(room: RoomState): PanelFix | null {
     const length = surfaceSize(room.dims, wall).u;
     for (let k = 0; ; k++) {
       const u = (5 + 7 * k) / 10; // 0.5, 1.2, 1.9 … in tenths so 2.6 isn't 2.5999…
-      if (u + PANEL_SIZE.u / 2 > length) break;
+      if (u + PANEL_SIZE.u / 2 > length + GEOMETRY_EPS) break;
       const panel: PanelFix = { kind: 'panel', wall, u, v: 1.2, on: true };
       if (!panelOverlaps(room, panel)) return panel;
     }

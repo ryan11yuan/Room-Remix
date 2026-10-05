@@ -1,5 +1,5 @@
 import { LIMITS } from './constants';
-import { fixFits, fixRect, rectsOverlap } from './geometry';
+import { GEOMETRY_EPS, fixFits, fixRect, rectsOverlap } from './geometry';
 import type { RoomState, Vec3 } from './types';
 
 export type RoomError = { field: string; message: string };
@@ -25,9 +25,9 @@ export function defaultRoom(): RoomState {
   };
 }
 
-const EPS = 1e-9; // positions clamped exactly to a bound (e.g. 1.9 − 0.3) must not fail on float noise
+// positions clamped exactly to a bound (e.g. 1.9 − 0.3) must not fail on float noise
 const between = (value: number, lo: number, hi: number) =>
-  Number.isFinite(value) && value >= lo - EPS && value <= hi + EPS;
+  Number.isFinite(value) && value >= lo - GEOMETRY_EPS && value <= hi + GEOMETRY_EPS;
 
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 

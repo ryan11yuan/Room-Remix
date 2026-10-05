@@ -48,6 +48,14 @@ describe('panelOverlaps', () => {
     expect(panelOverlaps(room, panel(1.6))).toBe(false); // edges touch at u = 1.3
     expect(panelOverlaps(room, panel(1.0, 'wallZ0'))).toBe(false);
   });
+
+  it('treats exactly touching panels as not overlapping despite float rounding', () => {
+    const room: RoomState = { ...defaultRoom(), fixes: [panel(0.1 + 0.3)] }; // edges at 0.1 and 0.7
+    expect(panelOverlaps(room, { ...panel(0.7 + 0.3) })).toBe(false); // 0.4 + 0.6 touch at u = 1.0
+    const low: PanelFix = { kind: 'panel', wall: 'wallZ1', u: 2, v: 0.68, on: true };
+    const high: PanelFix = { ...low, v: 1.88 };
+    expect(panelOverlaps({ ...defaultRoom(), fixes: [low] }, high)).toBe(false);
+  });
 });
 
 describe('findFreePanelSpot', () => {

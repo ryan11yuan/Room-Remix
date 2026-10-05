@@ -1,6 +1,8 @@
 import { PANEL_SIZE, RUG_SIZES } from './constants';
 import type { Dims, Fix, SurfaceId, Vec3 } from './types';
 
+export const GEOMETRY_EPS = 1e-9; // positions computed by adding or subtracting sizes must not fail on float noise
+
 export type Rect = { u0: number; u1: number; v0: number; v1: number };
 
 export function surfaceSize(dims: Dims, surface: SurfaceId): { u: number; v: number } {
@@ -59,13 +61,13 @@ export function clippedArea(r: Rect, size: { u: number; v: number }): number {
   return du > 0 && dv > 0 ? du * dv : 0;
 }
 
+/** True when two rectangles share some area (touching edges don't count). */
 export function rectsOverlap(a: Rect, b: Rect): boolean {
-  return a.u0 < b.u1 && b.u0 < a.u1 && a.v0 < b.v1 && b.v0 < a.v1;
+  return a.u0 < b.u1 - GEOMETRY_EPS && b.u0 < a.u1 - GEOMETRY_EPS && a.v0 < b.v1 - GEOMETRY_EPS && b.v0 < a.v1 - GEOMETRY_EPS;
 }
 
 export function fixFits(dims: Dims, fix: Fix): boolean {
   const size = surfaceSize(dims, fixSurface(fix));
   const r = fixRect(fix);
-  const eps = 1e-9;
-  return r.u0 >= -eps && r.v0 >= -eps && r.u1 <= size.u + eps && r.v1 <= size.v + eps;
+  return r.u0 >= -GEOMETRY_EPS && r.v0 >= -GEOMETRY_EPS && r.u1 <= size.u + GEOMETRY_EPS && r.v1 <= size.v + GEOMETRY_EPS;
 }
