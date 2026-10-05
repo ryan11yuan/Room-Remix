@@ -20,8 +20,13 @@ export function makeSurfaceLookup(room: RoomState): SurfaceLookup {
   };
 }
 
-/** Total absorption area Σ S·α per band (m²), including fixes, furnishing and calibration. */
+/**
+ * Total absorption area Σ S·α per band (m²), including fixes, furnishing and calibration.
+ * The calibration factor f scales the room as measured (surfaces and furnishing). Each switched-on fix then
+ * replaces the calibrated surface it covers: A = f·(Σ S·α_surface + floor·α_furnishing) + Σ S_fix·(α_fix − f·α_under).
+ */
 export function absorptionArea(room: RoomState): Bands {
+  const f = room.calibration.factor;
   const total = new Array<number>(NUM_BANDS).fill(0);
 
   for (const surface of SURFACE_IDS) {
@@ -30,17 +35,17 @@ export function absorptionArea(room: RoomState): Bands {
     for (let b = 0; b < NUM_BANDS; b++) total[b] += size.u * size.v * alpha[b];
   }
 
+  const floorArea = room.dims.length * room.dims.width;
+  const furnishing = FURNISHING_ALPHA_PER_FLOOR_M2[room.furnishing];
+  for (let b = 0; b < NUM_BANDS; b++) total[b] = f * (total[b] + floorArea * furnishing[b]);
+
   for (const fix of activeFixes(room)) {
     const surface = fixSurface(fix);
     const area = clippedArea(fixRect(fix), surfaceSize(room.dims, surface));
     const base = MATERIALS[room.surfaces[surface]].alpha;
     const alpha = fixAlpha(fix);
-    for (let b = 0; b < NUM_BANDS; b++) total[b] += area * (alpha[b] - base[b]);
+    for (let b = 0; b < NUM_BANDS; b++) total[b] += area * (alpha[b] - f * base[b]);
   }
 
-  const floorArea = room.dims.length * room.dims.width;
-  const furnishing = FURNISHING_ALPHA_PER_FLOOR_M2[room.furnishing];
-  for (let b = 0; b < NUM_BANDS; b++) total[b] += floorArea * furnishing[b];
-
-  return total.map((a) => a * room.calibration.factor);
+  return total;
 }

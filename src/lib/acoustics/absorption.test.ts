@@ -28,6 +28,12 @@ describe('absorptionArea', () => {
   it('scales by the calibration factor', () => {
     expect(absorptionArea({ ...defaultRoom(), calibration: { factor: 2 } })[3]).toBeCloseTo(16.264, 6);
   });
+
+  it('applies fixes on top of the calibrated room', () => {
+    // 2 × 8.132 + 3.68 × (0.37 − 2 × 0.07) = 16.264 + 0.8464
+    const room: RoomState = { ...withRug(defaultRoom(), true), calibration: { factor: 2 } };
+    expect(absorptionArea(room)[3]).toBeCloseTo(17.1104, 6);
+  });
 });
 
 describe('makeSurfaceLookup', () => {
