@@ -71,6 +71,23 @@ export class AudioEngine {
     this.song = mono;
   }
 
+  /** Use generated samples (a built-in clip) as the song. `sampleRate` is the rate they were generated at. */
+  loadClip(samples: Float32Array, sampleRate: number): void {
+    const clip = this.ctx.createBuffer(1, samples.length, sampleRate);
+    clip.getChannelData(0).set(samples);
+    this.pause();
+    this.offset = 0;
+    this.song = clip;
+  }
+
+  /** Decode a fetched recording of a space at this context's sample rate. A mono file gives the same channel twice. */
+  async decodeIr(bytes: ArrayBuffer): Promise<StereoIr> {
+    const decoded = await this.ctx.decodeAudioData(bytes);
+    const left = Float32Array.from(decoded.getChannelData(0));
+    const right = decoded.numberOfChannels > 1 ? Float32Array.from(decoded.getChannelData(1)) : Float32Array.from(left);
+    return { left, right, sampleRate: decoded.sampleRate };
+  }
+
   async play(): Promise<void> {
     if (!this.song || this.source) return;
     const token = ++this.playToken;
