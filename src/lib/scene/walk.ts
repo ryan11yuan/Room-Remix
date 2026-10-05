@@ -11,6 +11,7 @@ export const WALK_SPEED = 1.4; // m/s, a normal walking pace
 export const MAX_DT = 0.1; // s: a long frame (or a tab coming back into view) mustn't teleport the listener
 export const CAMERA_BACK = 1; // m behind the head
 export const CAMERA_UP = 0.3; // m above it
+export const CAMERA_SIDE = 0.3; // m to the listener's right: over the shoulder, so the head doesn't hide the speaker
 export const CAMERA_MARGIN = 0.1; // the camera stays this far inside the room, so it never shows the back of a scan
 export const WALK_ZOOM = { min: 0.6, max: 3 } as const; // how close and far the camera can orbit the head
 
@@ -192,33 +193,43 @@ export function advanceWalk(
   return { to: moved ? { x: step.x, z: step.z } : null, goal: direction || step.done ? null : goal };
 }
 
-/** The camera moved toward the head until it is CAMERA_MARGIN inside every wall, the floor and the ceiling. */
-export function pullInside(dims: Dims, head: Vec3, camera: Vec3): Vec3 {
-  const lo = CAMERA_MARGIN;
-  const hi = { x: dims.length - lo, y: dims.height - lo, z: dims.width - lo };
-  let t = 1;
-  for (const axis of ['x', 'y', 'z'] as const) {
-    const d = camera[axis] - head[axis];
-    if (d > 0 && camera[axis] > hi[axis]) t = Math.min(t, (hi[axis] - head[axis]) / d);
-    if (d < 0 && camera[axis] < lo) t = Math.min(t, (lo - head[axis]) / d);
-  }
-  t = Math.max(0, t);
-  return { x: head.x + (camera.x - head.x) * t, y: head.y + (camera.y - head.y) * t, z: head.z + (camera.z - head.z) * t };
+/** The point moved CAMERA_MARGIN inside every wall, the floor and the ceiling. */
+export function clampInside(dims: Dims, p: Vec3): Vec3 {
+  const clamp = (v: number, size: number) => Math.min(Math.max(v, CAMERA_MARGIN), size - CAMERA_MARGIN);
+  return { x: clamp(p.x, dims.length), y: clamp(p.y, dims.height), z: clamp(p.z, dims.width) };
 }
 
 /**
- * What the walk camera looks at and orbits: a point CAMERA_UP over the head. The view is level, so the head sits low in
- * the picture with the speaker beyond it, instead of covering the speaker.
+ * The camera moved toward the head until it is CAMERA_MARGIN inside every wall, the floor and the ceiling. A head that is
+ * itself outside the room (the room shrank past the listener) is first moved inside, so the result is always inside.
  */
-export function walkLook(head: Vec3): Vec3 {
-  return { x: head.x, y: head.y + CAMERA_UP, z: head.z };
+export function pullInside(dims: Dims, head: Vec3, camera: Vec3): Vec3 {
+  const lo = CAMERA_MARGIN;
+  const hi = { x: dims.length - lo, y: dims.height - lo, z: dims.width - lo };
+  const from = clampInside(dims, head);
+  let t = 1;
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const d = camera[axis] - from[axis];
+    if (d > 0 && camera[axis] > hi[axis]) t = Math.min(t, (hi[axis] - from[axis]) / d);
+    if (d < 0 && camera[axis] < lo) t = Math.min(t, (lo - from[axis]) / d);
+  }
+  t = Math.max(0, t);
+  return { x: from.x + (camera.x - from.x) * t, y: from.y + (camera.y - from.y) * t, z: from.z + (camera.z - from.z) * t };
 }
 
-/** Walk mode's first view: over the listener's shoulder, CAMERA_BACK behind and CAMERA_UP above the head, facing the way they face. */
+/**
+ * Walk mode's first view: looking at the listener's head from over their right shoulder, CAMERA_BACK behind, CAMERA_UP
+ * above and CAMERA_SIDE to the right of it, so the speaker shows beside the head and the floor ahead is in view.
+ */
 export function walkView(room: RoomState): { position: Vec3; target: Vec3 } {
   const yaw = listenerYaw(room.listener, room.speaker);
-  const head = { x: room.listener.x, y: room.listener.y, z: room.listener.z };
-  const target = walkLook(head);
-  const behind = { x: target.x - Math.cos(yaw) * CAMERA_BACK, y: target.y, z: target.z - Math.sin(yaw) * CAMERA_BACK };
-  return { position: pullInside(room.dims, head, behind), target };
+  const target = clampInside(room.dims, { x: room.listener.x, y: room.listener.y, z: room.listener.z });
+  const facing = { x: Math.cos(yaw), z: Math.sin(yaw) };
+  const right = { x: -facing.z, z: facing.x }; // the same rule as keyDirection
+  const behind = {
+    x: target.x - facing.x * CAMERA_BACK + right.x * CAMERA_SIDE,
+    y: target.y + CAMERA_UP,
+    z: target.z - facing.z * CAMERA_BACK + right.z * CAMERA_SIDE,
+  };
+  return { position: pullInside(room.dims, target, behind), target };
 }

@@ -242,7 +242,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           className="block h-full w-full touch-none"
           aria-label={
             walking
-              ? 'Your room in 3D, walking. Tap the floor to walk the listener there.'
+              ? 'Your room in 3D, walking. Tap the floor, or use WASD or the arrow keys, to walk the listener.'
               : 'Your room in 3D. Drag the speaker, listener or rug to move them.'
           }
         />
@@ -379,7 +379,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
       </p>
       <p className="text-xs text-neutral-500">
         {walking
-          ? 'Tap the floor to walk the listener there, or use WASD or the arrow keys. Drag to look around them; pinch to zoom. You can still drag the speaker and the rug.'
+          ? 'Tap the floor to walk the listener there, or use WASD or the arrow keys. Drag to look around them; scroll or pinch to zoom. You can still drag the speaker and the rug.'
           : 'Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.'}{' '}
         Rays show the room as you&apos;re hearing it.
       </p>

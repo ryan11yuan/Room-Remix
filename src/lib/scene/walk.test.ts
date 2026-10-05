@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { listenerYaw } from '@/lib/acoustics/binaural';
 import { defaultRoom, validateRoom } from '@/lib/room/roomState';
 import type { Dims, RoomState, Vec3 } from '@/lib/room/types';
 import {
   advanceWalk,
   CAMERA_BACK,
   CAMERA_MARGIN,
+  CAMERA_SIDE,
   CAMERA_UP,
+  clampInside,
   keyDirection,
   MAX_DT,
   pullInside,
@@ -299,6 +302,12 @@ describe('pullInside', () => {
     expect(p.z).toBeCloseTo(1.75, 9);
   });
 
+  it('draws from inside the room even when the head is outside it (the room shrank past the listener)', () => {
+    const small = { length: 2.5, width: 3.5, height: 2.6 };
+    const p = pullInside(small, { x: 3, y: 1.1, z: 1.75 }, { x: 4, y: 1.4, z: 1.75 });
+    expectInside(p, small);
+  });
+
   it('keeps the camera inside a corner and under a low ceiling', () => {
     const low = { length: 1.5, width: 1.5, height: 2 };
     const p = pullInside(low, { x: 0.3, y: 1.6, z: 0.3 }, { x: -0.7, y: 2.5, z: -0.7 });
@@ -306,12 +315,27 @@ describe('pullInside', () => {
   });
 });
 
+describe('clampInside', () => {
+  const dims = { length: 4, width: 3.5, height: 2.6 };
+
+  it('keeps a point that is inside the margin as it is', () => {
+    expect(clampInside(dims, { x: 2, y: 1.1, z: 2 })).toEqual({ x: 2, y: 1.1, z: 2 });
+  });
+
+  it('moves a point outside the room to the margin on each axis', () => {
+    const p = clampInside(dims, { x: 5, y: -1, z: 3.45 });
+    expect(p.x).toBeCloseTo(4 - CAMERA_MARGIN, 12);
+    expect(p.y).toBeCloseTo(CAMERA_MARGIN, 12);
+    expect(p.z).toBeCloseTo(3.5 - CAMERA_MARGIN, 12);
+  });
+});
+
 describe('walkView', () => {
-  it("starts behind the listener's head, away from the speaker and a little above it, looking level over the head", () => {
+  it("looks at the listener's head from behind it, away from the speaker and a little above", () => {
     const room = defaultRoom();
     const { position, target } = walkView(room);
     expect(target.x).toBe(3);
-    expect(target.y).toBeCloseTo(1.1 + CAMERA_UP, 12);
+    expect(target.y).toBeCloseTo(1.1, 12);
     expect(target.z).toBe(1.9);
     expect(position.y).toBeGreaterThan(room.listener.y);
     const toSpeaker = (p: Vec3) => Math.hypot(p.x - room.speaker.x, p.z - room.speaker.z);
@@ -319,12 +343,21 @@ describe('walkView', () => {
     expect(Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z)).toBeGreaterThan(0.5);
   });
 
-  it('starts a full CAMERA_BACK behind when the room leaves space', () => {
+  it('starts a full CAMERA_BACK behind, CAMERA_UP above and CAMERA_SIDE to the right when the room leaves space', () => {
     const room = roomWith({ x: 0.6, y: 1.0, z: 1.75 }, { x: 2, y: 1.1, z: 1.75 }); // facing the front wall, 2 m of room behind
     const { position } = walkView(room);
     expect(position.x).toBeCloseTo(2 + CAMERA_BACK, 9);
     expect(position.y).toBeCloseTo(1.1 + CAMERA_UP, 9);
-    expect(position.z).toBeCloseTo(1.75, 9);
+    expect(position.z).toBeCloseTo(1.75 - CAMERA_SIDE, 9); // facing −x, their right is −z
+  });
+
+  it('looks down at the head from over the right shoulder, so the floor ahead is in view', () => {
+    const room = defaultRoom();
+    const { position, target } = walkView(room);
+    expect(target.y - position.y).toBeLessThan(0); // the view direction points down
+    const yaw = listenerYaw(room.listener, room.speaker);
+    const right = { x: -Math.sin(yaw), z: Math.cos(yaw) }; // the same rule as keyDirection
+    expect((position.x - target.x) * right.x + (position.z - target.z) * right.z).toBeGreaterThan(0);
   });
 
   it('stays inside the smallest room, at the walls and the ceiling', () => {

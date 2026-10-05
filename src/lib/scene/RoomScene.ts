@@ -15,7 +15,8 @@ import {
   type Handle,
 } from './objects';
 import { RaysObject } from './RaysObject';
-import { advanceWalk, keyDirection, pullInside, walkLook, walkTarget, walkView, WALK_KEYS, WALK_ZOOM, type FloorPoint } from './walk';
+import { advanceWalk, keyDirection, walkTarget, walkView, WALK_KEYS, WALK_ZOOM, type FloorPoint } from './walk';
+import { drawFrom, followHead } from './walkCamera';
 
 /** What a tap on the canvas does: nothing, place a panel on a wall, or pick a point on the room scan. */
 export type TapMode = 'none' | 'panel' | 'scan';
@@ -63,6 +64,7 @@ export class RoomScene {
   private tapMode: TapMode = 'none';
   private scanTargets: THREE.Object3D[] = [];
   private onScreen = true; // the canvas is in view; when it isn't, the loop skips updating and drawing
+  private mostlyOnScreen = true; // at least half of the canvas is in view; with less, the walk keys leave the page to scroll
   private readonly visibility: IntersectionObserver;
   private dragging: { target: DragTarget; plane: THREE.Plane; pointerId: number; offset: { x: number; z: number } } | null = null;
   private down: { x: number; y: number; pointerId: number } | null = null; // the primary press that may become a tap or a drag
@@ -72,7 +74,7 @@ export class RoomScene {
   // Walk mode draws, and taps aim, from the orbit camera pulled inside the room. this.camera stays the unpulled orbit
   // camera, so OrbitControls' own event-time updates (wheel and pinch zoom, drag turns) act on it and are kept.
   private readonly drawCamera = new THREE.PerspectiveCamera();
-  private midEdit = false; // the store's room has a size being typed: walking waits, or the scene and the store would part ways
+  private midEdit = false; // the store's room has a size or a listener position being typed: walking waits, or the scene and the store would part ways
   private readonly keys = new Set<string>(); // walk keys held down (KeyboardEvent.code)
   private lastFrame = 0; // ms: the previous frame's time
 
@@ -95,9 +97,15 @@ export class RoomScene {
       this.userMoved = true; // 'start' fires only on user interaction
     });
     // Entries arrive oldest first, so the last one is the canvas's current state.
-    this.visibility = new IntersectionObserver((entries) => {
-      for (const entry of entries) this.onScreen = entry.isIntersecting;
-    });
+    this.visibility = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          this.onScreen = entry.isIntersecting;
+          this.mostlyOnScreen = entry.intersectionRatio >= 0.5;
+        }
+      },
+      { threshold: [0, 0.5] }, // report when the view crosses half shown, as well as when it appears or goes
+    );
     this.visibility.observe(canvas);
     this.webgl.setAnimationLoop((time) => {
       if (!this.onScreen) return; // scrolled out of view: don't spend the GPU on a canvas nobody can see
@@ -130,7 +138,7 @@ export class RoomScene {
       this.midEdit = true; // mid-edit: keep showing the last good room
       return;
     }
-    this.midEdit = false;
+    this.midEdit = ![room.listener.x, room.listener.y, room.listener.z].every(Number.isFinite); // a cleared position field: wait for a number
     this.room = room;
     const shellKey = JSON.stringify([room.dims, room.surfaces]);
     if (shellKey !== this.shellKey) {
@@ -245,7 +253,8 @@ export class RoomScene {
     this.controls.enablePan = false; // the orbit stays centred on the head
     this.controls.minDistance = WALK_ZOOM.min;
     this.controls.maxDistance = WALK_ZOOM.max;
-    this.moveCamera(walkView(this.room));
+    const { x, y, z } = this.room.listener;
+    if ([x, y, z].every(Number.isFinite)) this.moveCamera(walkView(this.room)); // a cleared position field leaves no head to look from: keep the view
     this.walk = { goal: null };
     this.updateDrawCamera(); // taps before the first frame aim from what is drawn
     window.addEventListener('keydown', this.onKeyDown);
@@ -267,29 +276,18 @@ export class RoomScene {
         this.callbacks.onDrag(LISTENER, point);
       }
     }
-    // Carry the orbit along with the head, then let OrbitControls apply the rest of the user's turn and zoom.
-    const head = this.listener.position;
-    const look = walkLook(head);
-    this.camera.position.sub(this.controls.target).add(look);
-    this.controls.target.set(look.x, look.y, look.z);
-    this.controls.update();
-    this.updateDrawCamera();
+    // Carry the orbit along with the head and draw from inside the room (a head that is not a finite point changes nothing).
+    if (this.room) followHead(this.camera, this.controls, this.drawCamera, this.room.dims, this.listener.position);
   }
 
-  /** Walk mode's view: the orbit camera pulled inside the room, still looking at the point over the head. */
+  /** Walk mode's view: the orbit camera pulled inside the room, still looking at the orbit's target. */
   private updateDrawCamera(): void {
-    this.drawCamera.copy(this.camera);
-    if (this.room) {
-      const inside = pullInside(this.room.dims, this.listener.position, this.camera.position);
-      this.drawCamera.position.set(inside.x, inside.y, inside.z);
-      this.drawCamera.lookAt(this.controls.target);
-    }
-    this.drawCamera.updateMatrixWorld();
+    if (this.room) drawFrom(this.camera, this.controls.target, this.drawCamera, this.room.dims);
   }
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
-    // Scrolled off-screen, the arrow keys scroll the page again instead of walking.
-    if (!this.onScreen || !WALK_KEYS.has(event.code) || event.altKey || event.ctrlKey || event.metaKey || isTyping(event.target)) return;
+    // With less than half the view showing, the arrow keys scroll the page again instead of walking.
+    if (!this.mostlyOnScreen || !WALK_KEYS.has(event.code) || event.altKey || event.ctrlKey || event.metaKey || isTyping(event.target)) return;
     this.keys.add(event.code);
     event.preventDefault(); // the arrow keys mustn't scroll the page while walking
   };
