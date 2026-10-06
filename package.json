@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pipeline:build": "docker build -t room-remix-opensplat --build-arg CMAKE_CUDA_ARCHITECTURES=89 https://github.com/pierotofy/OpenSplat.git#v1.2.2 && docker build -t room-remix-splat pipeline",
+    "pipeline:check": "docker run --rm --gpus all room-remix-splat rr-check"
   },
   "dependencies": {
     "@sparkjsdev/spark": "^2.3.1",
