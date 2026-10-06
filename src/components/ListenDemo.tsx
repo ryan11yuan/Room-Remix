@@ -312,7 +312,10 @@ export function ListenDemo() {
   const { length, width, height } = DEMO_ROOM.dims;
 
   return (
-    <section aria-label="Listen to a space" className="flex flex-col gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
+    <section aria-labelledby="listen-demo-heading" className="flex flex-col gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
+      <h2 id="listen-demo-heading" className="text-xl font-semibold">
+        Listen to a space
+      </h2>
       <div role="tablist" aria-label="Spaces" className="flex flex-wrap gap-1">
         {TABS.map((t, i) => {
           const selected = t.id === tab;
@@ -326,7 +329,7 @@ export function ListenDemo() {
               tabIndex={selected ? 0 : -1}
               onClick={() => chooseTab(t.id)}
               onKeyDown={(e) => onTabKeyDown(e, i)}
-              className={`rounded-md px-3 py-1.5 text-sm ${selected ? 'bg-white font-semibold text-neutral-950' : 'text-neutral-300'}`}
+              className={`min-h-11 rounded-md px-3 text-sm ${selected ? 'bg-white font-semibold text-neutral-950' : 'text-neutral-300'}`}
             >
               {t.label}
             </button>
@@ -342,7 +345,7 @@ export function ListenDemo() {
           <div className="flex min-w-0 flex-col gap-1 text-sm">
             <p className="font-semibold">{preset.place}</p>
             <p className="text-neutral-300">{preset.blurb}</p>
-            <p className="text-neutral-500">Recorded in a real space</p>
+            <p className="text-neutral-400">Recorded in a real space</p>
           </div>
         ) : (
           <div className="flex min-w-0 flex-col items-start gap-2 text-sm">
@@ -351,7 +354,7 @@ export function ListenDemo() {
             </p>
             <button
               onClick={() => void exploreIn3d()}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
+              className="min-h-11 rounded-md border border-neutral-700 px-3"
             >
               Explore it in 3D
             </button>
@@ -366,7 +369,7 @@ export function ListenDemo() {
             key={c.id}
             aria-pressed={c.id === clip}
             onClick={() => chooseClip(c.id)}
-            className={`rounded-md border px-2 py-1 ${c.id === clip ? 'border-white bg-white text-neutral-950' : 'border-neutral-700'}`}
+            className={`min-h-11 rounded-md border px-3 ${c.id === clip ? 'border-white bg-white text-neutral-950' : 'border-neutral-700'}`}
           >
             {c.label}
           </button>
@@ -374,7 +377,7 @@ export function ListenDemo() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={onPlayPause} className="rounded-lg bg-white px-5 py-2 font-semibold text-neutral-950">
+        <button onClick={onPlayPause} className="min-h-11 rounded-lg bg-white px-5 font-semibold text-neutral-950">
           {wantsPlay ? 'Pause' : 'Play'}
         </button>
         <Toggle label="Listen dry or in the space" options={['Dry', 'In the space']} value={inSpace} onChange={chooseMode} />

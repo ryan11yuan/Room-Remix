@@ -132,6 +132,14 @@ export function removeRoom(file: RoomsFile, id: string): RoomsFile {
   return { ...file, rooms, currentId };
 }
 
+/** The name shown for a room that has none. */
+export const UNTITLED = 'Untitled room';
+
+/** A room's name as shown: "Untitled room" when it is empty or only spaces. */
+export function displayName(name: string): string {
+  return name.trim() || UNTITLED;
+}
+
 /** A name no saved room has yet, at most 80 characters: "My room", then "My room 2", "My room 3"… */
 export function uniqueName(file: RoomsFile, base: string): string {
   const taken = new Set(file.rooms.map((room) => room.state.name));

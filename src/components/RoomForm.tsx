@@ -81,7 +81,7 @@ export function RoomForm() {
       </Section>
 
       <Section title="Speaker and listener">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-400">
           x runs from the front wall toward the back, z from the right wall toward the left (as you face the front wall), y is height.
         </p>
         <div className="flex flex-wrap gap-3">

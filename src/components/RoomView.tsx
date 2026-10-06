@@ -13,6 +13,7 @@ import { RoomScene } from '@/lib/scene/RoomScene';
 import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
 import { pendingScanRoom, returnPendingScan, subscribePendingScan, takePendingScan } from './pendingScan';
 import { TopView } from './TopView';
+import { useReducedMotion } from './useReducedMotion';
 import { useUnits } from './useUnits';
 import { hasWebGL, markWebGLUnavailable, useWebGL } from './useWebGL';
 
@@ -26,7 +27,7 @@ const LISTENER_HEIGHTS = [
   { label: 'Seated', y: 1.1 },
   { label: 'Standing', y: 1.6 },
 ];
-const buttonClass = 'rounded-md border border-neutral-700 px-3 py-1.5 disabled:opacity-40';
+const buttonClass = 'inline-flex min-h-11 items-center rounded-md border border-neutral-700 px-3 disabled:opacity-40';
 const ONE_DEG = Math.PI / 180;
 const FIVE_DEG = Math.PI / 36;
 /** Fine-tuning steps for the scan, in the room's axes: x runs toward the back wall, z toward the left wall. */
@@ -75,7 +76,7 @@ function HeightSelect({
           const y = Number(e.target.value);
           if (Number.isFinite(y)) onChange(y);
         }}
-        className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1"
+        className="min-h-11 rounded-md border border-neutral-700 bg-neutral-900 px-2"
       >
         {!current && <option value="custom">{value.toFixed(2)} m</option>}
         {options.map((o) => (
@@ -99,7 +100,9 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RoomScene | null>(null);
   const scanRef = useRef<ScanController | null>(null);
-  const [raysOn, setRaysOn] = useState(true);
+  const reducedMotion = useReducedMotion();
+  const [raysChoice, setRaysChoice] = useState<boolean | null>(null); // null: the default, which is off for reduced motion
+  const raysOn = raysChoice ?? !reducedMotion;
   const [placing, setPlacing] = useState(false);
   const [walking, setWalking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -312,7 +315,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
         <button aria-pressed={walking} disabled={aligning} onClick={() => setWalking((v) => !v)} className={buttonClass}>
           {walking ? 'Stop walking' : 'Walk'}
         </button>
-        <button aria-pressed={raysOn} onClick={() => setRaysOn((v) => !v)} className={buttonClass}>
+        <button aria-pressed={raysOn} onClick={() => setRaysChoice(!raysOn)} className={buttonClass}>
           {raysOn ? 'Hide rays' : 'Show rays'}
         </button>
         <button
@@ -392,7 +395,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
       <p role="status" className="text-sm text-amber-200 empty:-mt-2">
         {largeScanWarning}
       </p>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-neutral-400">
         {walking
           ? 'Tap the floor to walk the listener there, or use WASD or the arrow keys. Drag to look around them; scroll or pinch to zoom. You can still drag the speaker and the rug.'
           : 'Drag the speaker (orange), the listener (blue) or the rug. One finger turns the view; two fingers zoom and pan.'}{' '}

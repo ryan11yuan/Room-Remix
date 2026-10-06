@@ -29,15 +29,15 @@ export default function RoomPage() {
         {notice && (
           <p className="flex items-start justify-between gap-3 rounded-lg border border-amber-700 p-3 text-sm text-amber-200">
             <span>{notice}</span>
-            <button onClick={() => setNotice(null)} className="shrink-0 underline">
+            <button onClick={() => setNotice(null)} className="min-h-11 shrink-0 px-2 underline">
               Dismiss
             </button>
           </p>
         )}
       </div>
       {roomId ? <RoomWorkspace /> : <p className="text-neutral-400">Opening your room…</p>}
-      <footer className="text-xs text-neutral-500">
-        <Link href="/about" className="underline">
+      <footer className="text-xs text-neutral-400">
+        <Link href="/about" className="inline-flex min-h-11 items-center underline">
           About and privacy
         </Link>
       </footer>
@@ -69,7 +69,7 @@ function RoomWorkspace() {
           maxLength={80}
           placeholder="Untitled room"
           onChange={(e) => update((r) => ({ ...r, name: e.target.value }))}
-          className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-2xl font-bold hover:border-neutral-700 focus:border-neutral-500"
+          className="min-h-11 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-2xl font-bold hover:border-neutral-700 focus:border-neutral-500"
         />
         <div className="flex gap-2">
           <RoomsMenu />

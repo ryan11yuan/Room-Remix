@@ -3,6 +3,7 @@ import { defaultRoom } from './roomState';
 import {
   addRoom,
   currentRoom,
+  displayName,
   EMPTY_ROOMS,
   findRoom,
   hasRoomsFile,
@@ -452,5 +453,13 @@ describe('the first visit', () => {
   it('starts as usual when storage is blocked or missing, so the visitor is never sent round in circles', () => {
     expect(shouldRunSetup(fakeStorage(true), '')).toBe(false);
     expect(shouldRunSetup(null, '')).toBe(false);
+  });
+});
+
+describe('displayName', () => {
+  it('names a room with no name Untitled room', () => {
+    expect(displayName('')).toBe('Untitled room');
+    expect(displayName('   ')).toBe('Untitled room');
+    expect(displayName(' Den ')).toBe('Den');
   });
 });

@@ -345,6 +345,15 @@ describe('RoomSession save', () => {
     expect(t.saved().rooms.map((r) => r.state.name).sort()).toEqual(['Renamed elsewhere', 'Studio copy']);
   });
 
+  it('names a conflict copy of a room with no name "Untitled room copy"', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, '']) });
+    await t.session.start();
+    saveRooms(upsertRoom(t.saved(), 'a', named('Renamed elsewhere'), 500), t.storage);
+    store().update((r) => ({ ...r, furnishing: 'bare' }));
+    t.session.save();
+    expect(store().room.name).toBe('Untitled room copy');
+  });
+
   it("doesn't save its stale copy over another tab's newer one", async () => {
     const t = setup({ storage: storageWith('a', ['a', 100, 'Studio']) });
     await t.session.start();
@@ -438,6 +447,13 @@ describe('RoomSession rooms', () => {
     expect(store().room.name).toBe('Studio copy');
     expect(store().roomId).not.toBe('a');
     expect(t.saved().rooms).toHaveLength(2);
+  });
+
+  it('names the copy of a room with no name "Untitled room copy"', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, '  ']) });
+    await t.session.start();
+    t.session.duplicate('a');
+    expect(store().room.name).toBe('Untitled room copy');
   });
 
   it('deletes another room and stays in the open one', async () => {

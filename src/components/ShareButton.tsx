@@ -19,6 +19,14 @@ export function ShareButton() {
   const [manualLink, setManualLink] = useState<string | null>(null); // shown to copy by hand when the browser won't copy
   const [unsupported, setUnsupported] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const manualInput = useRef<HTMLInputElement>(null);
+
+  // The copy-by-hand field takes focus with its link selected, ready for Ctrl+C or the phone's Copy.
+  useEffect(() => {
+    if (!manualLink) return;
+    manualInput.current?.focus();
+    manualInput.current?.select();
+  }, [manualLink]);
 
   useEffect(() => {
     if (!valid) return;
@@ -65,24 +73,25 @@ export function ShareButton() {
 
   return (
     <div className="relative">
-      <button onClick={share} disabled={!valid} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm disabled:opacity-40">
+      <button onClick={share} disabled={!valid} className="min-h-11 rounded-lg border border-neutral-700 px-4 text-sm disabled:opacity-40">
         {unsupported ? "Sharing isn't supported in this browser" : copied ? 'Link copied' : 'Share link'}
       </button>
       <span role="status" className="sr-only">
-        {copied ? 'Link copied' : ''}
+        {copied ? 'Link copied' : unsupported ? "Sharing isn't supported in this browser" : ''}
       </span>
       {manualLink && (
         <div className="absolute right-0 top-full z-10 mt-2 flex w-72 flex-col gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3 text-sm">
           <label className="flex flex-col gap-1">
             <span>Copy this link:</span>
             <input
+              ref={manualInput}
               readOnly
               value={manualLink}
               onFocus={(e) => e.target.select()}
-              className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5"
+              className="min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-2"
             />
           </label>
-          <button onClick={() => setManualLink(null)} className="self-end rounded-md border border-neutral-700 px-3 py-1">
+          <button onClick={() => setManualLink(null)} className="min-h-11 self-end rounded-md border border-neutral-700 px-3">
             Done
           </button>
         </div>

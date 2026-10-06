@@ -17,8 +17,8 @@ export default function Home() {
         </Link>
         <MyRoomsLink />
       </div>
-      <footer className="text-xs text-neutral-500">
-        <Link href="/about" className="underline">
+      <footer className="text-xs text-neutral-400">
+        <Link href="/about" className="inline-flex min-h-11 items-center underline">
           About and privacy
         </Link>
       </footer>

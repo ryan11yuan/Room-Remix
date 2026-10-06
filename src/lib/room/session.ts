@@ -1,6 +1,7 @@
 import { defaultRoom } from './roomState';
 import {
   addRoom,
+  displayName,
   findRoom,
   importRoom,
   isSavable,
@@ -137,7 +138,7 @@ export class RoomSession {
     if (!stored && local === this.seen) return; // deleted in another tab and not changed here since: it stays deleted
     if (stored && theirs !== null && this.seen !== null && theirs !== this.seen && theirs !== local) {
       if (local === this.seen) return this.adopt(stored.state, theirs);
-      const copy = addRoom(file, this.env.newId(), { ...room, name: uniqueName(file, `${room.name} copy`) }, this.env.now());
+      const copy = addRoom(file, this.env.newId(), { ...room, name: uniqueName(file, `${displayName(room.name)} copy`) }, this.env.now());
       if (copy) {
         this.write(copy);
         this.notify(CONFLICT_NOTICE);
@@ -169,7 +170,7 @@ export class RoomSession {
   duplicate(id: string): void {
     this.add((file) => {
       const source = findRoom(file, id);
-      return source && { ...source.state, name: uniqueName(file, `${source.state.name} copy`) };
+      return source && { ...source.state, name: uniqueName(file, `${displayName(source.state.name)} copy`) };
     });
   }
 

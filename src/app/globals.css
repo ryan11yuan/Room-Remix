@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* A visible focus ring on every control for keyboard users. Parts that draw their own ring (the top view) use outline-none. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-neutral-300, #d4d4d4);
+    outline-offset: 2px;
+  }
+}

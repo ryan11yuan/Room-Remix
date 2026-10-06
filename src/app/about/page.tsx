@@ -51,7 +51,7 @@ export default function About() {
         </p>
       </section>
 
-      <Link href="/" className="self-start underline">
+      <Link href="/" className="inline-flex min-h-11 items-center self-start underline">
         Back to the home page
       </Link>
     </main>
