@@ -1,8 +1,9 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { watchEdits } from '@/lib/room/autosave';
-import { newRoomId, ROOMS_KEY } from '@/lib/room/rooms';
+import { newRoomId, ROOMS_KEY, shouldRunSetup } from '@/lib/room/rooms';
 import { RoomSession } from '@/lib/room/session';
 import { decodeRoom } from '@/lib/room/urlCodec';
 import { deleteScan, pruneScans } from '@/lib/scene/scanStore';
@@ -44,7 +45,13 @@ export function roomSession(): RoomSession {
 
 /** Start the room session for this page: open the right room, follow pasted links, and save edits once they settle. */
 export function useRoomSession(): void {
+  const router = useRouter();
   useEffect(() => {
+    // A first visit (no saved rooms, no link) sets the room up first, so no default room is made behind the visitor's back.
+    if (shouldRunSetup(browserStorage(), window.location.hash)) {
+      router.replace('/setup');
+      return;
+    }
     const rooms = roomSession();
     void rooms.start();
     const edits = watchEdits(() => rooms.save(), AUTOSAVE_MS);
@@ -69,5 +76,5 @@ export function useRoomSession(): void {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
+  }, [router]);
 }

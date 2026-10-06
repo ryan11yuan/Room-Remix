@@ -232,6 +232,15 @@ describe('RoomSession start', () => {
     expect(t.saved().rooms.map((r) => r.state.name)).toEqual(['Two']);
   });
 
+  it('opens only the linked room on a first visit with a link, with no extra My room', async () => {
+    const t = setup({ links: { code: named('From setup') } });
+    t.setLink('code');
+    await t.session.start();
+    expect(t.saved().rooms.map((r) => r.state.name)).toEqual(['From setup']);
+    expect(store().room.name).toBe('From setup');
+    expect(store().notice).toBeNull();
+  });
+
   it('drops the link notice once a link loads', async () => {
     const t = setup({ links: { code: named('Shared') } });
     t.setLink('garbage');

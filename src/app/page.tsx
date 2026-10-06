@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ListenDemo } from '@/components/ListenDemo';
+import { MyRoomsLink } from '@/components/MyRoomsLink';
 
 export default function Home() {
   return (
@@ -10,9 +11,12 @@ export default function Home() {
         buy anything.
       </p>
       <ListenDemo />
-      <Link href="/room" className="self-start rounded-lg bg-white px-5 py-3 font-semibold text-neutral-950">
-        Try your room
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link href="/setup" className="inline-flex min-h-11 items-center rounded-lg bg-white px-5 py-3 font-semibold text-neutral-950">
+          Try your room
+        </Link>
+        <MyRoomsLink />
+      </div>
       <footer className="text-xs text-neutral-500">
         <Link href="/about" className="underline">
           About and privacy

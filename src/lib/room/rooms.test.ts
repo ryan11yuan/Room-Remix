@@ -5,6 +5,7 @@ import {
   currentRoom,
   EMPTY_ROOMS,
   findRoom,
+  hasRoomsFile,
   importRoom,
   isSavable,
   loadRooms,
@@ -19,6 +20,7 @@ import {
   saveRooms,
   selectRoom,
   serializeRooms,
+  shouldRunSetup,
   sortedRooms,
   startRooms,
   stateKey,
@@ -418,5 +420,37 @@ describe('loadRooms and saveRooms', () => {
     };
     expect(saveRooms(file(['a', 100, 'A'], ['b', 200, 'B']), full)).toBe(false);
     expect(loadRooms(full).rooms).toHaveLength(1);
+  });
+});
+
+describe('the first visit', () => {
+  it('knows whether a rooms file is stored, and when it cannot tell', () => {
+    const storage = fakeStorage();
+    expect(hasRoomsFile(storage)).toBe(false);
+    storage.items.set(ROOMS_KEY, 'not even JSON'); // a file this build can't read is still a file
+    expect(hasRoomsFile(storage)).toBe(true);
+    expect(hasRoomsFile(fakeStorage(true))).toBeNull();
+    expect(hasRoomsFile(null)).toBeNull();
+  });
+
+  it('sends a visitor with no rooms and no link to setup', () => {
+    expect(shouldRunSetup(fakeStorage(), '')).toBe(true);
+    expect(shouldRunSetup(fakeStorage(), '#')).toBe(true);
+  });
+
+  it('opens a link straight away, even on a first visit', () => {
+    expect(shouldRunSetup(fakeStorage(), '#v1.abc')).toBe(false);
+    expect(shouldRunSetup(fakeStorage(), '#garbage')).toBe(false); // the room page says the link couldn't be loaded
+  });
+
+  it('opens the room page for a visitor who has rooms', () => {
+    const storage = fakeStorage();
+    saveRooms(file(['a', 100, 'Studio']), storage);
+    expect(shouldRunSetup(storage, '')).toBe(false);
+  });
+
+  it('starts as usual when storage is blocked or missing, so the visitor is never sent round in circles', () => {
+    expect(shouldRunSetup(fakeStorage(true), '')).toBe(false);
+    expect(shouldRunSetup(null, '')).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { roomSession } from '@/components/useRoomSession';
 import type { SavedRoom } from '@/lib/room/rooms';
@@ -46,15 +47,9 @@ export function RoomsMenu() {
             </button>
           </div>
           <p className="text-sm text-neutral-400">Your rooms are kept in this browser only. Nothing is uploaded.</p>
-          <button
-            onClick={() => {
-              roomSession().create();
-              close();
-            }}
-            className={`${buttonClass} self-start`}
-          >
+          <Link href="/setup" className={`${buttonClass} self-start`}>
             New room
-          </button>
+          </Link>
           <ul className="flex flex-col gap-2">
             {rooms.map((room) => {
               const open = room.id === roomId;

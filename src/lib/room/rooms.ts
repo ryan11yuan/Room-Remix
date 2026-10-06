@@ -216,3 +216,22 @@ export function saveRooms(file: RoomsFile, storage: RoomsStorage): boolean {
     return false;
   }
 }
+
+/** Whether this browser has a saved-rooms file. Null when storage is missing or blocked, so it can't tell. */
+export function hasRoomsFile(storage: RoomsStorage): boolean | null {
+  if (!storage) return null;
+  try {
+    return storage.getItem(ROOMS_KEY) !== null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether the room page should send a visitor to setup first: a first visit, with no saved rooms and no link in the
+ * address bar (`hash` is location.hash, '' or '#' for none). When storage can't be read the page starts as usual, so
+ * blocked storage never sends a visitor round in circles.
+ */
+export function shouldRunSetup(storage: RoomsStorage, hash: string): boolean {
+  return hash.length <= 1 && hasRoomsFile(storage) === false;
+}
