@@ -2,21 +2,14 @@
 
 import { useEffect } from 'react';
 import { watchEdits } from '@/lib/room/autosave';
-import { newRoomId, ROOMS_KEY, type RoomsStorage } from '@/lib/room/rooms';
+import { newRoomId, ROOMS_KEY } from '@/lib/room/rooms';
 import { RoomSession } from '@/lib/room/session';
 import { decodeRoom } from '@/lib/room/urlCodec';
 import { deleteScan, pruneScans } from '@/lib/scene/scanStore';
+import { browserStorage } from './browserStorage';
 
 const AUTOSAVE_MS = 400;
 const TAB_ROOM_KEY = 'room-remix:tab-room'; // sessionStorage: this tab's own room, kept across a reload
-
-function browserStorage(): RoomsStorage {
-  try {
-    return window.localStorage; // reading the property itself throws where storage is blocked
-  } catch {
-    return null;
-  }
-}
 
 let session: RoomSession | null = null;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { MATERIALS } from '@/lib/acoustics/materials';
-import { LIMITS } from '@/lib/room/constants';
+import { LIMITS, RUG_SIZES } from '@/lib/room/constants';
 import { findFreePanelSpot } from '@/lib/room/placement';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
@@ -17,6 +17,10 @@ import {
   type SurfaceId,
   type WallId,
 } from '@/lib/room/types';
+import { errorMessage, formatLength, type Unit } from '@/lib/room/units';
+import { inputClass, LengthField } from './LengthField';
+import { Toggle } from './Toggle';
+import { useUnits } from './useUnits';
 
 const SURFACE_LABELS: Record<SurfaceId, string> = {
   floor: 'Floor',
@@ -33,25 +37,10 @@ const FURNISHING_LABELS: Record<Furnishing, string> = {
   full: 'Full (bed, sofa, shelves, curtains)',
 };
 
-const RUG_LABELS: Record<RugSize, string> = { S: 'Small 1.2 × 1.8 m', M: 'Medium 1.6 × 2.3 m', L: 'Large 2 × 3 m' };
-
-const inputClass = 'rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5';
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-neutral-400">{label}</span>
-      <input
-        type="number"
-        inputMode="decimal"
-        step={0.1}
-        value={Number.isFinite(value) ? value : ''}
-        onChange={(e) => onChange(e.target.valueAsNumber)}
-        className={`${inputClass} w-24`}
-      />
-    </label>
-  );
-}
+const RUG_NAMES: Record<RugSize, string> = { S: 'Small', M: 'Medium', L: 'Large' };
+/** "Medium 1.6 × 2.3 m": width × length, in the visitor's unit. */
+const rugLabel = (size: RugSize, unit: Unit) =>
+  `${RUG_NAMES[size]} ${formatLength(RUG_SIZES[size].z, unit)} × ${formatLength(RUG_SIZES[size].x, unit)} ${unit}`;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -65,6 +54,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function RoomForm() {
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
+  const [unit, setUnit] = useUnits();
   const errors = validateRoom(room);
   const rugCount = room.fixes.filter((f) => f.kind === 'rug').length;
   const panelCount = room.fixes.length - rugCount;
@@ -91,11 +81,12 @@ export function RoomForm() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Room size (metres)">
+      <Section title="Room size">
+        <Toggle label="Units" options={['Metres', 'Feet']} value={unit === 'ft'} onChange={(feet) => setUnit(feet ? 'ft' : 'm')} />
         <div className="flex flex-wrap gap-3">
-          <NumberField label="Length" value={room.dims.length} onChange={(v) => setDim('length', v)} />
-          <NumberField label="Width" value={room.dims.width} onChange={(v) => setDim('width', v)} />
-          <NumberField label="Ceiling height" value={room.dims.height} onChange={(v) => setDim('height', v)} />
+          <LengthField label="Length" metres={room.dims.length} unit={unit} onChange={(v) => setDim('length', v)} />
+          <LengthField label="Width" metres={room.dims.width} unit={unit} onChange={(v) => setDim('width', v)} />
+          <LengthField label="Ceiling height" metres={room.dims.height} unit={unit} onChange={(v) => setDim('height', v)} />
         </div>
       </Section>
 
@@ -136,19 +127,19 @@ export function RoomForm() {
         </label>
       </Section>
 
-      <Section title="Speaker and listener (metres)">
+      <Section title="Speaker and listener">
         <p className="text-xs text-neutral-500">
           x runs from the front wall toward the back, z from the right wall toward the left (as you face the front wall), y is height.
         </p>
         <div className="flex flex-wrap gap-3">
-          <NumberField label="Speaker x" value={room.speaker.x} onChange={(v) => setSpeaker('x', v)} />
-          <NumberField label="Speaker y" value={room.speaker.y} onChange={(v) => setSpeaker('y', v)} />
-          <NumberField label="Speaker z" value={room.speaker.z} onChange={(v) => setSpeaker('z', v)} />
+          <LengthField label="Speaker x" metres={room.speaker.x} unit={unit} onChange={(v) => setSpeaker('x', v)} />
+          <LengthField label="Speaker y" metres={room.speaker.y} unit={unit} onChange={(v) => setSpeaker('y', v)} />
+          <LengthField label="Speaker z" metres={room.speaker.z} unit={unit} onChange={(v) => setSpeaker('z', v)} />
         </div>
         <div className="flex flex-wrap gap-3">
-          <NumberField label="Listener x" value={room.listener.x} onChange={(v) => setListener('x', v)} />
-          <NumberField label="Listener y" value={room.listener.y} onChange={(v) => setListener('y', v)} />
-          <NumberField label="Listener z" value={room.listener.z} onChange={(v) => setListener('z', v)} />
+          <LengthField label="Listener x" metres={room.listener.x} unit={unit} onChange={(v) => setListener('x', v)} />
+          <LengthField label="Listener y" metres={room.listener.y} unit={unit} onChange={(v) => setListener('y', v)} />
+          <LengthField label="Listener z" metres={room.listener.z} unit={unit} onChange={(v) => setListener('z', v)} />
         </div>
       </Section>
 
@@ -157,14 +148,14 @@ export function RoomForm() {
           <button
             onClick={addRug}
             disabled={rugCount >= LIMITS.maxRugs}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm disabled:opacity-40"
+            className="min-h-11 rounded-md border border-neutral-700 px-3 text-sm disabled:opacity-40"
           >
             + Rug
           </button>
           <button
             onClick={addPanel}
             disabled={panelCount >= LIMITS.maxPanels || findFreePanelSpot(room) === null}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm disabled:opacity-40"
+            className="min-h-11 rounded-md border border-neutral-700 px-3 text-sm disabled:opacity-40"
           >
             + Panel
           </button>
@@ -174,7 +165,7 @@ export function RoomForm() {
             fix.kind === 'rug' ? 'Rug' : `Panel ${room.fixes.slice(0, i + 1).filter((f) => f.kind === 'panel').length}`;
           return (
             <div key={i} className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 p-3">
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex min-h-11 items-center gap-2 text-sm">
                 <input type="checkbox" checked={fix.on} onChange={(e) => setFix(i, { on: e.target.checked })} />
                 {rowLabel}
               </label>
@@ -188,12 +179,12 @@ export function RoomForm() {
                   >
                     {(['S', 'M', 'L'] as const).map((s) => (
                       <option key={s} value={s}>
-                        {RUG_LABELS[s]}
+                        {rugLabel(s, unit)}
                       </option>
                     ))}
                   </select>
-                  <NumberField label={`${rowLabel} centre x`} value={fix.x} onChange={(v) => setFix(i, { x: v })} />
-                  <NumberField label={`${rowLabel} centre z`} value={fix.z} onChange={(v) => setFix(i, { z: v })} />
+                  <LengthField label={`${rowLabel} centre x`} metres={fix.x} unit={unit} onChange={(v) => setFix(i, { x: v })} />
+                  <LengthField label={`${rowLabel} centre z`} metres={fix.z} unit={unit} onChange={(v) => setFix(i, { z: v })} />
                 </>
               ) : (
                 <>
@@ -209,14 +200,14 @@ export function RoomForm() {
                       </option>
                     ))}
                   </select>
-                  <NumberField label={`${rowLabel} along wall`} value={fix.u} onChange={(v) => setFix(i, { u: v })} />
-                  <NumberField label={`${rowLabel} height`} value={fix.v} onChange={(v) => setFix(i, { v })} />
+                  <LengthField label={`${rowLabel} along wall`} metres={fix.u} unit={unit} onChange={(v) => setFix(i, { u: v })} />
+                  <LengthField label={`${rowLabel} height`} metres={fix.v} unit={unit} onChange={(v) => setFix(i, { v })} />
                 </>
               )}
               <button
                 onClick={() => removeFix(i)}
                 aria-label={`Remove ${rowLabel.toLowerCase()}`}
-                className="text-sm text-red-400"
+                className="min-h-11 px-2 text-sm text-red-400"
               >
                 Remove
               </button>
@@ -228,7 +219,7 @@ export function RoomForm() {
       {errors.length > 0 && (
         <ul className="flex flex-col gap-1 rounded-lg border border-amber-700 bg-amber-950/40 p-3 text-sm text-amber-200">
           {errors.map((e) => (
-            <li key={`${e.field}:${e.message}`}>{e.message}</li>
+            <li key={`${e.field}:${e.message}`}>{errorMessage(e, unit)}</li>
           ))}
           <li className="font-medium">Changes to this room aren&apos;t saved until this is fixed.</li>
         </ul>
