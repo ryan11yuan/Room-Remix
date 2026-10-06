@@ -5,6 +5,7 @@ import type { StereoIr } from '@/lib/acoustics/simulate';
 import { DEMO_CLIPS, synthClip, type DemoClipId } from '@/lib/audio/demoClips';
 import { AudioEngine } from '@/lib/audio/engine';
 import { silentIr, type ListenMode } from '@/lib/audio/mix';
+import { playAction } from '@/lib/audio/playAction';
 import { fixPrompt } from '@/lib/room/errorPlace';
 import { roomCardFor } from '@/lib/room/roomCard';
 import { validateRoom } from '@/lib/room/roomState';
@@ -12,7 +13,7 @@ import { useRoomStore } from '@/lib/room/store';
 import { Toggle } from './Toggle';
 import { resultMatchesRate, type Simulation } from './useSimulation';
 
-const IDLE_TEXT = 'Press Play for a drum loop, or pick a song below.';
+const IDLE_TEXT = 'Press Play for a drum loop, or pick your own song.';
 const PLAY_ERROR = "Couldn't start playback. Try picking the song again.";
 const DRUMS = DEMO_CLIPS.find((clip) => clip.id === 'drums') ?? DEMO_CLIPS[0]; // what Play plays when nothing is picked
 
@@ -34,6 +35,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   const silentRef = useRef<StereoIr | null>(null); // the "with fixes" IR while no fix is on: one per engine
   const [engineRate, setEngineRate] = useState<number | null>(null);
   const [songName, setSongName] = useState<string | null>(null);
+  const [loadingName, setLoadingName] = useState<string | null>(null); // the song being decoded for the latest pick, if any
   const [clipId, setClipId] = useState<DemoClipId | null>(null); // the built-in clip that is loaded, if any
   const pickRef = useRef(0); // counts picks, so the last one wins; read only in handlers
   // Play was pressed with nothing picked, before the room was ready at the engine's rate: the drum loop starts once it is.
@@ -44,13 +46,16 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   const ready = resultMatchesRate(sim.result, engineRate);
   const hasFixes = room.fixes.some((f) => f.on);
   const card = roomCardFor(room);
-  const summary = !card
-    ? fixPrompt(validateRoom(room))
-    : !songName
-      ? IDLE_TEXT
-      : !ready
-        ? 'Simulating your room…'
-        : card.summary;
+  const action = playAction({ loaded: songName !== null, loading: loadingName !== null, playing });
+  const summary = loadingName
+    ? `Loading ${loadingName}…`
+    : !card
+      ? fixPrompt(validateRoom(room))
+      : !songName
+        ? IDLE_TEXT
+        : !ready
+          ? 'Simulating your room…'
+          : card.summary;
 
   useEffect(() => () => engineRef.current?.dispose(), []);
 
@@ -95,14 +100,17 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
     const pick = ++pickRef.current;
     playWhenReadyRef.current = false; // a pick replaces the drum loop Play was waiting to start
     setError(null);
+    setLoadingName(file.name); // Play waits for it: it must not be thrown away for the drum loop
     try {
       await engine.loadSong(file);
-      if (pick !== pickRef.current) return; // a later pick (a clip, say) has replaced this song
+      if (pick !== pickRef.current) return; // a later pick (a clip, say) has replaced this song, and its loading line
+      setLoadingName(null);
       setSongName(file.name);
       setClipId(null);
       setPlaying(false);
     } catch {
       if (pick !== pickRef.current) return;
+      setLoadingName(null);
       setError("This file type isn't supported on your browser. Try MP3 or M4A.");
     }
   }
@@ -112,6 +120,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
     pickRef.current++;
     playWhenReadyRef.current = false;
     setError(null);
+    setLoadingName(null); // last pick wins: a song still loading is dropped
     engine.loadClip(synthClip(id, engine.sampleRate), engine.sampleRate);
     setSongName(label);
     setClipId(id);
@@ -119,8 +128,9 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   }
 
   async function togglePlay() {
-    if (!songName) {
-      // Nothing picked yet: Play plays the drum loop, as a pick of it would (a song still decoding loses to it).
+    if (action === 'wait') return; // a song is still loading (Play is disabled meanwhile)
+    if (action === 'drums') {
+      // Nothing loaded or loading: Play plays the drum loop, as a pick of it would.
       pickClip(DRUMS.id, DRUMS.label);
       const engine = engineRef.current;
       if (!engine) return;
@@ -193,7 +203,9 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
           <button
             onClick={() => void togglePlay()}
-            disabled={songName ? !ready : !card} // with nothing picked, Play picks the drum loop: it waits only for a room to hear
+            // Off while a song loads. Otherwise what is loaded waits for the room at the engine's rate; the drum loop only
+            // needs a room without errors (it waits for the rest itself).
+            disabled={action === 'wait' || (action === 'drums' ? !card : !ready)}
             className="min-h-11 rounded-lg bg-white px-5 font-semibold text-neutral-950 disabled:opacity-40"
           >
             {playing ? 'Pause' : 'Play'}

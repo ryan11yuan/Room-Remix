@@ -15,6 +15,9 @@ export function openRoomDirectlyWith(storage: RoomsStorage, tabStorage: TabStora
     const opened = importRoom(loadRooms(storage), state, newRoomId(), Date.now()); // null when My rooms is full
     const id = opened?.currentId;
     if (!opened || !id || !saveRooms(opened, storage)) return null;
+    // A known gap: with sessionStorage blocked but localStorage working, this write is lost. A fresh room page still
+    // opens the new room (it is My rooms' open one), but if a room is already open from earlier in this visit, the
+    // page stays in that one: the new room is saved, not opened. The two stores are almost always blocked together.
     writeTabRoom(tabStorage, id);
     return id;
   } catch {

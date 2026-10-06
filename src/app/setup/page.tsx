@@ -25,9 +25,12 @@ const TITLES: Record<WizardStep, string> = {
   placement: 'Where are the speaker and you?',
   scan: 'Add a scan of your room (optional)',
 };
-const OPEN_ERROR = "Couldn't open your room. Try again.";
-const UNSUPPORTED_ERROR = "Couldn't open your room in this browser."; // trying again can't help
-const FULL_ERROR = `My rooms is full (${MAX_ROOMS} rooms). Delete a room there first.`;
+/** Why "Open my room" failed. 'full' is shown with a link to My rooms, so it is written out where it is shown. */
+type OpenError = 'retry' | 'unsupported' | 'full';
+const OPEN_ERRORS: Record<Exclude<OpenError, 'full'>, string> = {
+  retry: "Couldn't open your room. Try again.",
+  unsupported: "Couldn't open your room in this browser.", // trying again can't help
+};
 const buttonClass = 'min-h-11 rounded-lg border border-neutral-700 px-5 font-semibold disabled:opacity-40';
 const primaryClass = 'min-h-11 rounded-lg bg-white px-5 font-semibold text-neutral-950 disabled:opacity-40';
 
@@ -42,7 +45,7 @@ export default function SetupPage() {
   const webgl = useWebGL();
   const [scan, setScan] = useState<File | null>(null);
   const [opening, setOpening] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<OpenError | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const shownStep = useRef(state.step);
   const { step, room } = state;
@@ -61,7 +64,7 @@ export default function SetupPage() {
   async function openRoom() {
     const saved = loadRooms(browserStorage());
     if (saved.rooms.length >= MAX_ROOMS) {
-      setOpenError(FULL_ERROR); // the room page couldn't add it, and would open another room instead
+      setOpenError('full'); // the room page couldn't add it, and would open another room instead
       return;
     }
     setOpening(true);
@@ -81,7 +84,7 @@ export default function SetupPage() {
         router.replace('/room');
         return;
       }
-      setOpenError(canEncodeRooms() ? OPEN_ERROR : UNSUPPORTED_ERROR);
+      setOpenError(canEncodeRooms() ? 'retry' : 'unsupported');
       setOpening(false);
     }
   }
@@ -227,7 +230,17 @@ export default function SetupPage() {
         )}
       </nav>
       <p role="alert" className="text-sm text-red-400 empty:sr-only">
-        {openError}
+        {openError === 'full' ? (
+          <>
+            My rooms is full ({MAX_ROOMS} rooms). Delete one in{' '}
+            <Link href="/room" className="underline">
+              My rooms
+            </Link>{' '}
+            first.
+          </>
+        ) : (
+          openError && OPEN_ERRORS[openError]
+        )}
       </p>
     </main>
   );
