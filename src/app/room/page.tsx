@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Player } from '@/components/Player';
 import { RoomForm } from '@/components/RoomForm';
@@ -32,6 +33,11 @@ export default function RoomPage() {
         )}
       </div>
       {roomId ? <RoomWorkspace /> : <p className="text-neutral-400">Opening your room…</p>}
+      <footer className="text-xs text-neutral-500">
+        <Link href="/about" className="underline">
+          About and privacy
+        </Link>
+      </footer>
     </main>
   );
 }
