@@ -19,10 +19,11 @@ export const PRESETS: Preset[] = [
     blurb: 'One of the largest Gothic cathedrals in Europe. Sound hangs in the air for seconds.',
     file: '/ir/york-minster.wav',
     credit: {
-      text: 'York Minster impulse response by Audiolab, University of York (Damian T. Murphy), from the OpenAIR library, www.openairlib.net.',
+      // CC BY 4.0 asks for any changes to be stated: the player trims, filters and level-matches every recording.
+      text: 'York Minster impulse response by Audiolab, University of York (Damian T. Murphy), from the OpenAIR library, www.openairlib.net. Trimmed to 6 seconds, high-pass filtered at 40 Hz and level-matched for Room Remix.',
       licence: 'CC BY 4.0',
       licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
-      sourceUrl: 'https://www.openairlib.net/',
+      sourceUrl: 'https://www.openair.hosted.york.ac.uk/?page_id=797',
     },
   },
   {
@@ -32,7 +33,7 @@ export const PRESETS: Preset[] = [
     blurb: 'Hard concrete all round: a short, loud, slappy echo.',
     file: '/ir/parking-garage.mp3',
     credit: {
-      text: 'Parking garage impulse response by djericmark, from Freesound (sound 732453).',
+      text: "Parking garage impulse response by djericmark, from Freesound (sound 732453), using Freesound's MP3 preview of it. Trimmed, high-pass filtered at 40 Hz and level-matched for Room Remix.",
       licence: 'CC0 1.0',
       licenceUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
       sourceUrl: 'https://freesound.org/people/djericmark/sounds/732453/',

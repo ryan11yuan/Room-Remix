@@ -20,6 +20,7 @@ describe('PRESETS', () => {
       expect(['CC BY 4.0', 'CC0 1.0']).toContain(preset.credit.licence);
       expect(preset.credit.licenceUrl.startsWith('https://creativecommons.org/')).toBe(true);
       expect(preset.credit.sourceUrl.startsWith('https://')).toBe(true);
+      expect(preset.credit.text).toContain('for Room Remix'); // CC BY asks for changes to be stated; the player changes every recording
     }
   });
 });
