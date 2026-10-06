@@ -236,6 +236,29 @@ describe('importRoom', () => {
     expect(next?.rooms.map((r) => r.state.name)).toEqual(['Demo bedroom', 'Demo bedroom 2']);
   });
 
+  it('reuses the numbered copy when the same link is opened again after the first copy was edited', () => {
+    const edited = { ...named('Demo bedroom'), furnishing: 'bare' as const };
+    let saved: RoomsFile | null = { rooms: [{ id: 'a', updatedAt: 100, state: edited }], currentId: 'a' };
+    for (let i = 0; i < 4; i++) saved = importRoom(saved as RoomsFile, named('Demo bedroom'), `new${i}`, 500 + i);
+    expect(saved?.rooms.map((r) => r.state.name)).toEqual(['Demo bedroom', 'Demo bedroom 2']);
+    expect(findRoom(saved as RoomsFile, saved?.currentId ?? null)?.state.name).toBe('Demo bedroom 2');
+  });
+
+  it('opens a shared My room that differs from my own My room as one "My room 2", however often', () => {
+    const mine = { ...named('My room'), furnishing: 'bare' as const };
+    let saved: RoomsFile | null = { rooms: [{ id: 'a', updatedAt: 100, state: mine }], currentId: 'a' };
+    saved = importRoom(saved, named('My room'), 'x', 500);
+    saved = importRoom(saved as RoomsFile, named('My room'), 'y', 501);
+    expect(saved?.rooms.map((r) => r.state.name)).toEqual(['My room', 'My room 2']);
+  });
+
+  it('does not take a room with the same contents but an unrelated name for the same room', () => {
+    const saved: RoomsFile = { ...file(['a', 100, 'Guest room']), currentId: 'a' };
+    const next = importRoom(saved, { ...named('Demo bedroom') }, 'new', 500);
+    expect(next?.rooms.map((r) => r.state.name)).toEqual(['Guest room', 'Demo bedroom']);
+    expect(next?.currentId).toBe('new');
+  });
+
   it('refuses when My rooms is full', () => {
     const full: RoomsFile = {
       rooms: Array.from({ length: MAX_ROOMS }, (_, i) => ({ id: `r${i}`, updatedAt: i, state: named(`Room ${i}`) })),

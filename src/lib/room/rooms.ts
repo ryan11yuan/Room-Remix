@@ -137,11 +137,22 @@ export function uniqueName(file: RoomsFile, base: string): string {
   const taken = new Set(file.rooms.map((room) => room.state.name));
   const whole = base.slice(0, NAME_LENGTH);
   if (!taken.has(whole)) return whole;
-  const stem = base.slice(0, NAME_LENGTH - 8); // leave space for the number
+  const stem = numberedStem(base);
   for (let n = 2; ; n++) {
-    const name = `${stem} ${n}`;
+    const name = numberedName(stem, n);
     if (!taken.has(name)) return name;
   }
+}
+
+const numberedStem = (base: string) => base.slice(0, NAME_LENGTH - 8); // leaves space for the number
+const numberedName = (stem: string, n: number) => `${stem} ${n}`;
+/** Whether `name` is `base` itself or a numbered form of it that `uniqueName` could have made. */
+function isNameOrNumbered(name: string, base: string): boolean {
+  if (name === base.slice(0, NAME_LENGTH)) return true;
+  const stem = numberedStem(base);
+  if (!name.startsWith(`${stem} `)) return false;
+  const n = Number(name.slice(stem.length + 1));
+  return Number.isInteger(n) && n >= 2 && name === numberedName(stem, n);
 }
 
 /**
@@ -150,7 +161,10 @@ export function uniqueName(file: RoomsFile, base: string): string {
  * importing it again gives a second one ("Demo bedroom 2"). Null when "My rooms" is full.
  */
 export function importRoom(file: RoomsFile, state: RoomState, id: string, now: number): RoomsFile | null {
-  const same = file.rooms.find((room) => sameState(room.state, state));
+  // The same room: the same contents, under the name it came with or a numbered form of it (an earlier import of this link).
+  const same = file.rooms.find(
+    (room) => isNameOrNumbered(room.state.name, state.name) && sameState({ ...room.state, name: state.name }, state),
+  );
   return same ? { ...file, currentId: same.id } : addRoom(file, id, { ...state, name: uniqueName(file, state.name) }, now);
 }
 

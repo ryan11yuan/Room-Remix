@@ -264,7 +264,8 @@ export function ListenDemo() {
       return;
     }
     let engine = engineRef.current;
-    if (!engine) {
+    if (engine) setAudioFailed(false); // a refused play() may have been temporary: try again, and say so again if it fails
+    else {
       try {
         engine = startEngine();
       } catch {

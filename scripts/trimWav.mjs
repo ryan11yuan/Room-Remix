@@ -46,7 +46,11 @@ export function trimWav(bytes, seconds) {
   o.setUint32(40, outData, true);
   for (let i = 0; i < frames * fmt.channels; i++) {
     const at = data.start + i * step;
-    const sample = fmt.bits === 16 ? view.getInt16(at, true) / 32768 : ((view.getUint8(at + 2) << 24) | (view.getUint8(at + 1) << 16) | (view.getUint8(at) << 8)) / 2147483648;
+    if (fmt.bits === 16) {
+      o.setInt16(44 + i * 2, view.getInt16(at, true), true); // already 16-bit: copied as it is
+      continue;
+    }
+    const sample = ((view.getUint8(at + 2) << 24) | (view.getUint8(at + 1) << 16) | (view.getUint8(at) << 8)) / 2147483648;
     o.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(sample * 32767))), true);
   }
   return out;

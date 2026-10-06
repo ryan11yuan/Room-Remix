@@ -72,3 +72,30 @@ describe('trimWav', () => {
     expect(trimWav(input, 10).length).toBe(44 + RATE * 3 * CHANNELS * 2);
   });
 });
+
+describe('trimWav on 16-bit input', () => {
+  it('copies the samples exactly', () => {
+    const values = [32767, -32768, -16384, 20000, 0, 1, -1, 12345];
+    const frames = values.length / 2; // stereo: 4 frames
+    const bytes = new Uint8Array(44 + values.length * 2);
+    const v = new DataView(bytes.buffer);
+    [...'RIFF'].forEach((c, i) => (bytes[i] = c.charCodeAt(0)));
+    v.setUint32(4, bytes.length - 8, true);
+    [...'WAVEfmt '].forEach((c, i) => (bytes[8 + i] = c.charCodeAt(0)));
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 2, true);
+    v.setUint32(24, 1000, true);
+    v.setUint32(28, 4000, true);
+    v.setUint16(32, 4, true);
+    v.setUint16(34, 16, true);
+    [...'data'].forEach((c, i) => (bytes[36 + i] = c.charCodeAt(0)));
+    v.setUint32(40, values.length * 2, true);
+    values.forEach((n, i) => v.setInt16(44 + i * 2, n, true));
+    const keep = 3; // frames: 0.003 s at 1000 Hz
+    const out = trimWav(bytes, keep / 1000);
+    expect(out.length).toBe(44 + keep * 2 * 2);
+    expect([...out.subarray(44)]).toEqual([...bytes.subarray(44, 44 + keep * 4)]);
+    expect(frames).toBeGreaterThan(keep);
+  });
+});

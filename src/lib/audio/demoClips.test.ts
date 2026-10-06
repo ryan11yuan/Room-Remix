@@ -106,7 +106,7 @@ describe('synthClip', () => {
       cos += clip[i] * Math.cos((2 * Math.PI * 196 * i) / 48000);
     }
     const magnitude = Math.hypot(sin, cos) / n;
-    expect(magnitude).toBeGreaterThan(0.005) // about 0.009 with the wrap, 0.002 without;
+    expect(magnitude).toBeGreaterThan(0.005); // about 0.009 with the wrap, 0.002 without
   });
 
   it('makes two different clips', () => {
