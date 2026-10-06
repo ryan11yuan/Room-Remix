@@ -23,6 +23,7 @@ const LOADING_TEXT: Record<SpaceId, string> = {
   garage: 'Loading the garage…',
   bedroom: 'Simulating the bedroom…',
 };
+const AUDIO_ERROR = "Your browser can't play audio here.";
 const LOAD_ERROR = "Couldn't load this space. Check your connection and try again.";
 
 type SpaceStatus = 'loading' | 'error';
@@ -97,6 +98,7 @@ export function ListenDemo() {
   const [clip, setClip] = useState<DemoClipId>(DEMO_CLIPS[0].id);
   const [inSpace, setInSpace] = useState(true);
   const [wantsPlay, setWantsPlay] = useState(false);
+  const [audioFailed, setAudioFailed] = useState(false); // no Web Audio here
   const [statuses, setStatuses] = useState<Partial<Record<SpaceId, SpaceStatus>>>({});
 
   const tabRef = useRef<SpaceId>(tab); // the tab the user last chose, for stale-load checks
@@ -166,9 +168,11 @@ export function ListenDemo() {
     } catch {
       if (engineRef.current !== engine) return;
       setStatus(id, 'error');
-      if (tabRef.current === id && !engine.playing) {
+      if (tabRef.current === id) {
+        // Don't leave the previous space playing under this tab's error.
         wantsPlayRef.current = false;
         setWantsPlay(false);
+        engine.pause();
       }
       return;
     }
@@ -213,13 +217,21 @@ export function ListenDemo() {
       } catch {
         engineRef.current?.dispose();
         engineRef.current = null;
-        setStatus(tabRef.current, 'error');
+        setAudioFailed(true);
         return;
       }
     }
     wantsPlayRef.current = true;
     setWantsPlay(true);
     void applySpace(tabRef.current, engine);
+  }
+
+  async function exploreIn3d() {
+    try {
+      router.push('/room#' + (await encodeRoom(DEMO_ROOM)));
+    } catch {
+      router.push('/room');
+    }
   }
 
   function chooseTab(id: SpaceId) {
@@ -256,7 +268,13 @@ export function ListenDemo() {
 
   const preset = PRESETS.find((p) => p.id === tab);
   const status = statuses[tab];
-  const statusText = status === 'error' ? LOAD_ERROR : status === 'loading' ? LOADING_TEXT[tab] : '';
+  const statusText = audioFailed
+    ? AUDIO_ERROR
+    : status === 'error'
+      ? LOAD_ERROR
+      : status === 'loading'
+        ? LOADING_TEXT[tab]
+        : '';
   const { length, width, height } = DEMO_ROOM.dims;
 
   return (
@@ -298,7 +316,7 @@ export function ListenDemo() {
               A simulated bedroom, {length} × {width} × {height} m, carpeted and furnished.
             </p>
             <button
-              onClick={() => router.push('/room#' + encodeRoom(DEMO_ROOM))}
+              onClick={() => void exploreIn3d()}
               className="rounded-md border border-neutral-700 px-3 py-1.5"
             >
               Explore it in 3D
@@ -329,7 +347,7 @@ export function ListenDemo() {
       </div>
 
       <p className="text-sm text-neutral-400">🎧 Use headphones. Room differences are hard to hear on phone speakers.</p>
-      <p role="status" className={`min-h-5 text-sm ${status === 'error' ? 'text-red-400' : 'text-neutral-400'}`}>
+      <p role="status" className={`min-h-5 text-sm ${audioFailed || status === 'error' ? 'text-red-400' : 'text-neutral-400'}`}>
         {statusText}
       </p>
     </section>
