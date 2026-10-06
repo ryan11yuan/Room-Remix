@@ -1,5 +1,65 @@
 import { describe, expect, it } from 'vitest';
+import { fft, nextPow2 } from '@/lib/acoustics/dsp';
+import { normalizeLoudness } from '@/lib/acoustics/loudness';
+import { simulateRoom } from '@/lib/acoustics/simulate';
+import { DEMO_ROOM } from '@/lib/room/demoRoom';
 import { CLIP_SECONDS, DEMO_CLIPS, synthClip } from './demoClips';
+
+const RATE = 48000;
+const OCTAVES = [125, 250, 500, 1000, 2000, 4000, 8000];
+
+function spectrum(samples: Float32Array, size: number): { re: Float64Array; im: Float64Array } {
+  const re = new Float64Array(size);
+  const im = new Float64Array(size);
+  re.set(samples);
+  fft(re, im);
+  return { re, im };
+}
+
+/** Power in each octave band (fc/√2 to fc·√2), in dB, from one FFT of the whole clip. */
+function octaveBandsDb(clip: Float32Array): number[] {
+  const n = nextPow2(clip.length);
+  const { re, im } = spectrum(clip, n);
+  return OCTAVES.map((fc) => {
+    let sum = 0;
+    for (let k = 1; k < n / 2; k++) {
+      const f = (k * RATE) / n;
+      if (f >= fc / Math.SQRT2 && f < fc * Math.SQRT2) sum += re[k] * re[k] + im[k] * im[k];
+    }
+    return 10 * Math.log10(sum);
+  });
+}
+
+const bandSpreadDb = (clip: Float32Array) => {
+  const bands = octaveBandsDb(clip);
+  const mean = bands.reduce((a, b) => a + b, 0) / bands.length;
+  return Math.max(...bands.map((b) => Math.abs(b - mean)));
+};
+
+/** The standard A-weighting power gain at f. */
+function aWeight(f: number): number {
+  const f2 = f * f;
+  const ra = (12194 ** 2 * f2 * f2) / ((f2 + 20.6 ** 2) * Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2));
+  return ra * ra;
+}
+
+/** How much louder (dB, A-weighted) the clip is after the room's impulse response than dry. */
+function roomMinusDryDb(clip: Float32Array, ir: { left: Float32Array; right: Float32Array }): number {
+  const n = nextPow2(Math.max(clip.length, ir.left.length, ir.right.length));
+  const x = spectrum(clip, n);
+  const l = spectrum(ir.left, n);
+  const r = spectrum(ir.right, n);
+  let dry = 0;
+  let wet = 0;
+  for (let k = 1; k < n / 2; k++) {
+    const w = aWeight((k * RATE) / n);
+    const px = x.re[k] ** 2 + x.im[k] ** 2;
+    const h = (l.re[k] ** 2 + l.im[k] ** 2 + (r.re[k] ** 2 + r.im[k] ** 2)) / 2;
+    dry += w * px;
+    wet += w * px * h;
+  }
+  return 10 * Math.log10(wet / dry);
+}
 
 const peakOf = (samples: Float32Array) => samples.reduce((peak, v) => Math.max(peak, Math.abs(v)), 0);
 const energy = (samples: Float32Array, from: number, to: number) => {
@@ -41,5 +101,20 @@ describe('synthClip', () => {
   it('starts the drum loop on a hit, so a room has something to answer at once', () => {
     const clip = synthClip('drums', 48000);
     expect(energy(clip, 0, 2400)).toBeGreaterThan(energy(clip, 12000, 14400));
+  });
+
+  describe('sounds like music to the loudness match', () => {
+    const ir = normalizeLoudness(simulateRoom(DEMO_ROOM, RATE).ir);
+    for (const { id } of DEMO_CLIPS) {
+      it(`keeps every octave band of ${id} within 6 dB of the mean (a near-pink spectrum)`, () => {
+        const clip = synthClip(id, RATE);
+        expect(bandSpreadDb(clip)).toBeLessThanOrEqual(6);
+      });
+
+      it(`plays ${id} through the demo bedroom within 3 dB of dry, A-weighted`, () => {
+        const diff = roomMinusDryDb(synthClip(id, RATE), ir);
+        expect(Math.abs(diff)).toBeLessThanOrEqual(3);
+      });
+    }
   });
 });
