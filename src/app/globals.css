@@ -6,4 +6,12 @@
     outline: 2px solid var(--color-neutral-300, #d4d4d4);
     outline-offset: 2px;
   }
+
+  /* Below lg the room page's control bar is fixed to the bottom of the screen: a control that takes focus is scrolled
+     clear of it, not under it (WCAG 2.4.11). The same 12rem as the room page's pb-48. */
+  @media (max-width: 1023.98px) {
+    html {
+      scroll-padding-bottom: 12rem;
+    }
+  }
 }

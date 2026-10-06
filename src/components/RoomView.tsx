@@ -7,6 +7,7 @@ import type { ListenMode } from '@/lib/audio/mix';
 import { LIMITS } from '@/lib/room/constants';
 import { applyDrag, clampPosition, panelAt, panelOverlaps } from '@/lib/room/placement';
 import { useRoomStore } from '@/lib/room/store';
+import { formatLength, type Unit } from '@/lib/room/units';
 import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
 // Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
@@ -59,11 +60,13 @@ function HeightSelect({
   label,
   options,
   value,
+  unit,
   onChange,
 }: {
   label: string;
   options: { label: string; y: number }[];
   value: number;
+  unit: Unit;
   onChange: (y: number) => void;
 }) {
   const current = options.find((o) => Math.abs(o.y - value) < 0.005);
@@ -78,7 +81,7 @@ function HeightSelect({
         }}
         className="min-h-11 rounded-md border border-neutral-700 bg-neutral-900 px-2"
       >
-        {!current && <option value="custom">{value.toFixed(2)} m</option>}
+        {!current && <option value="custom">{`${formatLength(value, unit)} ${unit}`}</option>}
         {options.map((o) => (
           <option key={o.label} value={String(o.y)}>
             {o.label}
@@ -122,6 +125,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   }
   const aligning = alignStep.step !== null;
   const picking = alignStep.step === 'floor' || alignStep.step === 'corners'; // choosing points on the scan: the camera stays on it
+  const scanBusy = scanStatus.kind === 'loading' || aligning; // as the controller last reported it
   const scanReady = scanStatus.kind === 'ready' ? scanStatus : null;
   const scanLine = scanStatusParts(scanStatus);
   const largeScanWarning =
@@ -214,6 +218,9 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   useEffect(() => {
     const scans = scanRef.current;
     if (!roomId || pendingFor !== roomId || !scans || scans.roomKey !== roomId) return;
+    // open() refuses a file while a load or an alignment is under way: the scan keeps waiting, and this runs again
+    // when that ends (scanBusy).
+    if (scans.busy) return;
     const file = takePendingScan(roomId);
     if (!file) return;
     void scans.open(file, useRoomStore.getState().room);
@@ -222,7 +229,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
       queueMicrotask(() => {
         if (scanRef.current !== scans) returnPendingScan(roomId, file);
       });
-  }, [roomId, pendingFor, webgl]);
+  }, [roomId, pendingFor, webgl, scanBusy]);
 
   /** Leave walk mode now, not after the re-render: otherwise the next frame pulls the camera back to the listener's head. */
   const stopWalking = () => {
@@ -333,12 +340,14 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           label="Speaker"
           options={SPEAKER_HEIGHTS}
           value={room.speaker.y}
+          unit={unit}
           onChange={(y) => update((r) => ({ ...r, speaker: clampPosition(r.dims, { ...r.speaker, y }) }))}
         />
         <HeightSelect
           label="Listener"
           options={LISTENER_HEIGHTS}
           value={room.listener.y}
+          unit={unit}
           onChange={(y) =>
             update((r) => ({ ...r, listener: { ...clampPosition(r.dims, { ...r.listener, y }), yaw: r.listener.yaw } }))
           }

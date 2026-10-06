@@ -5,7 +5,7 @@ import { FURNISHING_LABELS, SURFACE_LABELS } from '@/lib/room/labels';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 import { MATERIAL_IDS, SURFACE_IDS, type Furnishing, type MaterialId, type RoomState } from '@/lib/room/types';
-import { ErrorList, isFixError } from './ErrorList';
+import { ErrorList } from './ErrorList';
 import { inputClass, LengthField } from './LengthField';
 import { Toggle } from './Toggle';
 import { useUnits } from './useUnits';
@@ -24,6 +24,8 @@ export function RoomForm() {
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
   const [unit, setUnit] = useUnits();
+  const errors = validateRoom(room);
+  const invalid = (field: string) => errors.some((e) => e.field === field);
 
   const setDim = (key: keyof RoomState['dims'], value: number) =>
     update((r) => ({ ...r, dims: { ...r.dims, [key]: value } }));
@@ -37,9 +39,15 @@ export function RoomForm() {
       <Section title="Room size">
         <Toggle label="Units" options={['Metres', 'Feet']} value={unit === 'ft'} onChange={(feet) => setUnit(feet ? 'ft' : 'm')} />
         <div className="flex flex-wrap gap-3">
-          <LengthField label="Length" metres={room.dims.length} unit={unit} onChange={(v) => setDim('length', v)} />
-          <LengthField label="Width" metres={room.dims.width} unit={unit} onChange={(v) => setDim('width', v)} />
-          <LengthField label="Ceiling height" metres={room.dims.height} unit={unit} onChange={(v) => setDim('height', v)} />
+          <LengthField label="Length" metres={room.dims.length} unit={unit} onChange={(v) => setDim('length', v)} invalid={invalid('dims.length')} />
+          <LengthField label="Width" metres={room.dims.width} unit={unit} onChange={(v) => setDim('width', v)} invalid={invalid('dims.width')} />
+          <LengthField
+            label="Ceiling height"
+            metres={room.dims.height}
+            unit={unit}
+            onChange={(v) => setDim('height', v)}
+            invalid={invalid('dims.height')}
+          />
         </div>
       </Section>
 
@@ -85,18 +93,32 @@ export function RoomForm() {
           x runs from the front wall toward the back, z from the right wall toward the left (as you face the front wall), y is height.
         </p>
         <div className="flex flex-wrap gap-3">
-          <LengthField label="Speaker x" metres={room.speaker.x} unit={unit} onChange={(v) => setSpeaker('x', v)} />
-          <LengthField label="Speaker y" metres={room.speaker.y} unit={unit} onChange={(v) => setSpeaker('y', v)} />
-          <LengthField label="Speaker z" metres={room.speaker.z} unit={unit} onChange={(v) => setSpeaker('z', v)} />
+          {(['x', 'y', 'z'] as const).map((axis) => (
+            <LengthField
+              key={axis}
+              label={`Speaker ${axis}`}
+              metres={room.speaker[axis]}
+              unit={unit}
+              onChange={(v) => setSpeaker(axis, v)}
+              invalid={invalid('speaker')}
+            />
+          ))}
         </div>
         <div className="flex flex-wrap gap-3">
-          <LengthField label="Listener x" metres={room.listener.x} unit={unit} onChange={(v) => setListener('x', v)} />
-          <LengthField label="Listener y" metres={room.listener.y} unit={unit} onChange={(v) => setListener('y', v)} />
-          <LengthField label="Listener z" metres={room.listener.z} unit={unit} onChange={(v) => setListener('z', v)} />
+          {(['x', 'y', 'z'] as const).map((axis) => (
+            <LengthField
+              key={axis}
+              label={`Listener ${axis}`}
+              metres={room.listener[axis]}
+              unit={unit}
+              onChange={(v) => setListener(axis, v)}
+              invalid={invalid('listener')}
+            />
+          ))}
         </div>
       </Section>
 
-      <ErrorList errors={validateRoom(room).filter((e) => !isFixError(e))} unit={unit} />
+      <ErrorList errors={errors} place="edit" unit={unit} />
     </div>
   );
 }

@@ -3,17 +3,19 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { roomSession } from '@/components/useRoomSession';
+import { useUnits } from '@/components/useUnits';
 import { displayName, type SavedRoom } from '@/lib/room/rooms';
 import { useRoomStore } from '@/lib/room/store';
+import { formatLength, type Unit } from '@/lib/room/units';
 
 const buttonClass = 'inline-flex min-h-11 items-center rounded-lg border border-neutral-700 px-4 text-sm disabled:opacity-40';
 const smallButton = 'min-h-11 rounded-md border border-neutral-700 px-3 text-xs';
 
 const nameOf = (room: SavedRoom) => displayName(room.state.name);
-const trim = (metres: number) => Number(metres.toFixed(2)); // 3.6576 → 3.66, 4 → 4
-const sizeOf = (room: SavedRoom) => {
+/** "4 × 3.5 × 2.6 m", or "13.1 × 11.5 × 8.5 ft": in the visitor's unit. */
+const sizeOf = (room: SavedRoom, unit: Unit) => {
   const { length, width, height } = room.state.dims;
-  return `${trim(length)} × ${trim(width)} × ${trim(height)} m`;
+  return `${formatLength(length, unit)} × ${formatLength(width, unit)} × ${formatLength(height, unit)} ${unit}`;
 };
 const savedAt = (room: SavedRoom) => new Date(room.updatedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -24,6 +26,10 @@ export function RoomsMenu() {
   const roomId = useRoomStore((s) => s.roomId);
   const [confirming, setConfirming] = useState<string | null>(null); // the room whose Delete was pressed once
   const [focusTarget, setFocusTarget] = useState<{ key: string } | null>(null); // a fresh object each time, so the same key refocuses
+  const [unit] = useUnits();
+  // Whether the last press began on the backdrop: a drag that starts inside the dialog and ends outside it isn't a
+  // click on the backdrop. Written and read only in handlers.
+  const pressOnBackdrop = useRef(false);
 
   // Focus moves once the control it goes to has rendered: a Keep button, or the next room after a delete. Controls are
   // found by their data-focus key: 'new', 'open:<id>', 'delete:<id>' or 'keep:<id>'.
@@ -52,8 +58,13 @@ export function RoomsMenu() {
         ref={dialogRef}
         aria-labelledby="rooms-title"
         onClose={() => setConfirming(null)}
+        onPointerDown={(e) => {
+          pressOnBackdrop.current = e.target === e.currentTarget;
+        }}
         onClick={(e) => {
-          if (e.target === e.currentTarget) close(); // a click on the backdrop: the content fills the dialog box itself
+          // A click on the backdrop (the content fills the dialog box itself), from a press that began there too.
+          if (e.target === e.currentTarget && pressOnBackdrop.current) close();
+          pressOnBackdrop.current = false;
         }}
         className="m-auto max-h-[85vh] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-900 p-0 text-neutral-100 backdrop:bg-black/60"
       >
@@ -86,7 +97,7 @@ export function RoomsMenu() {
                   >
                     <span className="block truncate font-medium">{nameOf(room)}</span>
                     <span className="block text-xs text-neutral-400">
-                      {sizeOf(room)} · {open ? 'open now' : `saved ${savedAt(room)}`}
+                      {sizeOf(room, unit)} · {open ? 'open now' : `saved ${savedAt(room)}`}
                     </span>
                   </button>
                   <div className="flex gap-2">
@@ -94,7 +105,7 @@ export function RoomsMenu() {
                       <>
                         <button
                           onClick={() => deleteForGood(room)}
-                          aria-label={`Delete ${nameOf(room)} for good`}
+                          aria-label={`Delete for good: ${nameOf(room)}`}
                           className={`${smallButton} border-red-700 text-red-200`}
                         >
                           Delete for good

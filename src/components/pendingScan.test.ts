@@ -4,6 +4,7 @@ import {
   pendingScanRoom,
   returnPendingScan,
   setPendingScan,
+  setPendingScanForRoom,
   subscribePendingScan,
   takePendingScan,
 } from './pendingScan';
@@ -53,6 +54,25 @@ describe('pendingScan', () => {
     setPendingScan(null);
     assignPendingScan('v1.abc', 'room-1');
     expect(pendingScanRoom()).toBeNull();
+  });
+
+  it('waits for a room opened without a link, is taken once, and only by that room', () => {
+    const file = scan();
+    setPendingScanForRoom(file, 'room-1');
+    expect(pendingScanRoom()).toBe('room-1');
+    assignPendingScan('', 'room-2'); // no link to match: it stays with its room
+    expect(takePendingScan('room-2')).toBeNull();
+    expect(takePendingScan('room-1')).toBe(file);
+    expect(takePendingScan('room-1')).toBeNull();
+    expect(pendingScanRoom()).toBeNull();
+  });
+
+  it('is cleared by a room opened without a link and without a scan', () => {
+    setPendingScan({ file: scan(), link: 'v1.abc' });
+    setPendingScanForRoom(null, 'room-1');
+    assignPendingScan('v1.abc', 'room-1');
+    expect(pendingScanRoom()).toBeNull();
+    expect(takePendingScan('room-1')).toBeNull();
   });
 
   it('takes back a scan a view could not load, unless a newer one waits', () => {

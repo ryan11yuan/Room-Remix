@@ -74,6 +74,9 @@ function setup(
       link = code;
     },
     tab: () => tab,
+    setTab: (id: string) => {
+      tab = id;
+    },
     dropped,
     pruned,
   };
@@ -189,6 +192,27 @@ describe('RoomSession start', () => {
     await t.session.start();
     saveRooms(selectRoom(t.saved(), 'b'), t.storage); // another tab opens b
     await t.session.start(); // this page's view mounts again
+    expect(store().roomId).toBe('a');
+  });
+
+  it('opens the room this tab was pointed at since, where no link could be made (setup in a browser without one)', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    store().update((r) => ({ ...r, furnishing: 'full' })); // an edit not saved yet
+    saveRooms(addRoom(t.saved(), 'new', named('From setup'), 300)!, t.storage); // what setup saves
+    t.setTab('new'); // and where it points this tab
+    expect(await t.session.start()).toBeNull(); // no link opened it
+    expect(store().roomId).toBe('new');
+    expect(store().room.name).toBe('From setup');
+    expect(t.saved().rooms.find((r) => r.id === 'a')?.state.furnishing).toBe('full'); // the room left behind was saved
+  });
+
+  it('stays in its room when this tab was pointed at a room that is gone', async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Studio'], ['b', 200, 'Den']) });
+    await t.session.start();
+    saveRooms(selectRoom(t.saved(), 'b'), t.storage); // another tab opens b
+    t.setTab('deleted');
+    await t.session.start();
     expect(store().roomId).toBe('a');
   });
 

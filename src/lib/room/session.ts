@@ -39,7 +39,10 @@ export type SessionEnv = {
   decode: (code: string) => Promise<RoomState | null>;
   now: () => number;
   newId: () => string;
-  /** The room this tab had open last. It survives a reload of the tab; another tab has its own. */
+  /**
+   * The room this tab had open last. It survives a reload of the tab; another tab has its own. Setup also sets it, to
+   * open a room it saved itself where no link can be made.
+   */
   tabRoom: () => string | null;
   setTabRoom: (id: string) => void;
   /** Delete a room's stored scan. Fire and forget. */
@@ -62,7 +65,8 @@ export class RoomSession {
 
   /**
    * Open a room: the shared link's if the address bar has one, else the one this tab had open, else the one open last,
-   * else a first room. Safe to call again: with a room already open, only a link changes which room that is.
+   * else a first room. Safe to call again: with a room already open, only a link (or this tab being pointed at another
+   * saved room, see SessionEnv.tabRoom) changes which room that is.
    * Resolves to the id of the room a link opened (added, or an identical saved room reused), else null.
    */
   async start(): Promise<string | null> {
@@ -99,13 +103,16 @@ export class RoomSession {
       this.notify(LINK_NOTICE);
     }
     const opened = target; // the room the link opened, if it did
-    if (!target && useRoomStore.getState().roomId) {
-      this.refresh(); // a room is open here already: stay in it
+    const openHere = useRoomStore.getState().roomId;
+    const mine = findRoom(file, this.env.tabRoom()); // this tab's own room
+    // A room is open here already: stay in it. Unless this tab has been pointed at another saved room since (where no
+    // link can be made, setup saves its room and points the tab at it): that one opens below.
+    if (!target && openHere && (!mine || mine.id === openHere)) {
+      this.refresh();
       return null;
     }
     if (!target) {
-      // This tab's own room first (it was reloaded), then the room open last in any tab, then a first room.
-      const mine = findRoom(file, this.env.tabRoom());
+      // This tab's own room first (it was reloaded, or setup pointed it there), then the room open last in any tab, then a first room.
       file = mine ? selectRoom(file, mine.id) : startRooms(file, this.env.newId(), defaultRoom(), this.env.now());
       target = file.currentId;
     }

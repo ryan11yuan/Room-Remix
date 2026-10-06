@@ -9,9 +9,9 @@ import { decodeRoom } from '@/lib/room/urlCodec';
 import { deleteScan, pruneScans } from '@/lib/scene/scanStore';
 import { browserStorage } from './browserStorage';
 import { assignPendingScan } from './pendingScan';
+import { browserTabStorage, readTabRoom, writeTabRoom } from './tabRoom';
 
 const AUTOSAVE_MS = 400;
-const TAB_ROOM_KEY = 'room-remix:tab-room'; // sessionStorage: this tab's own room, kept across a reload
 
 let session: RoomSession | null = null;
 
@@ -24,20 +24,8 @@ export function roomSession(): RoomSession {
     decode: decodeRoom,
     now: Date.now,
     newId: newRoomId,
-    tabRoom: () => {
-      try {
-        return window.sessionStorage.getItem(TAB_ROOM_KEY);
-      } catch {
-        return null;
-      }
-    },
-    setTabRoom: (id) => {
-      try {
-        window.sessionStorage.setItem(TAB_ROOM_KEY, id);
-      } catch {
-        // this tab just won't remember its room across a reload
-      }
-    },
+    tabRoom: () => readTabRoom(browserTabStorage()),
+    setTabRoom: (id) => writeTabRoom(browserTabStorage(), id),
     dropScan: (roomId) => void deleteScan(roomId).catch(() => {}), // a scan that can't be dropped now is pruned at a later start
     pruneScans: (roomIds) => void pruneScans(roomIds).catch(() => {}),
   });

@@ -1,6 +1,8 @@
 'use client';
 
+import { fixPrompt } from '@/lib/room/errorPlace';
 import { roomCardFor } from '@/lib/room/roomCard';
+import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 
 /** "Your room's sound": the reverb time now and with fixes, the rating, the target, and a measurement if there is one. */
@@ -26,7 +28,7 @@ export function RoomCard() {
           )}
         </>
       ) : (
-        <p className="text-neutral-400">Fix the room under Edit room to see how it sounds.</p>
+        <p className="text-neutral-400">{fixPrompt(validateRoom(room))}</p>
       )}
     </section>
   );

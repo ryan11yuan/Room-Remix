@@ -87,6 +87,7 @@ export function TopView({ room, onChange, unit, label }: TopViewProps) {
   }
 
   function onKey(target: DragTarget, e: KeyboardEvent<SVGGElement>) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+Left (back in history) and the like stay the browser's
     if (!nudge(room, target, e.key)) return; // not an arrow key: the page keeps it
     e.preventDefault();
     onChange((r) => nudge(r, target, e.key) ?? r);

@@ -5,17 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { browserStorage } from '@/components/browserStorage';
 import { inputClass, LengthField } from '@/components/LengthField';
-import { setPendingScan } from '@/components/pendingScan';
+import { openRoomDirectly } from '@/components/openRoomDirectly';
+import { setPendingScan, setPendingScanForRoom } from '@/components/pendingScan';
 import { SurfacePicker } from '@/components/SurfacePicker';
 import { Toggle } from '@/components/Toggle';
 import { TopView } from '@/components/TopView';
 import { useUnits } from '@/components/useUnits';
 import { useWebGL } from '@/components/useWebGL';
 import { FURNISHING_LABELS } from '@/lib/room/labels';
-import { loadRooms, uniqueName } from '@/lib/room/rooms';
+import { loadRooms, MAX_ROOMS, uniqueName, UNTITLED } from '@/lib/room/rooms';
 import type { Furnishing, RoomState } from '@/lib/room/types';
 import { errorMessage } from '@/lib/room/units';
-import { encodeRoom } from '@/lib/room/urlCodec';
+import { canEncodeRooms, encodeRoom } from '@/lib/room/urlCodec';
 import { readyToOpen, startWizard, stepErrors, stepNumber, WIZARD_STEPS, wizardReducer, type WizardStep } from '@/lib/room/wizard';
 
 const TITLES: Record<WizardStep, string> = {
@@ -25,10 +26,15 @@ const TITLES: Record<WizardStep, string> = {
   scan: 'Add a scan of your room (optional)',
 };
 const OPEN_ERROR = "Couldn't open your room. Try again.";
+const UNSUPPORTED_ERROR = "Couldn't open your room in this browser."; // trying again can't help
+const FULL_ERROR = `My rooms is full (${MAX_ROOMS} rooms). Delete a room there first.`;
 const buttonClass = 'min-h-11 rounded-lg border border-neutral-700 px-5 font-semibold disabled:opacity-40';
 const primaryClass = 'min-h-11 rounded-lg bg-white px-5 font-semibold text-neutral-950 disabled:opacity-40';
 
-/** Room setup: size, surfaces, placement and an optional scan. "Open my room" opens it through a share link. */
+/**
+ * Room setup: size, surfaces, placement and an optional scan. "Open my room" opens it through a share link, or, in a
+ * browser that can't make one, saves it in My rooms and opens it as this tab's room.
+ */
 export default function SetupPage() {
   const router = useRouter();
   const [state, dispatch] = useReducer(wizardReducer, undefined, startWizard);
@@ -41,6 +47,7 @@ export default function SetupPage() {
   const shownStep = useRef(state.step);
   const { step, room } = state;
   const errors = stepErrors(step, room);
+  const invalid = (field: string) => errors.some((e) => e.field === field);
   const update = (change: (r: RoomState) => RoomState) => dispatch({ type: 'update', change });
   const setDim = (key: keyof RoomState['dims'], metres: number) => update((r) => ({ ...r, dims: { ...r.dims, [key]: metres } }));
 
@@ -52,16 +59,29 @@ export default function SetupPage() {
   }, [step]);
 
   async function openRoom() {
+    const saved = loadRooms(browserStorage());
+    if (saved.rooms.length >= MAX_ROOMS) {
+      setOpenError(FULL_ERROR); // the room page couldn't add it, and would open another room instead
+      return;
+    }
     setOpening(true);
     setOpenError(null);
-    // A name no saved room has: the room then always opens as a new one, never as an identical saved room.
-    const name = room.name.trim() ? uniqueName(loadRooms(browserStorage()), room.name) : room.name;
+    // A name no saved room has, "Untitled room" for a blank one: the room then always opens as a new one, never as an
+    // identical saved room (or over its scan).
+    const named = { ...room, name: uniqueName(saved, room.name.trim() || UNTITLED) };
     try {
-      const code = await encodeRoom({ ...room, name });
+      const code = await encodeRoom(named);
       setPendingScan(scan ? { file: scan, link: code } : null);
-      router.push('/room#' + code);
+      router.replace('/room#' + code); // replace: Back from the room doesn't land on this wizard, emptied
     } catch {
-      setOpenError(OPEN_ERROR);
+      // No link can be made here (no CompressionStream): save the room ourselves and open it as this tab's room.
+      const id = openRoomDirectly(named);
+      if (id) {
+        setPendingScanForRoom(scan, id);
+        router.replace('/room');
+        return;
+      }
+      setOpenError(canEncodeRooms() ? OPEN_ERROR : UNSUPPORTED_ERROR);
       setOpening(false);
     }
   }
@@ -94,9 +114,15 @@ export default function SetupPage() {
           </label>
           <Toggle label="Units" options={['Metres', 'Feet']} value={unit === 'ft'} onChange={(feet) => setUnit(feet ? 'ft' : 'm')} />
           <div className="flex flex-wrap gap-3">
-            <LengthField label="Length" metres={room.dims.length} unit={unit} onChange={(v) => setDim('length', v)} />
-            <LengthField label="Width" metres={room.dims.width} unit={unit} onChange={(v) => setDim('width', v)} />
-            <LengthField label="Ceiling height" metres={room.dims.height} unit={unit} onChange={(v) => setDim('height', v)} />
+            <LengthField label="Length" metres={room.dims.length} unit={unit} onChange={(v) => setDim('length', v)} invalid={invalid('dims.length')} />
+            <LengthField label="Width" metres={room.dims.width} unit={unit} onChange={(v) => setDim('width', v)} invalid={invalid('dims.width')} />
+            <LengthField
+              label="Ceiling height"
+              metres={room.dims.height}
+              unit={unit}
+              onChange={(v) => setDim('height', v)}
+              invalid={invalid('dims.height')}
+            />
           </div>
           <p className="text-sm text-neutral-400">Measure wall to wall. Rough numbers are fine: you can change them later.</p>
         </div>

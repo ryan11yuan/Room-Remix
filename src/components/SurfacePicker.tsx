@@ -17,7 +17,7 @@ type SurfacePickerProps = {
 
 /**
  * Pick a surface, then its material. The drawing (each surface tinted with its material) is for pointers; the list of
- * six buttons does the same for keyboards and screen readers, and both stay in step.
+ * six buttons after the materials does the same for keyboards and screen readers, and both stay in step.
  */
 export function SurfacePicker({ room, selected, onSelect, onMaterial }: SurfacePickerProps) {
   // The selected surface is drawn last, so its outline isn't painted over by its neighbours.
@@ -55,6 +55,24 @@ export function SurfacePicker({ room, selected, onSelect, onMaterial }: SurfaceP
         })}
       </svg>
 
+      {/* The selected surface's materials right under the drawing, so a tap and its choice sit together on a phone. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-semibold">{SURFACE_LABELS[selected]}: what is it made of?</legend>
+        <div className="grid grid-cols-2 gap-1">
+          {MATERIAL_IDS.map((material) => (
+            <label key={material} className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="surface-material"
+                checked={room.surfaces[selected] === material}
+                onChange={() => onMaterial(selected, material)}
+              />
+              {MATERIALS[material].label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <ul aria-label="Surfaces" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {SURFACE_IDS.map((surface) => (
           <li key={surface}>
@@ -70,23 +88,6 @@ export function SurfacePicker({ room, selected, onSelect, onMaterial }: SurfaceP
           </li>
         ))}
       </ul>
-
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-semibold">{SURFACE_LABELS[selected]}: what is it made of?</legend>
-        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-          {MATERIAL_IDS.map((material) => (
-            <label key={material} className="flex min-h-11 items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="surface-material"
-                checked={room.surfaces[selected] === material}
-                onChange={() => onMaterial(selected, material)}
-              />
-              {MATERIALS[material].label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
     </div>
   );
 }

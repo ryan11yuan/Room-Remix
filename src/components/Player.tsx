@@ -5,10 +5,16 @@ import type { StereoIr } from '@/lib/acoustics/simulate';
 import { DEMO_CLIPS, synthClip, type DemoClipId } from '@/lib/audio/demoClips';
 import { AudioEngine } from '@/lib/audio/engine';
 import { silentIr, type ListenMode } from '@/lib/audio/mix';
+import { fixPrompt } from '@/lib/room/errorPlace';
 import { roomCardFor } from '@/lib/room/roomCard';
+import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 import { Toggle } from './Toggle';
 import { resultMatchesRate, type Simulation } from './useSimulation';
+
+const IDLE_TEXT = 'Press Play for a drum loop, or pick a song below.';
+const PLAY_ERROR = "Couldn't start playback. Try picking the song again.";
+const DRUMS = DEMO_CLIPS.find((clip) => clip.id === 'drums') ?? DEMO_CLIPS[0]; // what Play plays when nothing is picked
 
 type PlayerProps = {
   sim: Simulation;
@@ -30,15 +36,18 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   const [songName, setSongName] = useState<string | null>(null);
   const [clipId, setClipId] = useState<DemoClipId | null>(null); // the built-in clip that is loaded, if any
   const pickRef = useRef(0); // counts picks, so the last one wins; read only in handlers
+  // Play was pressed with nothing picked, before the room was ready at the engine's rate: the drum loop starts once it is.
+  // Written in handlers, read in an effect.
+  const playWhenReadyRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = resultMatchesRate(sim.result, engineRate);
   const hasFixes = room.fixes.some((f) => f.on);
   const card = roomCardFor(room);
-  const summary = !songName
-    ? 'Pick a song or a built-in clip to play.'
-    : !card
-      ? 'Fix the room under Edit room to hear it.'
+  const summary = !card
+    ? fixPrompt(validateRoom(room))
+    : !songName
+      ? IDLE_TEXT
       : !ready
         ? 'Simulating your room…'
         : card.summary;
@@ -58,6 +67,17 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
     engineRef.current?.setMode({ room: mode.room, fixes: mode.fixes && hasFixes });
   }, [mode, hasFixes]);
 
+  // After the IRs above are loaded: the drum loop that Play asked for before the room was ready.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !playWhenReadyRef.current || !resultMatchesRate(sim.result, engineRate)) return;
+    playWhenReadyRef.current = false;
+    void engine.play().then(
+      () => setPlaying(engine.playing),
+      () => setError(PLAY_ERROR),
+    );
+  }, [sim.result, engineRate]);
+
   /** The engine starts at the first tap (browsers only allow sound after one). */
   function ensureEngine(): AudioEngine {
     if (!engineRef.current) {
@@ -73,6 +93,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   async function pickSong(file: File) {
     const engine = ensureEngine();
     const pick = ++pickRef.current;
+    playWhenReadyRef.current = false; // a pick replaces the drum loop Play was waiting to start
     setError(null);
     try {
       await engine.loadSong(file);
@@ -89,6 +110,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   function pickClip(id: DemoClipId, label: string) {
     const engine = ensureEngine();
     pickRef.current++;
+    playWhenReadyRef.current = false;
     setError(null);
     engine.loadClip(synthClip(id, engine.sampleRate), engine.sampleRate);
     setSongName(label);
@@ -97,6 +119,20 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   }
 
   async function togglePlay() {
+    if (!songName) {
+      // Nothing picked yet: Play plays the drum loop, as a pick of it would (a song still decoding loses to it).
+      pickClip(DRUMS.id, DRUMS.label);
+      const engine = engineRef.current;
+      if (!engine) return;
+      if (!resultMatchesRate(sim.result, engine.sampleRate)) {
+        // The room is still being simulated at this engine's rate: start the audio context now, inside the tap, and
+        // the drum loop once the room is ready (the effect above).
+        playWhenReadyRef.current = true;
+        void engine.play().catch(() => {});
+        engine.pause();
+        return;
+      }
+    }
     const engine = engineRef.current;
     if (!engine) return;
     if (engine.playing) {
@@ -106,7 +142,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
       try {
         await engine.play();
       } catch {
-        setError("Couldn't start playback. Try picking the song again.");
+        setError(PLAY_ERROR);
       }
       setPlaying(engine.playing);
     }
@@ -157,7 +193,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
           <button
             onClick={() => void togglePlay()}
-            disabled={!songName || !ready}
+            disabled={songName ? !ready : !card} // with nothing picked, Play picks the drum loop: it waits only for a room to hear
             className="min-h-11 rounded-lg bg-white px-5 font-semibold text-neutral-950 disabled:opacity-40"
           >
             {playing ? 'Pause' : 'Play'}
@@ -171,7 +207,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
           <Toggle
             label="Compare now and with fixes"
             options={['Now', 'With fixes']}
-            value={mode.fixes}
+            value={mode.fixes && hasFixes} // what is being heard: with no fix on, that is Now
             onChange={(fixes) => onModeChange({ ...mode, fixes })}
             disabled={!mode.room || !hasFixes}
           />

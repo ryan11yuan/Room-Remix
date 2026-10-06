@@ -24,6 +24,19 @@ export async function encodePayload(value: unknown): Promise<string> {
 
 export const encodeRoom = (room: RoomState) => encodePayload(room);
 
+/**
+ * Whether this runtime can make share links at all: CompressionStream with 'deflate-raw' (missing before iOS 16.4
+ * Safari, Chrome 103 and Firefox 113). When it can't, trying again never helps.
+ */
+export function canEncodeRooms(): boolean {
+  try {
+    new CompressionStream('deflate-raw');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function decodeRoom(code: string): Promise<RoomState | null> {
   if (!code.startsWith(PREFIX) || code.length > MAX_CODE_LENGTH) return null;
   try {

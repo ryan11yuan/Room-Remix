@@ -145,9 +145,14 @@ export class ScanController {
     }
   }
 
+  /** A load or an alignment is under way: open() would refuse a file now. */
+  get busy(): boolean {
+    return this.status.kind === 'loading' || this.align !== null;
+  }
+
   async open(file: File, room: RoomState): Promise<void> {
     // One load at a time: two overlapping layer loads could leave two meshes in the layer.
-    if (this.status.kind === 'loading' || this.align) return;
+    if (this.busy) return;
     const key = this.key;
     const gen = this.storeGen;
     this.setStatus({ kind: 'loading', fileName: file.name });

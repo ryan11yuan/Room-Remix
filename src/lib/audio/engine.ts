@@ -8,7 +8,25 @@ const LIMITER: DynamicsCompressorOptions = { threshold: -1, knee: 0, ratio: 20, 
 const MAX_WARM_UP_SECONDS = 0.5; // a new convolver runs silently up to this long so it holds the playing music's reverb
 const RETIRE_MARGIN_MS = 50; // disconnect the faded-out convolver this long after its fade ends, to absorb timer jitter
 
-type Pair = { conv: ConvolverNode; gain: GainNode };
+/** A convolver and its fade gain. `silent`: its IR is all zeros (the player's stand-in while no fix is on). */
+type Pair = { conv: ConvolverNode; gain: GainNode; silent: boolean };
+
+/** True when every sample of the IR is 0. Stops at the first sound, so the one-sample silent IR takes one look. */
+export function isSilentIr(ir: StereoIr): boolean {
+  for (const channel of [ir.left, ir.right]) {
+    for (let i = 0; i < channel.length; i++) if (channel[i] !== 0) return false;
+  }
+  return true;
+}
+
+/**
+ * How long a new IR's convolver warms up, silently, before it fades in: long enough to fill with the music already
+ * playing (the IR's length, at most MAX_WARM_UP_SECONDS), so the reverb never dips. None when the pair being heard is
+ * silent: there is no reverb to keep, and waiting would only be silence.
+ */
+export function warmUpSeconds(heardIsSilent: boolean, irSeconds: number): number {
+  return heardIsSilent ? 0 : Math.min(irSeconds, MAX_WARM_UP_SECONDS);
+}
 
 /**
  * One room's reverb. `active` is the pair being heard. A new IR gets its own `pending` pair, which warms up
@@ -143,11 +161,12 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     if (slot.pending && t >= slot.fadeEnd) this.finishSwap(slot); // the pending pair is already fully faded in
 
+    const silent = isSilentIr(ir);
     if (!slot.active || this.ctx.state !== 'running') {
       // Nothing is audible (first IR, or the context isn't running), so there is no reverb to keep: switch at once.
       this.dropPending(slot);
       if (slot.active) this.disconnectPair(slot.active);
-      slot.active = this.connectPair(slot, buffer, 1);
+      slot.active = this.connectPair(slot, buffer, 1, silent);
       return;
     }
 
@@ -158,10 +177,11 @@ export class AudioEngine {
     }
 
     // Warm up: the new convolver fills with the music already playing before it is heard, so the reverb never dips.
-    const warm = Math.min(ir.left.length / ir.sampleRate, MAX_WARM_UP_SECONDS);
+    // Not behind a silent pair (a fix just switched back on): that would be up to half a second of nothing.
+    const warm = warmUpSeconds(slot.active.silent, ir.left.length / ir.sampleRate);
     const start = t + warm;
     const old = slot.active;
-    const fresh = this.connectPair(slot, buffer, 0);
+    const fresh = this.connectPair(slot, buffer, 0, silent);
     fresh.gain.gain.setValueAtTime(0, start);
     fresh.gain.gain.linearRampToValueAtTime(1, start + CROSSFADE_SECONDS);
     old.gain.gain.setValueAtTime(1, start);
@@ -205,10 +225,11 @@ export class AudioEngine {
   }
 
   /** input → convolver → its own gain → slot output. */
-  private connectPair(slot: Slot, buffer: AudioBuffer, gain: number): Pair {
+  private connectPair(slot: Slot, buffer: AudioBuffer, gain: number, silent: boolean): Pair {
     const pair = {
       conv: new ConvolverNode(this.ctx, { disableNormalization: true, buffer }),
       gain: new GainNode(this.ctx, { gain }),
+      silent,
     };
     this.input.connect(pair.conv).connect(pair.gain).connect(slot.out);
     return pair;

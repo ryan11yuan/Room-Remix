@@ -20,6 +20,7 @@ export function ShareButton() {
   const [unsupported, setUnsupported] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const manualInput = useRef<HTMLInputElement>(null);
+  const shareButton = useRef<HTMLButtonElement>(null);
 
   // The copy-by-hand field takes focus with its link selected, ready for Ctrl+C or the phone's Copy.
   useEffect(() => {
@@ -73,7 +74,7 @@ export function ShareButton() {
 
   return (
     <div className="relative">
-      <button onClick={share} disabled={!valid} className="min-h-11 rounded-lg border border-neutral-700 px-4 text-sm disabled:opacity-40">
+      <button ref={shareButton} onClick={share} disabled={!valid} className="min-h-11 rounded-lg border border-neutral-700 px-4 text-sm disabled:opacity-40">
         {unsupported ? "Sharing isn't supported in this browser" : copied ? 'Link copied' : 'Share link'}
       </button>
       <span role="status" className="sr-only">
@@ -91,7 +92,13 @@ export function ShareButton() {
               className="min-h-11 rounded-md border border-neutral-700 bg-neutral-950 px-2"
             />
           </label>
-          <button onClick={() => setManualLink(null)} className="min-h-11 self-end rounded-md border border-neutral-700 px-3">
+          <button
+            onClick={() => {
+              setManualLink(null);
+              shareButton.current?.focus(); // focus goes back where it came from, not to the page's start
+            }}
+            className="min-h-11 self-end rounded-md border border-neutral-700 px-3"
+          >
             Done
           </button>
         </div>

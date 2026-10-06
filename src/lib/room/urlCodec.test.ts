@@ -1,7 +1,33 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultRoom } from './roomState';
 import type { RoomState } from './types';
-import { decodeRoom, encodePayload, encodeRoom } from './urlCodec';
+import { canEncodeRooms, decodeRoom, encodePayload, encodeRoom } from './urlCodec';
+
+describe('canEncodeRooms', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('is true where deflate-raw compression exists', () => {
+    expect(canEncodeRooms()).toBe(true);
+  });
+
+  it('is false without CompressionStream, or without its deflate-raw format, and encoding then fails', async () => {
+    vi.stubGlobal('CompressionStream', undefined);
+    expect(canEncodeRooms()).toBe(false);
+    await expect(encodeRoom(defaultRoom())).rejects.toThrow();
+    vi.stubGlobal(
+      'CompressionStream',
+      class {
+        constructor(format: string) {
+          if (format !== 'gzip' && format !== 'deflate') throw new TypeError(`Unsupported format: ${format}`);
+        }
+      },
+    );
+    expect(canEncodeRooms()).toBe(false);
+    await expect(encodeRoom(defaultRoom())).rejects.toThrow();
+  });
+});
 
 describe('share-link codec', () => {
   it('round-trips a room through a URL-safe code', async () => {

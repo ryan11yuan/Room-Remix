@@ -10,8 +10,11 @@ import { AudioEngine } from '@/lib/audio/engine';
 import { silentIr } from '@/lib/audio/mix';
 import { PRESETS, type Preset } from '@/lib/presets/presets';
 import { DEMO_ROOM } from '@/lib/room/demoRoom';
+import { formatLength } from '@/lib/room/units';
 import { encodeRoom } from '@/lib/room/urlCodec';
+import { openRoomDirectly } from './openRoomDirectly';
 import { Toggle } from './Toggle';
+import { useUnits } from './useUnits';
 
 type SpaceId = Preset['id'] | 'bedroom';
 
@@ -106,6 +109,7 @@ function BedroomDrawing() {
 
 export function ListenDemo() {
   const router = useRouter();
+  const [unit] = useUnits();
   const [tab, setTab] = useState<SpaceId>(TABS[0].id);
   const [clip, setClip] = useState<DemoClipId>(DEMO_CLIPS[0].id);
   const [inSpace, setInSpace] = useState(true);
@@ -264,6 +268,9 @@ export function ListenDemo() {
     try {
       router.push('/room#' + (await encodeRoom(DEMO_ROOM)));
     } catch {
+      // No link can be made here (no CompressionStream): save the demo room and open it as this tab's room. If even
+      // that fails, the room page opens whatever it would anyway.
+      openRoomDirectly(DEMO_ROOM);
       router.push('/room');
     }
   }
@@ -350,7 +357,8 @@ export function ListenDemo() {
         ) : (
           <div className="flex min-w-0 flex-col items-start gap-2 text-sm">
             <p className="text-neutral-300">
-              A simulated bedroom, {length} × {width} × {height} m, carpeted and furnished.
+              A simulated bedroom, {formatLength(length, unit)} × {formatLength(width, unit)} × {formatLength(height, unit)}{' '}
+              {unit}, carpeted and furnished.
             </p>
             <button
               onClick={() => void exploreIn3d()}

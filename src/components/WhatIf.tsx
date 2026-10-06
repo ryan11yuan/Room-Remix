@@ -7,7 +7,7 @@ import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
 import { WALL_IDS, type Fix, type RugSize, type WallId } from '@/lib/room/types';
 import { formatLength, type Unit } from '@/lib/room/units';
-import { ErrorList, isFixError } from './ErrorList';
+import { ErrorList } from './ErrorList';
 import { inputClass, LengthField } from './LengthField';
 import { useUnits } from './useUnits';
 
@@ -24,6 +24,8 @@ export function WhatIf() {
   const [unit] = useUnits();
   const rugCount = room.fixes.filter((f) => f.kind === 'rug').length;
   const panelCount = room.fixes.length - rugCount;
+  const errors = validateRoom(room);
+  const invalid = (index: number) => errors.some((e) => e.field === `fixes.${index}`);
 
   const setFix = (index: number, patch: Partial<Fix>) =>
     update((r) => ({ ...r, fixes: r.fixes.map((f, i) => (i === index ? ({ ...f, ...patch } as Fix) : f)) }));
@@ -76,8 +78,8 @@ export function WhatIf() {
                     </option>
                   ))}
                 </select>
-                <LengthField label={`${rowLabel} centre x`} metres={fix.x} unit={unit} onChange={(v) => setFix(i, { x: v })} />
-                <LengthField label={`${rowLabel} centre z`} metres={fix.z} unit={unit} onChange={(v) => setFix(i, { z: v })} />
+                <LengthField label={`${rowLabel} centre x`} metres={fix.x} unit={unit} onChange={(v) => setFix(i, { x: v })} invalid={invalid(i)} />
+                <LengthField label={`${rowLabel} centre z`} metres={fix.z} unit={unit} onChange={(v) => setFix(i, { z: v })} invalid={invalid(i)} />
               </>
             ) : (
               <>
@@ -93,8 +95,8 @@ export function WhatIf() {
                     </option>
                   ))}
                 </select>
-                <LengthField label={`${rowLabel} along wall`} metres={fix.u} unit={unit} onChange={(v) => setFix(i, { u: v })} />
-                <LengthField label={`${rowLabel} height`} metres={fix.v} unit={unit} onChange={(v) => setFix(i, { v })} />
+                <LengthField label={`${rowLabel} along wall`} metres={fix.u} unit={unit} onChange={(v) => setFix(i, { u: v })} invalid={invalid(i)} />
+                <LengthField label={`${rowLabel} height`} metres={fix.v} unit={unit} onChange={(v) => setFix(i, { v })} invalid={invalid(i)} />
               </>
             )}
             <button onClick={() => removeFix(i)} aria-label={`Remove ${rowLabel.toLowerCase()}`} className="min-h-11 px-2 text-sm text-red-400">
@@ -103,7 +105,7 @@ export function WhatIf() {
           </div>
         );
       })}
-      <ErrorList errors={validateRoom(room).filter(isFixError)} unit={unit} />
+      <ErrorList errors={errors} place="whatIf" unit={unit} />
     </section>
   );
 }

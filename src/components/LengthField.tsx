@@ -6,13 +6,20 @@ import { formatLength, parseLength, type Unit } from '@/lib/room/units';
 /** The look of the app's text fields and selects: at least 44 px tall. */
 export const inputClass = 'min-h-11 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5';
 
-type LengthFieldProps = { label: string; metres: number; unit: Unit; onChange: (metres: number) => void };
+type LengthFieldProps = {
+  label: string;
+  metres: number;
+  unit: Unit;
+  onChange: (metres: number) => void;
+  /** The value is part of an error the page shows now. */
+  invalid?: boolean;
+};
 
 /**
  * A length typed in the visitor's unit and kept in metres. While the field has focus it shows exactly what was typed,
  * so "12.55" doesn't jump to "12.6" mid-typing; the room only changes when the text does.
  */
-export function LengthField({ label, metres, unit, onChange }: LengthFieldProps) {
+export function LengthField({ label, metres, unit, onChange, invalid = false }: LengthFieldProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const shown = Number.isFinite(metres) ? formatLength(metres, unit) : '';
   return (
@@ -24,6 +31,7 @@ export function LengthField({ label, metres, unit, onChange }: LengthFieldProps)
         type="text"
         inputMode="decimal"
         autoComplete="off"
+        aria-invalid={invalid || undefined}
         value={draft ?? shown}
         onChange={(e) => {
           setDraft(e.target.value);

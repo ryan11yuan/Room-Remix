@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { errorPlace } from '@/lib/room/errorPlace';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
-import { isFixError } from './ErrorList';
 import { RoomForm } from './RoomForm';
 
 /**
@@ -11,7 +11,7 @@ import { RoomForm } from './RoomForm';
  * room has a problem there, and opened again whenever a new one appears, so the error is never hidden.
  */
 export function EditRoom() {
-  const hasErrors = useRoomStore((s) => validateRoom(s.room).some((e) => !isFixError(e)));
+  const hasErrors = useRoomStore((s) => validateRoom(s.room).some((e) => errorPlace(e.field) === 'edit'));
   const [open, setOpen] = useState(hasErrors);
   const [hadErrors, setHadErrors] = useState(hasErrors);
   if (hasErrors !== hadErrors) {

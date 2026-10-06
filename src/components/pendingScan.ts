@@ -2,7 +2,7 @@
  * A room scan picked in the setup wizard, on its way to the room the wizard opens. A File can't travel in a share link,
  * so it waits here, in module state: that survives the client-side navigation to /room, not a reload (the visitor then
  * loads the scan again from the 3D view). It belongs to the wizard's link until the room page has opened that link as a
- * room, and to that room after.
+ * room, and to that room after. Where no link can be made, the wizard saves the room itself and the scan goes to it at once.
  */
 type Pending = { file: File; link: string; roomId: string | null };
 
@@ -13,6 +13,15 @@ const changed = () => listeners.forEach((listener) => listener());
 /** The wizard is about to open its room through `link` (the share code, without '#'): carry `file` to it. Null clears it. */
 export function setPendingScan(scan: { file: File; link: string } | null): void {
   pending = scan ? { ...scan, roomId: null } : null;
+  changed();
+}
+
+/**
+ * The wizard saved its room as `roomId` and opens it without a link (this browser can't make one): carry `file` straight
+ * to that room. Null clears it.
+ */
+export function setPendingScanForRoom(file: File | null, roomId: string): void {
+  pending = file ? { file, link: '', roomId } : null;
   changed();
 }
 
