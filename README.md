@@ -34,3 +34,18 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Hackathon demo: rooms from video
+
+Phones on the laptop's Wi-Fi can film a room and get it back as a Gaussian splat in the 3D view. The laptop builds it
+with ffmpeg, COLMAP and OpenSplat in Docker (design: `docs/superpowers/specs/2026-10-06-room-remix-video-splats-design.md`).
+
+1. Start Docker Desktop.
+2. `npm run pipeline:build` (first time only; roughly 30–60 minutes).
+3. `npm run pipeline:check` (prints the GPU and each tool's version).
+4. `npm run demo`, and allow Node through Windows Firewall on private networks when asked. The Wi-Fi network must be
+   set to Private.
+5. Open the printed `http://<laptop address>:8080` on the phone.
+
+`npm run demo:serve` restarts the server without rebuilding the app. Job folders (video, frames, COLMAP model, splat,
+logs) are kept in `%LOCALAPPDATA%\RoomRemix\jobs`; set `ROOM_REMIX_JOBS_DIR` or `PORT` to change where and which port.
