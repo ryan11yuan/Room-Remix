@@ -62,8 +62,9 @@ export class RoomSession {
   /**
    * Open a room: the shared link's if the address bar has one, else the one this tab had open, else the one open last,
    * else a first room. Safe to call again: with a room already open, only a link changes which room that is.
+   * Resolves to the id of the room a link opened (added, or an identical saved room reused), else null.
    */
-  async start(): Promise<void> {
+  async start(): Promise<string | null> {
     const run = ++this.starts;
     const code = this.env.readLink();
     let linked: RoomState | null = null;
@@ -73,7 +74,7 @@ export class RoomSession {
       } catch {
         linked = null; // a link that can't be decoded is a link that can't be read
       }
-      if (run !== this.starts) return; // a newer start (another link) took over while this one was decoding
+      if (run !== this.starts) return null; // a newer start (another link) took over while this one was decoding
       try {
         this.env.clearLink(); // read once: later edits mustn't leave a stale link in the address bar
       } catch {
@@ -96,7 +97,11 @@ export class RoomSession {
     } else if (code) {
       this.notify(LINK_NOTICE);
     }
-    if (!target && useRoomStore.getState().roomId) return this.refresh(); // a room is open here already: stay in it
+    const opened = target; // the room the link opened, if it did
+    if (!target && useRoomStore.getState().roomId) {
+      this.refresh(); // a room is open here already: stay in it
+      return null;
+    }
     if (!target) {
       // This tab's own room first (it was reloaded), then the room open last in any tab, then a first room.
       const mine = findRoom(file, this.env.tabRoom());
@@ -114,6 +119,7 @@ export class RoomSession {
         // cleanup only: a later start prunes
       }
     }
+    return opened;
   }
 
   /**

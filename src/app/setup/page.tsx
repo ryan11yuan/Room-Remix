@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { browserStorage } from '@/components/browserStorage';
 import { inputClass, LengthField } from '@/components/LengthField';
+import { setPendingScan } from '@/components/pendingScan';
 import { SurfacePicker } from '@/components/SurfacePicker';
 import { Toggle } from '@/components/Toggle';
 import { TopView } from '@/components/TopView';
 import { useUnits } from '@/components/useUnits';
+import { useWebGL } from '@/components/useWebGL';
 import { FURNISHING_LABELS } from '@/lib/room/labels';
 import { loadRooms, uniqueName } from '@/lib/room/rooms';
 import type { Furnishing, RoomState } from '@/lib/room/types';
@@ -31,6 +33,8 @@ export default function SetupPage() {
   const router = useRouter();
   const [state, dispatch] = useReducer(wizardReducer, undefined, startWizard);
   const [unit, setUnit] = useUnits();
+  const webgl = useWebGL();
+  const [scan, setScan] = useState<File | null>(null);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -54,6 +58,7 @@ export default function SetupPage() {
     const name = room.name.trim() ? uniqueName(loadRooms(browserStorage()), room.name) : room.name;
     try {
       const code = await encodeRoom({ ...room, name });
+      setPendingScan(scan ? { file: scan, link: code } : null);
       router.push('/room#' + code);
     } catch {
       setOpenError(OPEN_ERROR);
@@ -136,10 +141,37 @@ export default function SetupPage() {
       {step === 'scan' && (
         <div className="flex flex-col gap-3 text-sm">
           <p className="text-neutral-300">
-            If you&apos;ve scanned this room with an app such as Scaniverse or Polycam, you can add the scan from the 3D
-            view once the room is open.
+            If you&apos;ve scanned this room with an app such as Scaniverse or Polycam, add the .ply, .spz or .splat file
+            it exported. You&apos;ll line it up with the room in the 3D view. The file stays on your device.
           </p>
-          <p className="text-neutral-400">Open your room now to hear it.</p>
+          {webgl ? (
+            <>
+              <label className="inline-flex min-h-11 cursor-pointer items-center self-start rounded-lg border border-neutral-700 px-5 font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-neutral-300">
+                {scan ? 'Choose another scan' : 'Choose a scan'}
+                <input
+                  type="file"
+                  accept=".ply,.spz,.splat,.ksplat"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = ''; // so picking the same file again still fires
+                    if (file) setScan(file);
+                  }}
+                />
+              </label>
+              {scan && (
+                <p className="flex items-center gap-3">
+                  <span className="min-w-0 truncate">{scan.name}</span>
+                  <button type="button" onClick={() => setScan(null)} className="min-h-11 shrink-0 px-2 underline">
+                    Remove
+                  </button>
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-neutral-400">This browser can&apos;t show 3D, so a scan can&apos;t be used here.</p>
+          )}
+          <p className="text-neutral-400">No scan? Open your room now. You can add one later from the 3D view.</p>
         </div>
       )}
 

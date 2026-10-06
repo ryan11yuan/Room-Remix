@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { computeRayPaths } from '@/lib/acoustics/rays';
 import { withoutFixes } from '@/lib/acoustics/simulate';
 import type { ListenMode } from '@/lib/audio/mix';
@@ -11,6 +11,7 @@ import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
 // Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
 import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
+import { pendingScanRoom, returnPendingScan, subscribePendingScan, takePendingScan } from './pendingScan';
 import { TopView } from './TopView';
 import { useUnits } from './useUnits';
 import { hasWebGL, markWebGLUnavailable, useWebGL } from './useWebGL';
@@ -93,6 +94,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
   const roomId = useRoomStore((s) => s.roomId);
+  const pendingFor = useSyncExternalStore(subscribePendingScan, pendingScanRoom, () => null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RoomScene | null>(null);
@@ -203,6 +205,21 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     sceneRef.current?.setCameraPreset(opened, 'corner'); // a different room: frame it afresh
     void scans.switchRoom(roomId, opened);
   }, [roomId, webgl]);
+
+  // A scan picked in setup, once the session has opened setup's room. After the effect above, so the controller is
+  // already on this room; open() takes over from switchRoom's restore of a scan the new room doesn't have.
+  useEffect(() => {
+    const scans = scanRef.current;
+    if (!roomId || pendingFor !== roomId || !scans || scans.roomKey !== roomId) return;
+    const file = takePendingScan(roomId);
+    if (!file) return;
+    void scans.open(file, useRoomStore.getState().room);
+    // React's development double mount disposes this controller at once: hand the file back for the one that follows.
+    return () =>
+      queueMicrotask(() => {
+        if (scanRef.current !== scans) returnPendingScan(roomId, file);
+      });
+  }, [roomId, pendingFor, webgl]);
 
   /** Leave walk mode now, not after the re-render: otherwise the next frame pulls the camera back to the listener's head. */
   const stopWalking = () => {

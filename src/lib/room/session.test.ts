@@ -241,6 +241,29 @@ describe('RoomSession start', () => {
     expect(store().notice).toBeNull();
   });
 
+  it("gives the id of the room a link opened, and null when there wasn't one", async () => {
+    const t = setup({ storage: storageWith('a', ['a', 100, 'Mine']), links: { code: named('Shared') } });
+    expect(await t.session.start()).toBeNull(); // no link: the usual room
+    t.setLink('code');
+    const opened = await t.session.start();
+    expect(opened).toBe(store().roomId);
+    expect(opened).not.toBe('a');
+    t.session.open('a');
+    t.setLink('code');
+    expect(await t.session.start()).toBe(opened); // the same link again reuses its room
+    t.setLink('garbage');
+    expect(await t.session.start()).toBeNull(); // a link that can't be read opens nothing
+  });
+
+  it('gives null when My rooms is full and the link has no room', async () => {
+    const storage = fakeStorage();
+    const rooms = Array.from({ length: MAX_ROOMS }, (_, i) => ({ id: `r${i}`, updatedAt: i, state: named(`Room ${i}`) }));
+    saveRooms({ rooms, currentId: 'r3' }, storage);
+    const t = setup({ storage, links: { code: named('Shared') } });
+    t.setLink('code');
+    expect(await t.session.start()).toBeNull();
+  });
+
   it('drops the link notice once a link loads', async () => {
     const t = setup({ links: { code: named('Shared') } });
     t.setLink('garbage');

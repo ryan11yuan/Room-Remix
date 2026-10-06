@@ -8,6 +8,7 @@ import { RoomSession } from '@/lib/room/session';
 import { decodeRoom } from '@/lib/room/urlCodec';
 import { deleteScan, pruneScans } from '@/lib/scene/scanStore';
 import { browserStorage } from './browserStorage';
+import { assignPendingScan } from './pendingScan';
 
 const AUTOSAVE_MS = 400;
 const TAB_ROOM_KEY = 'room-remix:tab-room'; // sessionStorage: this tab's own room, kept across a reload
@@ -53,7 +54,10 @@ export function useRoomSession(): void {
       return;
     }
     const rooms = roomSession();
-    void rooms.start();
+    const link = window.location.hash.slice(1); // read before start() takes it out of the address bar
+    void rooms.start().then((opened) => {
+      if (opened && link) assignPendingScan(link, opened); // a scan picked in setup belongs to the room its link opened
+    });
     const edits = watchEdits(() => rooms.save(), AUTOSAVE_MS);
     const onLink = () => {
       if (window.location.hash.length > 1) void rooms.start(); // a link pasted into the address bar while the page is open
