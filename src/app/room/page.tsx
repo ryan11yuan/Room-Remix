@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { EditRoom } from '@/components/EditRoom';
 import { Player } from '@/components/Player';
-import { RoomForm } from '@/components/RoomForm';
+import { RoomCard } from '@/components/RoomCard';
 import { RoomsMenu } from '@/components/RoomsMenu';
 import { RoomView } from '@/components/RoomView';
 import { ShareButton } from '@/components/ShareButton';
 import { useRoomSession } from '@/components/useRoomSession';
 import { DEFAULT_SAMPLE_RATE, useSimulation } from '@/components/useSimulation';
+import { WhatIf } from '@/components/WhatIf';
 import type { ListenMode } from '@/lib/audio/mix';
 import { useRoomStore } from '@/lib/room/store';
 import type { RoomState } from '@/lib/room/types';
@@ -20,7 +22,8 @@ export default function RoomPage() {
   const setNotice = useRoomStore((s) => s.setNotice);
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
+    // Below lg the player's control bar is fixed to the bottom of the screen: pb-48 keeps the page's end clear of it.
+    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 pt-6 pb-48 lg:pb-6">
       {/* Mounted and in the accessibility tree all the time, so a screen reader announces a notice when it appears. */}
       <div role="status" className="empty:sr-only">
         {notice && (
@@ -42,7 +45,7 @@ export default function RoomPage() {
   );
 }
 
-/** The open room: 3D view, player and form. Shown once the saved rooms have been read. */
+/** The open room: 3D view, then the player column (song, controls, sound, What if…, Edit room). Shown once the saved rooms have been read. */
 function RoomWorkspace() {
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
@@ -73,15 +76,17 @@ function RoomWorkspace() {
           <ShareButton />
         </div>
       </header>
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 lg:flex-1">
           <RoomView mode={mode} />
         </div>
-        <div className="lg:w-80">
+        <div className="flex flex-col gap-6 lg:w-96">
           <Player sim={sim} mode={mode} onModeChange={setMode} onSampleRate={setSampleRate} />
+          <RoomCard />
+          <WhatIf />
+          <EditRoom />
         </div>
       </div>
-      <RoomForm />
     </>
   );
 }

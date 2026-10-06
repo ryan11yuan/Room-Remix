@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { downmixToMono, modeGains } from './mix';
+import { downmixToMono, modeGains, silentIr } from './mix';
 
 describe('modeGains', () => {
   it('plays only the dry path when the room is off', () => {
@@ -23,5 +23,15 @@ describe('downmixToMono', () => {
   });
   it('passes mono through', () => {
     expect(Array.from(downmixToMono([Float32Array.of(0.25, -0.5)]))).toEqual([0.25, -0.5]);
+  });
+});
+
+describe('silentIr', () => {
+  it('is one silent sample per ear at the given rate', () => {
+    const ir = silentIr(44100);
+    expect(ir.sampleRate).toBe(44100);
+    expect(Array.from(ir.left)).toEqual([0]);
+    expect(Array.from(ir.right)).toEqual([0]);
+    expect(ir.left).not.toBe(ir.right); // two buffers: the engine copies each ear into its own channel
   });
 });

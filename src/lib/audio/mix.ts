@@ -1,3 +1,5 @@
+import type { StereoIr } from '@/lib/acoustics/simulate';
+
 export type ListenMode = { room: boolean; fixes: boolean };
 
 export function modeGains(mode: ListenMode): { dry: number; now: number; withFixes: number } {
@@ -14,3 +16,6 @@ export function downmixToMono(channels: Float32Array[]): Float32Array {
 }
 
 export const CROSSFADE_SECONDS = 0.05;
+
+/** A one-sample silent IR, for a slot with nothing to play: the engine runs a convolver per slot, and this one costs nothing. */
+export const silentIr = (sampleRate: number): StereoIr => ({ left: new Float32Array(1), right: new Float32Array(1), sampleRate });

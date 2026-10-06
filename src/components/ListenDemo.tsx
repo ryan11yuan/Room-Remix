@@ -7,9 +7,11 @@ import { AcousticsClient } from '@/lib/acoustics/client';
 import type { StereoIr } from '@/lib/acoustics/simulate';
 import { DEMO_CLIPS, synthClip, type DemoClipId } from '@/lib/audio/demoClips';
 import { AudioEngine } from '@/lib/audio/engine';
+import { silentIr } from '@/lib/audio/mix';
 import { PRESETS, type Preset } from '@/lib/presets/presets';
 import { DEMO_ROOM } from '@/lib/room/demoRoom';
 import { encodeRoom } from '@/lib/room/urlCodec';
+import { Toggle } from './Toggle';
 
 type SpaceId = Preset['id'] | 'bedroom';
 
@@ -26,8 +28,6 @@ const LOADING_TEXT: Record<SpaceId, string> = {
 const AUDIO_ERROR = "Your browser can't play audio here.";
 const FETCH_TIMEOUT_MS = 30_000;
 const PREFETCH_IDLE_MS = 1500; // when requestIdleCallback is missing, start the first space's download this long after mount
-/** A one-sample silent IR for the "with fixes" slot: the engine runs a convolver per slot, and a recorded space has no fixes. */
-const silentIr = (sampleRate: number): StereoIr => ({ left: new Float32Array(1), right: new Float32Array(1), sampleRate });
 const LOAD_ERROR = "Couldn't load this space. Check your connection and try again.";
 
 type SpaceStatus = 'loading' | 'error';
@@ -58,26 +58,6 @@ function fetchBytes(
     if (bytes.get(preset.id) === job) bytes.delete(preset.id); // so choosing the tab again retries
   });
   return job;
-}
-
-function Toggle({ options, value, onChange }: { options: [string, string]; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="inline-flex rounded-lg border border-neutral-700 p-0.5">
-      {options.map((label, i) => {
-        const selected = value === (i === 1);
-        return (
-          <button
-            key={label}
-            aria-pressed={selected}
-            onClick={() => onChange(i === 1)}
-            className={`rounded-md px-3 py-1.5 text-sm ${selected ? 'bg-white text-neutral-950' : 'text-neutral-300'}`}
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function CathedralDrawing() {
@@ -397,7 +377,7 @@ export function ListenDemo() {
         <button onClick={onPlayPause} className="rounded-lg bg-white px-5 py-2 font-semibold text-neutral-950">
           {wantsPlay ? 'Pause' : 'Play'}
         </button>
-        <Toggle options={['Dry', 'In the space']} value={inSpace} onChange={chooseMode} />
+        <Toggle label="Listen dry or in the space" options={['Dry', 'In the space']} value={inSpace} onChange={chooseMode} />
       </div>
 
       <p className="text-sm text-neutral-400">🎧 Use headphones. Room differences are hard to hear on phone speakers.</p>
