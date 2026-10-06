@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { predictRt60, withoutFixes } from '@/lib/acoustics/simulate';
+import { DEMO_CLIPS, synthClip, type DemoClipId } from '@/lib/audio/demoClips';
 import { AudioEngine } from '@/lib/audio/engine';
 import type { ListenMode } from '@/lib/audio/mix';
 import { rateRt60 } from '@/lib/room/rating';
@@ -71,7 +72,8 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
     engineRef.current?.setMode({ room: mode.room, fixes: mode.fixes && hasFixes });
   }, [mode, hasFixes]);
 
-  async function pickSong(file: File) {
+  /** The engine starts at the first tap (browsers only allow sound after one). */
+  function ensureEngine(): AudioEngine {
     if (!engineRef.current) {
       const engine = new AudioEngine();
       engineRef.current = engine;
@@ -79,14 +81,27 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
       setEngineRate(engine.sampleRate);
       onSampleRate(engine.sampleRate); // the page re-simulates if this isn't the default rate
     }
+    return engineRef.current;
+  }
+
+  async function pickSong(file: File) {
+    const engine = ensureEngine();
     setError(null);
     try {
-      await engineRef.current.loadSong(file);
+      await engine.loadSong(file);
       setSongName(file.name);
       setPlaying(false);
     } catch {
       setError("This file type isn't supported on your browser. Try MP3 or M4A.");
     }
+  }
+
+  function pickClip(id: DemoClipId, label: string) {
+    const engine = ensureEngine();
+    setError(null);
+    engine.loadClip(synthClip(id, engine.sampleRate), engine.sampleRate);
+    setSongName(label);
+    setPlaying(false);
   }
 
   async function togglePlay() {
@@ -121,6 +136,14 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
           className="text-sm"
         />
       </label>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-neutral-400">Or try a built-in clip:</span>
+        {DEMO_CLIPS.map((clip) => (
+          <button key={clip.id} onClick={() => pickClip(clip.id, clip.label)} className="rounded-md border border-neutral-700 px-2 py-1">
+            {clip.label}
+          </button>
+        ))}
+      </div>
       {songName && <p className="truncate text-sm">{songName}</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
