@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeRayPaths } from '@/lib/acoustics/rays';
 import { withoutFixes } from '@/lib/acoustics/simulate';
 import type { ListenMode } from '@/lib/audio/mix';
@@ -11,6 +11,9 @@ import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
 // Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
 import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
+import { TopView } from './TopView';
+import { useUnits } from './useUnits';
+import { hasWebGL, markWebGLUnavailable, useWebGL } from './useWebGL';
 
 const PRESET_LABELS: Record<CameraPreset, string> = { top: 'Top', corner: 'Corner', listener: "Listener's view" };
 const SPEAKER_HEIGHTS = [
@@ -50,33 +53,6 @@ function alignBanner(step: Exclude<ScanUiStep, null>, taps: number): string {
   }
 }
 
-let webglSupport: boolean | undefined;
-const webglListeners = new Set<() => void>();
-function subscribeWebGL(listener: () => void) {
-  webglListeners.add(listener);
-  return () => {
-    webglListeners.delete(listener);
-  };
-}
-/** The renderer failed to start even though the probe passed: switch every view to the notice. */
-function markWebGLUnavailable() {
-  webglSupport = false;
-  webglListeners.forEach((l) => l());
-}
-/** Probed once and cached: React calls this on every render, and browsers cap how many WebGL contexts can live. three.js needs WebGL 2. */
-function hasWebGL(): boolean {
-  if (webglSupport === undefined) {
-    try {
-      const gl = document.createElement('canvas').getContext('webgl2');
-      webglSupport = gl !== null;
-      gl?.getExtension('WEBGL_lose_context')?.loseContext(); // free the probe context right away
-    } catch {
-      webglSupport = false;
-    }
-  }
-  return webglSupport;
-}
-
 function HeightSelect({
   label,
   options,
@@ -112,7 +88,8 @@ function HeightSelect({
 }
 
 export function RoomView({ mode }: { mode: ListenMode }) {
-  const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, () => true);
+  const webgl = useWebGL();
+  const [unit] = useUnits();
   const room = useRoomStore((s) => s.room);
   const update = useRoomStore((s) => s.update);
   const roomId = useRoomStore((s) => s.roomId);
@@ -248,10 +225,10 @@ export function RoomView({ mode }: { mode: ListenMode }) {
 
   if (!webgl) {
     return (
-      <p className="rounded-xl border border-neutral-800 p-4 text-sm text-neutral-400">
-        The 3D view needs WebGL, which this browser doesn&apos;t provide. Use the number fields below to place the
-        speaker, listener, rug and panels.
-      </p>
+      <section aria-label="Top view of your room" className="flex flex-col gap-2">
+        <p className="text-sm text-neutral-400">Your browser can&apos;t show the 3D view, so here&apos;s a top view.</p>
+        <TopView room={room} onChange={update} unit={unit} label="Your room from above" />
+      </section>
     );
   }
 

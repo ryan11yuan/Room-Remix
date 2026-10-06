@@ -2,6 +2,7 @@
 
 import { MATERIALS } from '@/lib/acoustics/materials';
 import { LIMITS, RUG_SIZES } from '@/lib/room/constants';
+import { FURNISHING_LABELS, SURFACE_LABELS } from '@/lib/room/labels';
 import { findFreePanelSpot } from '@/lib/room/placement';
 import { validateRoom } from '@/lib/room/roomState';
 import { useRoomStore } from '@/lib/room/store';
@@ -14,28 +15,12 @@ import {
   type MaterialId,
   type RoomState,
   type RugSize,
-  type SurfaceId,
   type WallId,
 } from '@/lib/room/types';
 import { errorMessage, formatLength, type Unit } from '@/lib/room/units';
 import { inputClass, LengthField } from './LengthField';
 import { Toggle } from './Toggle';
 import { useUnits } from './useUnits';
-
-const SURFACE_LABELS: Record<SurfaceId, string> = {
-  floor: 'Floor',
-  ceiling: 'Ceiling',
-  wallX0: 'Front wall',
-  wallX1: 'Back wall',
-  wallZ0: 'Right wall',
-  wallZ1: 'Left wall',
-};
-
-const FURNISHING_LABELS: Record<Furnishing, string> = {
-  bare: 'Bare (empty room)',
-  some: 'Some (bed or sofa)',
-  full: 'Full (bed, sofa, shelves, curtains)',
-};
 
 const RUG_NAMES: Record<RugSize, string> = { S: 'Small', M: 'Medium', L: 'Large' };
 /** "Medium 1.6 × 2.3 m": width × length, in the visitor's unit. */
