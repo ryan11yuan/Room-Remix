@@ -146,11 +146,12 @@ export function uniqueName(file: RoomsFile, base: string): string {
 
 /**
  * Open a shared room as a room of its own. A saved room with exactly that state is reused, so opening the same link
- * twice doesn't pile up copies. Null when "My rooms" is full.
+ * twice doesn't pile up copies. Any other room is added under a name no saved room has, so editing an imported room and
+ * importing it again gives a second one ("Demo bedroom 2"). Null when "My rooms" is full.
  */
 export function importRoom(file: RoomsFile, state: RoomState, id: string, now: number): RoomsFile | null {
   const same = file.rooms.find((room) => sameState(room.state, state));
-  return same ? { ...file, currentId: same.id } : addRoom(file, id, state, now);
+  return same ? { ...file, currentId: same.id } : addRoom(file, id, { ...state, name: uniqueName(file, state.name) }, now);
 }
 
 /** Make sure a room is open: the one open last, else the newest, else a first room made from `fresh`. */

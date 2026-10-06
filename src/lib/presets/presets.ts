@@ -20,7 +20,7 @@ export const PRESETS: Preset[] = [
     file: '/ir/york-minster.wav',
     credit: {
       // CC BY 4.0 asks for any changes to be stated: the player trims, filters and level-matches every recording.
-      text: 'York Minster impulse response by Audiolab, University of York (Damian T. Murphy), from the OpenAIR library, www.openairlib.net. Trimmed to 6 seconds, high-pass filtered at 40 Hz and level-matched for Room Remix.',
+      text: 'York Minster impulse response by Audiolab, University of York (Damian T. Murphy), from the OpenAIR library, www.openairlib.net. Shortened to 6 seconds and converted to 16-bit, then high-pass filtered at 40 Hz and level-matched for Room Remix.',
       licence: 'CC BY 4.0',
       licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
       sourceUrl: 'https://www.openair.hosted.york.ac.uk/?page_id=797',

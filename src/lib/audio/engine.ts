@@ -34,6 +34,7 @@ export class AudioEngine {
   private startedAt = 0;
   private offset = 0;
   private mode: ListenMode = { room: true, fixes: false };
+  private songToken = 0; // bumped by every song or clip pick, so a song still decoding doesn't replace a later pick
   private playToken = 0; // bumped by pause() so a play() still waiting for the context to resume gives up
 
   constructor() {
@@ -62,7 +63,9 @@ export class AudioEngine {
 
   /** Decodes a local file (never uploaded) and mixes it to mono: one speaker is one point source. */
   async loadSong(file: File): Promise<void> {
+    const token = ++this.songToken;
     const decoded = await this.ctx.decodeAudioData(await file.arrayBuffer());
+    if (token !== this.songToken) return; // a later pick has replaced this one
     const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
     const mono = this.ctx.createBuffer(1, decoded.length, decoded.sampleRate);
     mono.getChannelData(0).set(downmixToMono(channels));
@@ -73,6 +76,7 @@ export class AudioEngine {
 
   /** Use generated samples (a built-in clip) as the song. `sampleRate` is the rate they were generated at. */
   loadClip(samples: Float32Array, sampleRate: number): void {
+    this.songToken++;
     const clip = this.ctx.createBuffer(1, samples.length, sampleRate);
     clip.getChannelData(0).set(samples);
     this.pause();

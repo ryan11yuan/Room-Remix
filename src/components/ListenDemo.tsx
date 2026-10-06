@@ -24,9 +24,41 @@ const LOADING_TEXT: Record<SpaceId, string> = {
   bedroom: 'Simulating the bedroom…',
 };
 const AUDIO_ERROR = "Your browser can't play audio here.";
+const FETCH_TIMEOUT_MS = 30_000;
+const PREFETCH_IDLE_MS = 1500; // when requestIdleCallback is missing, start the first space's download this long after mount
+/** A one-sample silent IR for the "with fixes" slot: the engine runs a convolver per slot, and a recorded space has no fixes. */
+const silentIr = (sampleRate: number): StereoIr => ({ left: new Float32Array(1), right: new Float32Array(1), sampleRate });
 const LOAD_ERROR = "Couldn't load this space. Check your connection and try again.";
 
 type SpaceStatus = 'loading' | 'error';
+
+/** A recording's file, downloaded once and kept until it is decoded. Gives up after 30 s; aborted on unmount. */
+function fetchBytes(
+  preset: Preset,
+  bytes: Map<SpaceId, Promise<ArrayBuffer>>,
+  aborters: Set<AbortController>,
+): Promise<ArrayBuffer> {
+  const kept = bytes.get(preset.id);
+  if (kept) return kept;
+  const controller = new AbortController();
+  aborters.add(controller);
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const job = (async () => {
+    const res = await fetch(preset.file, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.arrayBuffer();
+  })();
+  bytes.set(preset.id, job);
+  const done = () => {
+    clearTimeout(timer);
+    aborters.delete(controller);
+  };
+  job.then(done, () => {
+    done();
+    if (bytes.get(preset.id) === job) bytes.delete(preset.id); // so choosing the tab again retries
+  });
+  return job;
+}
 
 function Toggle({ options, value, onChange }: { options: [string, string]; value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -109,14 +141,34 @@ export function ListenDemo() {
   const clientRef = useRef<AcousticsClient | null>(null);
   const irsRef = useRef<Map<SpaceId, StereoIr>>(new Map());
   const inFlightRef = useRef<Map<SpaceId, Promise<StereoIr>>>(new Map());
+  const bytesRef = useRef<Map<SpaceId, Promise<ArrayBuffer>>>(new Map()); // downloaded recordings, not yet decoded
+  const abortersRef = useRef<Set<AbortController>>(new Set());
+  const silentRef = useRef<StereoIr | null>(null); // made once per engine, so the engine can skip an identical IR
+
+  // Start downloading the first tab's recording once the page is idle, so a quick first tap finds it. Needs no audio context.
+  useEffect(() => {
+    const first = PRESETS.find((p) => p.id === TABS[0].id);
+    if (!first) return;
+    const start = () => void fetchBytes(first, bytesRef.current, abortersRef.current).catch(() => {}); // a failure here is retried, and shown, at Play
+    if (typeof requestIdleCallback === 'function') {
+      const handle = requestIdleCallback(start, { timeout: PREFETCH_IDLE_MS * 2 });
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(start, PREFETCH_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(
     () => () => {
+      for (const controller of abortersRef.current) controller.abort(); // an aborted download shows no error
+      abortersRef.current.clear();
+      bytesRef.current.clear();
       engineRef.current?.dispose();
       engineRef.current = null;
       clientRef.current?.dispose();
       clientRef.current = null;
       irsRef.current.clear();
+      silentRef.current = null;
       inFlightRef.current.clear();
     },
     [],
@@ -144,9 +196,9 @@ export function ListenDemo() {
         ir = (await clientRef.current.simulate(DEMO_ROOM, engine.sampleRate)).now.ir;
       } else {
         const preset = PRESETS.find((p) => p.id === id)!;
-        const res = await fetch(preset.file);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        ir = prepareIr(await engine.decodeIr(await res.arrayBuffer()));
+        const bytes = await fetchBytes(preset, bytesRef.current, abortersRef.current);
+        bytesRef.current.delete(id); // decoding detaches the buffer, so it can't be decoded twice
+        ir = prepareIr(await engine.decodeIr(bytes));
       }
       if (engineRef.current === engine) irsRef.current.set(id, ir);
       return ir;
@@ -179,7 +231,7 @@ export function ListenDemo() {
     if (engineRef.current !== engine) return; // unmounted meanwhile
     setStatus(id, null);
     if (tabRef.current !== id) return; // the user chose another tab while this loaded
-    engine.setIrs(ir, ir);
+    engine.setIrs(ir, (silentRef.current ??= silentIr(engine.sampleRate)));
     engine.setMode({ room: inSpaceRef.current, fixes: false });
     if (wantsPlayRef.current && !engine.playing) {
       try {
@@ -188,6 +240,7 @@ export function ListenDemo() {
         if (engineRef.current !== engine) return;
         wantsPlayRef.current = false;
         setWantsPlay(false);
+        setAudioFailed(true);
       }
     }
   }
@@ -300,7 +353,7 @@ export function ListenDemo() {
         })}
       </div>
 
-      <div id="listen-panel" role="tabpanel" aria-labelledby={`listen-tab-${tab}`} className="flex items-center gap-4">
+      <div id="listen-panel" role="tabpanel" tabIndex={0} aria-labelledby={`listen-tab-${tab}`} className="flex items-center gap-4">
         {tab === 'cathedral' && <CathedralDrawing />}
         {tab === 'garage' && <GarageDrawing />}
         {tab === 'bedroom' && <BedroomDrawing />}

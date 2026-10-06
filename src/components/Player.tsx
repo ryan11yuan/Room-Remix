@@ -52,6 +52,8 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
   const engineRef = useRef<AudioEngine | null>(null);
   const [engineRate, setEngineRate] = useState<number | null>(null);
   const [songName, setSongName] = useState<string | null>(null);
+  const [clipId, setClipId] = useState<DemoClipId | null>(null); // the built-in clip that is loaded, if any
+  const pickRef = useRef(0); // counts picks, so the last one wins; read only in handlers
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = resultMatchesRate(sim.result, engineRate);
@@ -86,21 +88,27 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
 
   async function pickSong(file: File) {
     const engine = ensureEngine();
+    const pick = ++pickRef.current;
     setError(null);
     try {
       await engine.loadSong(file);
+      if (pick !== pickRef.current) return; // a later pick (a clip, say) has replaced this song
       setSongName(file.name);
+      setClipId(null);
       setPlaying(false);
     } catch {
+      if (pick !== pickRef.current) return;
       setError("This file type isn't supported on your browser. Try MP3 or M4A.");
     }
   }
 
   function pickClip(id: DemoClipId, label: string) {
     const engine = ensureEngine();
+    pickRef.current++;
     setError(null);
     engine.loadClip(synthClip(id, engine.sampleRate), engine.sampleRate);
     setSongName(label);
+    setClipId(id);
     setPlaying(false);
   }
 
@@ -139,7 +147,7 @@ export function Player({ sim, mode, onModeChange, onSampleRate }: PlayerProps) {
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-neutral-400">Or try a built-in clip:</span>
         {DEMO_CLIPS.map((clip) => (
-          <button key={clip.id} onClick={() => pickClip(clip.id, clip.label)} className="rounded-md border border-neutral-700 px-2 py-1">
+          <button key={clip.id} aria-pressed={clipId === clip.id} onClick={() => pickClip(clip.id, clip.label)} className="rounded-md border border-neutral-700 px-2 py-1">
             {clip.label}
           </button>
         ))}

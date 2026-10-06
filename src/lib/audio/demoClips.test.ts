@@ -94,6 +94,21 @@ describe('synthClip', () => {
     });
   }
 
+  it("carries the guitar's last pluck over the loop end, so the start of the loop rings at that note", () => {
+    // The last pluck is G3 (196 Hz) at 4.5 s and rings 1.2 s: past the clip's end, so it wraps round onto the first 0.3 s.
+    // Nothing else sounds at 196 Hz there (the first pluck is E3, 164.8 Hz; the low root has 82, 165 and 247 Hz).
+    const clip = synthClip('guitar', 48000);
+    const n = Math.round(0.3 * 48000);
+    let sin = 0;
+    let cos = 0;
+    for (let i = 0; i < n; i++) {
+      sin += clip[i] * Math.sin((2 * Math.PI * 196 * i) / 48000);
+      cos += clip[i] * Math.cos((2 * Math.PI * 196 * i) / 48000);
+    }
+    const magnitude = Math.hypot(sin, cos) / n;
+    expect(magnitude).toBeGreaterThan(0.005) // about 0.009 with the wrap, 0.002 without;
+  });
+
   it('makes two different clips', () => {
     expect(synthClip('drums', 48000)).not.toEqual(synthClip('guitar', 48000));
   });

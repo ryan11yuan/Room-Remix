@@ -20,8 +20,9 @@ export default function About() {
       <section className="flex flex-col gap-2">
         <h2 className="text-xl font-semibold">Privacy</h2>
         <p className="text-neutral-300">
-          Nothing you add leaves your device. Songs, room scans and your rooms stay in this browser. There are no
-          accounts and nothing is uploaded.
+          Nothing you add leaves your device. Songs are played from memory; your rooms and room scans are kept in this
+          browser only. There are no accounts and nothing is uploaded. A share link carries the room&apos;s name, size
+          and materials in the link itself, and only when you share it.
         </p>
       </section>
 
@@ -45,8 +46,8 @@ export default function About() {
       <section className="flex flex-col gap-2">
         <h2 className="text-xl font-semibold">How it works, briefly</h2>
         <p className="text-neutral-300">
-          The room is modelled as an empty box with materials on its surfaces. Furniture in a scan has no effect on the
-          sound.
+          The room is modelled as a box with a material on each surface and a furnishing level. The shapes of furniture
+          in a scan aren&apos;t modelled, so a scan changes what you see, not what you hear.
         </p>
       </section>
 

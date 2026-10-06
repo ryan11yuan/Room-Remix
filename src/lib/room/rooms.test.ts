@@ -228,6 +228,14 @@ describe('importRoom', () => {
     expect(next?.rooms).toHaveLength(2);
   });
 
+  it('numbers a shared room whose name a different saved room already has', () => {
+    const edited = { ...named('Demo bedroom'), furnishing: 'bare' as const };
+    const saved: RoomsFile = { ...file(['a', 100, 'Mine']), rooms: [{ id: 'a', updatedAt: 100, state: edited }], currentId: 'a' };
+    const next = importRoom(saved, named('Demo bedroom'), 'new', 500);
+    expect(next?.currentId).toBe('new');
+    expect(next?.rooms.map((r) => r.state.name)).toEqual(['Demo bedroom', 'Demo bedroom 2']);
+  });
+
   it('refuses when My rooms is full', () => {
     const full: RoomsFile = {
       rooms: Array.from({ length: MAX_ROOMS }, (_, i) => ({ id: `r${i}`, updatedAt: i, state: named(`Room ${i}`) })),
