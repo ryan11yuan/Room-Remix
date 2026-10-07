@@ -33,7 +33,7 @@ export class SoundOverlay {
     const front = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.3), new THREE.MeshBasicMaterial({ color: CREAM }));
     front.position.z = 0.101; // a light front, just proud of the box's +z face
     this.body.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.35, 0.2), new THREE.MeshBasicMaterial({ color: 0x2a2420 })), front);
-    this.stand.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 12), new THREE.MeshBasicMaterial({ color: 0x4a423c })));
+    this.stand.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1, 12), new THREE.MeshBasicMaterial({ color: CREAM })));
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.22, 0.28, 48),
       new THREE.MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide }),
