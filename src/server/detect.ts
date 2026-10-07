@@ -93,6 +93,9 @@ export function transformersDetector(): DetectFrame {
       t.env.cacheDir = MODEL_CACHE;
       const detector = (await t.pipeline('zero-shot-object-detection', MODEL, { device: 'cpu' })) as unknown as ZeroShot;
       return { detector, RawImage: t.RawImage as never };
+    }).catch((error) => {
+      loading = null; // a failed load (download, corrupt file) is retried on the next call
+      throw error;
     });
     const { detector, RawImage } = await loading;
     const image = await RawImage.read(file);
