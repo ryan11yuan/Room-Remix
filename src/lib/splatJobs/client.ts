@@ -1,4 +1,4 @@
-import { MAX_VIDEO_BYTES, type Health, type JobView, type Quality } from './protocol';
+import { isQuality, MAX_VIDEO_BYTES, type CameraPose, type Health, type JobView, type Quality, type RoomSummary } from './protocol';
 
 /** Same origin: the demo server serves both the app and this API (spec 2026-10-06 §5). */
 export const API = '/api/splat';
@@ -100,4 +100,50 @@ export async function downloadSplat(id: string, fetchFn: Fetch = browserFetch): 
   const res = await fetchFn(`${jobUrl(id)}/splat`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Couldn't download the splat: ${res.status}`);
   return new File([await res.blob()], 'video-scan.spz', { type: 'application/octet-stream' });
+}
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isTriple = (value: unknown): boolean => Array.isArray(value) && value.length === 3 && value.every(isFiniteNumber);
+
+/** The rooms list as the server sends it; entries that aren't well-formed are dropped. Null unless it's an array. */
+export function readRooms(data: unknown): RoomSummary[] | null {
+  if (!Array.isArray(data)) return null;
+  return data.filter((entry): entry is RoomSummary => {
+    if (!entry || typeof entry !== 'object') return false;
+    const { id, quality, createdAt } = entry as Partial<RoomSummary>;
+    return typeof id === 'string' && isQuality(quality) && isFiniteNumber(createdAt);
+  });
+}
+
+/** The finished rooms on the laptop, newest first; null when it can't be asked. */
+export async function fetchRooms(fetchFn: Fetch = browserFetch): Promise<RoomSummary[] | null> {
+  try {
+    const res = await fetchFn(`${API}/rooms`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return readRooms(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+/** OpenSplat's cameras file, only if every camera has a name, a position and a 3×3 rotation of finite numbers. */
+export function readCameras(data: unknown): CameraPose[] | null {
+  if (!Array.isArray(data) || data.length === 0) return null;
+  const wellFormed = data.every((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const { img_name, position, rotation } = entry as Partial<CameraPose>;
+    return typeof img_name === 'string' && isTriple(position) && Array.isArray(rotation) && rotation.length === 3 && rotation.every(isTriple);
+  });
+  return wellFormed ? (data as CameraPose[]) : null;
+}
+
+/** A room's cameras; null for a room built before cameras were saved, or on any failure (the viewer falls back). */
+export async function fetchCameras(id: string, fetchFn: Fetch = browserFetch): Promise<CameraPose[] | null> {
+  try {
+    const res = await fetchFn(`${jobUrl(id)}/cameras`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return readCameras(await res.json());
+  } catch {
+    return null;
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cancelJob, downloadSplat, fetchHealth, fetchJob, uploadVideo, type Xhr } from './client';
+import { cancelJob, downloadSplat, fetchCameras, fetchHealth, fetchJob, fetchRooms, readCameras, readRooms, uploadVideo, type Xhr } from './client';
 import { MAX_VIDEO_BYTES, type JobView } from './protocol';
 
 const json = (body: unknown, status = 200) =>
@@ -135,5 +135,52 @@ describe('cancelJob and downloadSplat', () => {
     expect(file.name).toBe('video-scan.spz');
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(new Uint8Array([83, 80, 90]));
     await expect(downloadSplat('j1', async () => json({ error: 'not-ready' }, 409))).rejects.toThrow();
+  });
+});
+
+const cameraJson = (overrides: Record<string, unknown> = {}) => ({
+  id: 0, img_name: '0001.jpg', width: 1000, height: 750, fx: 800, fy: 800,
+  position: [0, 0, 0], rotation: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], ...overrides,
+});
+
+describe('rooms', () => {
+  it('reads the list and drops malformed entries', () => {
+    expect(readRooms([
+      { id: 'a', quality: 'best', createdAt: 5 },
+      { id: 'b', quality: 'fast', createdAt: 4 },
+      { id: 7, quality: 'quick', createdAt: 3 },
+      { id: 'c', quality: 'quick', createdAt: 'yesterday' },
+      null,
+    ])).toEqual([{ id: 'a', quality: 'best', createdAt: 5 }]);
+    expect(readRooms({ rooms: [] })).toBeNull();
+  });
+
+  it('fetches the rooms, or null when the laptop answers badly or not at all', async () => {
+    const fetchFn = vi.fn(async () => json([{ id: 'a', quality: 'quick', createdAt: 1 }]));
+    expect(await fetchRooms(fetchFn)).toEqual([{ id: 'a', quality: 'quick', createdAt: 1 }]);
+    expect(fetchFn).toHaveBeenCalledWith('/api/splat/rooms', expect.objectContaining({ cache: 'no-store' }));
+    expect(await fetchRooms(async () => json({ error: 'x' }, 500))).toBeNull();
+    expect(await fetchRooms(async () => Promise.reject(new TypeError('Failed to fetch')))).toBeNull();
+  });
+});
+
+describe('cameras', () => {
+  it('accepts well-formed cameras only', () => {
+    expect(readCameras([cameraJson()])).toEqual([cameraJson()]);
+    expect(readCameras([])).toBeNull();
+    expect(readCameras({})).toBeNull();
+    expect(readCameras([cameraJson({ position: [0, 0] })])).toBeNull();
+    expect(readCameras([cameraJson({ rotation: [[1, 0, 0], [0, 1, 0]] })])).toBeNull();
+    expect(readCameras([cameraJson({ position: [0, Number.NaN, 0] })])).toBeNull();
+    expect(readCameras([cameraJson({ img_name: 3 })])).toBeNull();
+  });
+
+  it('fetches a room cameras, or null for an older room, an error or a dead laptop', async () => {
+    const fetchFn = vi.fn(async () => json([cameraJson()]));
+    expect(await fetchCameras('j 1', fetchFn)).toEqual([cameraJson()]);
+    expect(fetchFn).toHaveBeenCalledWith('/api/splat/jobs/j%201/cameras', expect.objectContaining({ cache: 'no-store' }));
+    expect(await fetchCameras('j1', async () => json({ error: 'no-cameras' }, 404))).toBeNull();
+    expect(await fetchCameras('j1', async () => Promise.reject(new TypeError('Failed to fetch')))).toBeNull();
+    expect(await fetchCameras('j1', async () => json([cameraJson({ rotation: 'x' })]))).toBeNull();
   });
 });
