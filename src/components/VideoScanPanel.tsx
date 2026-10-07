@@ -10,7 +10,14 @@ const PRIVACY = 'Your video is sent to this laptop to build the room, and stays 
 const QUALITY_LABELS: Record<Quality, string> = { quick: 'Quick: a few minutes', best: 'Best: sharper, much slower' };
 
 function Bar({ fraction, label }: { fraction: number | null; label: string }) {
-  if (fraction === null) return null;
+  if (fraction === null) {
+    // No measurement yet: a partial bar that slides, so a working build doesn't look stuck. Still under reduced motion.
+    return (
+      <div role="progressbar" aria-label={label} className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
+        <div className="h-full w-1/3 rounded-full bg-sky-400 motion-safe:animate-[indeterminate_1.6s_ease-in-out_infinite]" />
+      </div>
+    );
+  }
   return (
     <div
       role="progressbar"

@@ -15,3 +15,13 @@
     }
   }
 }
+
+/* The building row's bar before any step reports progress: a third-width bar sliding across its track. */
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}

@@ -4,6 +4,12 @@ import { readProbe, stepProgress } from './progress';
 const probe = (format: object, streams: object[]) => JSON.stringify({ format, streams }, null, 2);
 
 describe('readProbe', () => {
+  it('parses the JSON even with stray warning lines around it', () => {
+    const json = probe({ duration: '30' }, [{ codec_type: 'video' }]);
+    expect(readProbe(`WARNING: Your kernel does not support swap limit capabilities\n${json}\nsome trailing note`)).toEqual({ ok: true, seconds: 30 });
+  });
+
+
   it('accepts a video up to 2 minutes long', () => {
     expect(readProbe(probe({ duration: '59.500000' }, [{ codec_type: 'audio' }, { codec_type: 'video' }]))).toEqual({ ok: true, seconds: 59.5 });
     expect(readProbe(probe({ duration: '120.000000' }, [{ codec_type: 'video' }])).ok).toBe(true);
@@ -40,8 +46,16 @@ describe('stepProgress', () => {
     expect(stepProgress('mapper', 'Registering image #90 (91)', 80, 2000)).toEqual({ done: 80, total: 80 });
   });
 
+  it('reads COLMAP feature extraction and matching counters', () => {
+    expect(stepProgress('features', 'Processed file [3/80]', 0, 2000)).toEqual({ done: 3, total: 80 });
+    expect(stepProgress('matching', 'Matching image [12/80]', 0, 2000)).toEqual({ done: 12, total: 80 });
+    expect(stepProgress('matching', 'Matching image [90/80]', 0, 2000)).toEqual({ done: 80, total: 80 });
+    expect(stepProgress('features', 'Matching image [3/80]', 0, 2000)).toBeNull();
+    expect(stepProgress('matching', 'Processed file [3/80]', 0, 2000)).toBeNull();
+  });
+
   it('has no progress for the other steps', () => {
-    expect(stepProgress('features', 'Processed file [3/80]', 80, 2000)).toBeNull();
+    expect(stepProgress('frames', 'Processed file [3/80]', 80, 2000)).toBeNull();
     expect(stepProgress('frames', 'frame=   12', 80, 2000)).toBeNull();
   });
 });
