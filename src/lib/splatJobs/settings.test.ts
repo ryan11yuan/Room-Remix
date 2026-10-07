@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frameFilter, MAX_GAUSSIANS, MIN_REGISTERED, pipelineSteps, SETTINGS } from './settings';
+import { DB, frameFilter, MAX_GAUSSIANS, MIN_REGISTERED, pipelineSteps, SETTINGS } from './settings';
 
 describe('pipelineSteps', () => {
   it('runs the six steps in order, each under its job state', () => {
@@ -31,14 +31,19 @@ describe('pipelineSteps', () => {
     const steps = pipelineSteps('quick', 'video.mp4');
     const args = (name: string) => steps.find((s) => s.name === name)!.args.join(' ');
     expect(args('features')).toBe(
-      'colmap feature_extractor --database_path /job/database.db --image_path /job/images --ImageReader.single_camera 1 --ImageReader.camera_model SIMPLE_RADIAL --SiftExtraction.use_gpu 0',
+      'colmap feature_extractor --database_path /db/database.db --image_path /job/images --ImageReader.single_camera 1 --ImageReader.camera_model SIMPLE_RADIAL --SiftExtraction.use_gpu 0',
     );
     expect(args('matching')).toBe(
-      'colmap sequential_matcher --database_path /job/database.db --SequentialMatching.overlap 15 --SequentialMatching.quadratic_overlap 1 --SiftMatching.use_gpu 0',
+      'colmap sequential_matcher --database_path /db/database.db --SequentialMatching.overlap 15 --SequentialMatching.quadratic_overlap 1 --SiftMatching.use_gpu 0',
     );
     expect(args('mapper')).toBe(
-      'colmap mapper --database_path /job/database.db --image_path /job/images --output_path /job/sparse --Mapper.multiple_models 0 --Mapper.extract_colors 1',
+      'colmap mapper --database_path /db/database.db --image_path /job/images --output_path /job/sparse --Mapper.multiple_models 0 --Mapper.extract_colors 1',
     );
+  });
+
+  it('keeps the COLMAP database on the /db volume, for features, matching and mapper only', () => {
+    expect(pipelineSteps('quick', 'video.mp4').filter((s) => s.db).map((s) => s.name)).toEqual(['features', 'matching', 'mapper']);
+    expect(DB).toBe('/db');
   });
 
   it('trains for the quality steps, caps the splat count and writes .spz', () => {

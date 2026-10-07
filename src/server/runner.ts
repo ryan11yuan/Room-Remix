@@ -8,15 +8,19 @@ import type { StepRunner } from './jobs';
 /** Built by `npm run pipeline:build` from pipeline/Dockerfile. */
 export const IMAGE = 'room-remix-splat';
 
+/** The per-job Docker volume that holds COLMAP's database (mounted at /db). Docker creates it on first use. */
+export const jobVolume = (jobId: string) => `rr-${jobId}-db`;
+
 const containerName = (jobId: string, step: PipelineStep) => `rr-${jobId}-${step.name}`;
 
-/** `docker` arguments that run one step with its job folder mounted at /job. Only OpenSplat gets the GPU. */
+/** `docker` arguments that run one step with its job folder mounted at /job (and the COLMAP steps' database volume at /db). Only OpenSplat gets the GPU. */
 export function dockerArgs(jobId: string, dir: string, step: PipelineStep): string[] {
   return [
     'run', '--rm',
     ...(step.gpu ? ['--gpus', 'all'] : []),
     '--name', containerName(jobId, step),
     '-v', `${dir}:/job`,
+    ...(step.db ? ['-v', `${jobVolume(jobId)}:/db`] : []),
     IMAGE,
     ...step.args,
   ];
@@ -109,17 +113,29 @@ export async function pipelineHealth(exec: Exec = exitCode): Promise<PipelineHea
   return 'ready';
 }
 
+/** Removes a job's database volume. Never throws: a volume that stays behind is swept up when the server next starts. */
+export async function removeJobVolume(jobId: string, exec: Exec = exitCode): Promise<void> {
+  try {
+    const code = await exec('docker', ['volume', 'rm', '-f', jobVolume(jobId)]);
+    if (code !== 0) console.error(`Couldn't remove volume ${jobVolume(jobId)} (exit ${code})`);
+  } catch (error) {
+    console.error(`Couldn't remove volume ${jobVolume(jobId)}:`, error);
+  }
+}
+
 type ExecOut = (command: string, args: string[]) => Promise<string>;
 const stdoutOf: ExecOut = (command, args) =>
   new Promise((resolve, reject) => {
     execFile(command, args, { windowsHide: true, timeout: 30_000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
   });
 
-/** Removes pipeline containers (rr-*) left over from a server that died mid-build. Returns how many; 0 if Docker fails. */
+/** Removes pipeline containers and database volumes (rr-*) left over from a server that died mid-build. Returns how many; 0 if Docker fails. */
 export async function removeLeftoverContainers(exec: ExecOut = stdoutOf): Promise<number> {
   try {
     const ids = (await exec('docker', ['ps', '-aq', '--filter', 'name=^rr-'])).split(/\s+/).filter(Boolean);
     for (const id of ids) await exec('docker', ['rm', '-f', id]);
+    const volumes = (await exec('docker', ['volume', 'ls', '-q', '--filter', 'name=^rr-'])).split(/\s+/).filter(Boolean);
+    for (const volume of volumes) await exec('docker', ['volume', 'rm', '-f', volume]);
     return ids.length;
   } catch (error) {
     console.error("Couldn't check for leftover containers:", error);

@@ -177,6 +177,46 @@ describe('JobQueue', () => {
     }
   });
 
+  it('cleans up after every outcome: ready, failed and canceled, once each, and a throwing cleanup never blocks the queue', async () => {
+    const cleaned: string[] = [];
+    const cleanup = async (id: string) => {
+      cleaned.push(id);
+    };
+    const ready = new JobQueue(root, fakeRunner().run, { ...quiet, cleanup });
+    await ready.init();
+    const a = await queued(ready);
+    await ready.settled();
+    expect(ready.get(a.id)?.state).toBe('ready');
+
+    const failing = new JobQueue(root, fakeRunner({ probe: { code: 1 } }).run, { ...quiet, cleanup });
+    await failing.init();
+    const b = await queued(failing);
+    await failing.settled();
+    expect(failing.get(b.id)?.state).toBe('failed');
+
+    const training = gate();
+    const canceling = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run, { ...quiet, cleanup });
+    await canceling.init();
+    const c = await queued(canceling);
+    await vi.waitFor(() => expect(canceling.get(c.id)?.state).toBe('training'));
+    await canceling.cancel(c.id);
+    training.open();
+    await canceling.settled();
+    expect(canceling.get(c.id)?.state).toBe('canceled');
+
+    expect(cleaned).toEqual([a.id, b.id, c.id]);
+
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const throwing = new JobQueue(root, fakeRunner().run, { ...quiet, cleanup: async () => Promise.reject(new Error('boom')) });
+    await throwing.init();
+    const d = await queued(throwing);
+    const e = await queued(throwing);
+    await throwing.settled();
+    expect(throwing.get(d.id)?.state).toBe('ready');
+    expect(throwing.get(e.id)?.state).toBe('ready');
+    error.mockRestore();
+  });
+
   it('says when it is busy', async () => {
     const training = gate();
     const queue = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run, quiet);

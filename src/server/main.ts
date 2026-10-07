@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { JobQueue } from './jobs';
-import { dockerRunner, pipelineHealth, removeLeftoverContainers } from './runner';
+import { dockerRunner, pipelineHealth, removeJobVolume, removeLeftoverContainers } from './runner';
 import { createServer } from './server';
 
 /** Spec 2026-10-06 §3: job folders live outside the repo, which is in OneDrive. */
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     console.error('There is no built app in out/. Run npm run demo, which builds it first.');
     process.exit(1);
   }
-  const queue = new JobQueue(JOBS_DIR, dockerRunner());
+  const queue = new JobQueue(JOBS_DIR, dockerRunner(), { cleanup: (id) => removeJobVolume(id) });
   await queue.init();
   const removed = await removeLeftoverContainers();
   if (removed > 0) console.log(`Removed ${removed} leftover pipeline container${removed === 1 ? '' : 's'}.`);

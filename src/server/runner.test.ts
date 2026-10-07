@@ -6,10 +6,11 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pipelineSteps } from '@/lib/splatJobs/settings';
-import { dockerArgs, dockerRunner, IMAGE, lineSplitter, pipelineHealth, removeLeftoverContainers } from './runner';
+import { dockerArgs, dockerRunner, IMAGE, jobVolume, lineSplitter, pipelineHealth, removeJobVolume, removeLeftoverContainers } from './runner';
 
 const steps = pipelineSteps('quick', 'video.mp4');
 const probe = steps[0];
+const features = steps[2];
 const training = steps[5];
 
 const fakeChild = () => Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough() });
@@ -21,6 +22,15 @@ describe('dockerArgs', () => {
     expect(dockerArgs('abc', 'C:\\jobs\\abc', probe)).toEqual([
       'run', '--rm', '--name', 'rr-abc-probe', '-v', 'C:\\jobs\\abc:/job', IMAGE, ...probe.args,
     ]);
+  });
+
+  it('mounts the job volume at /db for the COLMAP database steps only, right after the job folder', () => {
+    expect(jobVolume('abc')).toBe('rr-abc-db');
+    expect(dockerArgs('abc', '/jobs/abc', features)).toEqual([
+      'run', '--rm', '--name', 'rr-abc-features', '-v', '/jobs/abc:/job', '-v', 'rr-abc-db:/db', IMAGE, ...features.args,
+    ]);
+    expect(dockerArgs('abc', '/jobs/abc', probe)).not.toContain('rr-abc-db:/db');
+    expect(dockerArgs('abc', '/jobs/abc', training)).not.toContain('rr-abc-db:/db');
   });
 
   it('gives OpenSplat the GPU', () => {
@@ -137,18 +147,44 @@ describe('pipelineHealth', () => {
   });
 });
 
+describe('removeJobVolume', () => {
+  it('force-removes the job volume', async () => {
+    const calls: string[][] = [];
+    await removeJobVolume('abc', async (_command, args) => {
+      calls.push(args);
+      return 0;
+    });
+    expect(calls).toEqual([['volume', 'rm', '-f', 'rr-abc-db']]);
+  });
+
+  it('never throws, and logs a failure', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(removeJobVolume('abc', async () => 1)).resolves.toBeUndefined();
+    await expect(removeJobVolume('abc', async () => Promise.reject(new Error('no docker')))).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledTimes(2);
+    error.mockRestore();
+  });
+});
+
 describe('removeLeftoverContainers', () => {
-  it('removes every rr- container it finds, and counts them', async () => {
+  it('removes every rr- container and volume it finds, and counts the containers', async () => {
     const calls: string[][] = [];
     const exec = async (_command: string, args: string[]) => {
       calls.push(args);
-      return args[0] === 'ps' ? 'a1\nb2\n\n' : '';
+      if (args[0] === 'ps') return 'a1\nb2\n\n';
+      if (args[0] === 'volume' && args[1] === 'ls') return 'rr-x-db\nrr-y-db\n';
+      return '';
     };
     expect(await removeLeftoverContainers(exec)).toBe(2);
-    expect(calls).toEqual([['ps', '-aq', '--filter', 'name=^rr-'], ['rm', '-f', 'a1'], ['rm', '-f', 'b2']]);
+    expect(calls).toEqual([
+      ['ps', '-aq', '--filter', 'name=^rr-'], ['rm', '-f', 'a1'], ['rm', '-f', 'b2'],
+      ['volume', 'ls', '-q', '--filter', 'name=^rr-'], ['volume', 'rm', '-f', 'rr-x-db'], ['volume', 'rm', '-f', 'rr-y-db'],
+    ]);
   });
 
   it('is 0, not an error, when docker fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(await removeLeftoverContainers(async () => Promise.reject(new Error('no docker')))).toBe(0);
+    error.mockRestore();
   });
 });

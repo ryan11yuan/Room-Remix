@@ -65,12 +65,14 @@ export class JobQueue {
   constructor(
     private readonly root: string,
     private readonly run: StepRunner,
-    options: { log?: (line: string) => void } = {},
+    options: { log?: (line: string) => void; cleanup?: (jobId: string) => Promise<void> } = {},
   ) {
     this.log = options.log ?? console.log;
+    this.cleanup = options.cleanup;
   }
 
   private readonly log: (line: string) => void;
+  private readonly cleanup?: (jobId: string) => Promise<void>;
 
   /** True while a job is building. */
   get busy(): boolean {
@@ -199,6 +201,12 @@ export class JobQueue {
           ? `job ${tag(job.id)} failed ${outcome.code}`
           : `job ${tag(job.id)} canceled`,
     );
+    // Last, so the next job always starts: a failed cleanup is logged, never thrown.
+    try {
+      await this.cleanup?.(job.id);
+    } catch (error) {
+      console.error(`Cleanup for job ${job.id} failed:`, error);
+    }
   }
 
   private async runSteps(job: JobRecord): Promise<Outcome> {
