@@ -20,7 +20,7 @@ export function RoomsHome() {
   const hash = useSyncExternalStore(subscribeHash, () => window.location.hash, () => '');
   const openRoom = roomFromHash(hash);
   const [health, setHealth] = useState<Health | null | undefined>(undefined); // undefined: still asking
-  const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
+  const [rooms, setRooms] = useState<RoomSummary[] | null | undefined>(undefined); // undefined: loading, null: failed
   const [listVersion, setListVersion] = useState(0);
   const openedHere = useRef(false); // Back goes back in history only if this page opened the viewer
 
@@ -76,51 +76,57 @@ export function RoomsHome() {
         <h1 className="text-4xl font-bold">Room Remix</h1>
         <p className="text-lg text-neutral-300">Import a video of your room and walk around it in 3D.</p>
       </header>
-      {health === null && (
+      {health === null && rooms === null && (
         <p className="text-neutral-300">
           Start the room builder with <code className="rounded bg-neutral-800 px-1">pnpm run demo</code>, then open
           http://localhost:8080.
         </p>
       )}
-      {health && (
-        <>
-          <section aria-label="Import a video" className="flex flex-col gap-3">
-            {health.pipeline !== 'ready' && <p className="text-amber-200">{NOT_RUNNING}</p>}
-            {health.pipeline === 'ready' && (build.state.kind === 'idle' || build.state.kind === 'uploading') && (
-              <VideoScanPanel
-                state={build.state}
-                onStart={build.start}
-                onCancel={build.cancel}
-                buttonLabel="Import a video"
-                showPrivacy={false}
-              />
-            )}
-            {(build.state.kind === 'building' || build.state.kind === 'downloading' || build.state.kind === 'failed') && (
-              <VideoScanProgress state={build.state} onCancel={build.cancel} onDismiss={build.dismiss} onRetry={build.retry} />
-            )}
-          </section>
-          <section aria-labelledby="your-rooms" className="flex flex-col gap-3">
-            <h2 id="your-rooms" className="text-xl font-semibold">
-              Your rooms
-            </h2>
-            {rooms === null && <p className="text-neutral-400">Couldn&apos;t load the rooms on this laptop.</p>}
-            {rooms?.length === 0 && <p className="text-neutral-400">No rooms yet. Import a video to make one.</p>}
-            {rooms && rooms.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {rooms.map((room) => (
-                  <li key={room.id}>
-                    <button
-                      onClick={() => open(room.id)}
-                      className="flex min-h-11 w-full items-center rounded-lg border border-neutral-800 px-4 text-left hover:border-neutral-600"
-                    >
-                      {roomLabel(room)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
+      {health === undefined && (
+        <section aria-label="Import a video" className="flex flex-col gap-3">
+          <p className="text-neutral-400">Checking the room builder…</p>
+        </section>
+      )}
+      {(health || (health === null && rooms !== null)) && (
+        <section aria-label="Import a video" className="flex flex-col gap-3">
+          {(!health || health.pipeline !== 'ready') && <p className="text-amber-200">{NOT_RUNNING}</p>}
+          {health && health.pipeline === 'ready' && (build.state.kind === 'idle' || build.state.kind === 'uploading') && (
+            <VideoScanPanel
+              state={build.state}
+              onStart={build.start}
+              onCancel={build.cancel}
+              buttonLabel="Import a video"
+              showPrivacy={false}
+            />
+          )}
+          {(build.state.kind === 'building' || build.state.kind === 'downloading' || build.state.kind === 'failed') && (
+            <VideoScanProgress state={build.state} onCancel={build.cancel} onDismiss={build.dismiss} onRetry={build.retry} />
+          )}
+        </section>
+      )}
+      {!(health === null && rooms === null) && (
+        <section aria-labelledby="your-rooms" className="flex flex-col gap-3">
+          <h2 id="your-rooms" className="text-xl font-semibold">
+            Your rooms
+          </h2>
+          {rooms === undefined && <p className="text-neutral-400">Loading your rooms…</p>}
+          {rooms === null && <p className="text-neutral-400">Couldn&apos;t load the rooms on this laptop.</p>}
+          {rooms?.length === 0 && <p className="text-neutral-400">No rooms yet. Import a video to make one.</p>}
+          {rooms && rooms.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {rooms.map((room) => (
+                <li key={room.id}>
+                  <button
+                    onClick={() => open(room.id)}
+                    className="flex min-h-11 w-full items-center rounded-lg border border-neutral-800 px-4 text-left hover:border-neutral-600"
+                  >
+                    {roomLabel(room)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </main>
   );
