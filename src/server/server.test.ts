@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JobView, Quality, RoomSummary } from '@/lib/splatJobs/protocol';
+import type { DetectionsFile, JobView, Quality, RoomSummary } from '@/lib/splatJobs/protocol';
 import { createServer, type Jobs } from './server';
 
 function fakeJobs(root: string) {
@@ -17,6 +17,8 @@ function fakeJobs(root: string) {
     splat: null as string | null,
     rooms: [] as RoomSummary[],
     cameras: new Map<string, string>(),
+    ready: new Set<string>(),
+    findObjects: async (_dir: string): Promise<DetectionsFile> => ({ frames: [] }),
   };
   const jobs: Jobs = {
     async reserve() {
@@ -43,6 +45,7 @@ function fakeJobs(root: string) {
     splatPath: (id) => (state.views.get(id)?.state === 'ready' ? state.splat : null),
     rooms: () => state.rooms,
     camerasPath: (id) => state.cameras.get(id) ?? null,
+    jobDir: (id) => (state.ready.has(id) ? path.join(root, id) : null),
   };
   return { jobs, state };
 }
@@ -62,7 +65,7 @@ beforeEach(async () => {
   await writeFile(path.join(out, '_next', 'static', 'app.js'), 'console.log(1)');
   await writeFile(path.join(tmp, 'secret.txt'), 'secret');
   fake = fakeJobs(path.join(tmp, 'jobs'));
-  server = createServer({ jobs: fake.jobs, health: async () => 'no-image', staticDir: out, maxBytes: 64 });
+  server = createServer({ jobs: fake.jobs, health: async () => 'no-image', findObjects: (dir) => fake.state.findObjects(dir), staticDir: out, maxBytes: 64 });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -223,6 +226,28 @@ describe('jobs API', () => {
     const unknown = await fetch(`${base}/api/splat/jobs/nope/cameras`);
     expect(unknown.status).toBe(404);
     expect(await unknown.json()).toEqual({ error: 'no-cameras' });
+  });
+
+  it('serves a room objects detection, 404s for an unknown job, and 500s when detection fails', async () => {
+    fake.state.ready.add('r1');
+    const asked: string[] = [];
+    fake.state.findObjects = async (dir) => {
+      asked.push(dir);
+      return { frames: [] };
+    };
+    const ok = await fetch(`${base}/api/splat/jobs/r1/objects`);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ frames: [] });
+    expect(asked).toEqual([path.join(tmp, 'jobs', 'r1')]);
+    expect((await fetch(`${base}/api/splat/jobs/nope/objects`)).status).toBe(404);
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    fake.state.findObjects = async () => {
+      throw new Error('model broke');
+    };
+    const bad = await fetch(`${base}/api/splat/jobs/r1/objects`);
+    quiet.mockRestore();
+    expect(bad.status).toBe(500);
+    expect(await bad.json()).toEqual({ error: 'detect-failed' });
   });
 
   it('answers unknown API paths and methods with 404 JSON', async () => {

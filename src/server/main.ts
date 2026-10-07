@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { JobQueue } from './jobs';
 import { dockerRunner, pipelineHealth, removeJobVolume, removeLeftoverContainers } from './runner';
+import { createObjectFinder, transformersDetector } from './detect';
 import { createServer } from './server';
 
 /** Spec 2026-10-06 §3: job folders live outside the repo, which is in OneDrive. */
@@ -38,7 +39,7 @@ async function main(): Promise<void> {
   await queue.init();
   const removed = await removeLeftoverContainers();
   if (removed > 0) console.log(`Removed ${removed} leftover pipeline container${removed === 1 ? '' : 's'}.`);
-  const server = createServer({ jobs: queue, health: pipelineHealth, busy: () => queue.busy, staticDir: STATIC_DIR });
+  const server = createServer({ jobs: queue, health: pipelineHealth, busy: () => queue.busy, staticDir: STATIC_DIR, findObjects: createObjectFinder(transformersDetector()) });
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Room Remix demo server. Job folders: ${JOBS_DIR}`);
     for (const { address, name } of lanAddresses()) console.log(`  On a phone on this Wi-Fi: http://${address}:${PORT}  (${name})`);

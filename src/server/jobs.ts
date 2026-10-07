@@ -167,6 +167,11 @@ export class JobQueue {
     return this.jobs.get(id)?.state === 'ready' ? path.join(this.dirOf(id), CAMERAS) : null;
   }
 
+  /** A ready job's folder (for its frames and detections.json); null otherwise. */
+  jobDir(id: string): string | null {
+    return this.jobs.get(id)?.state === 'ready' ? this.dirOf(id) : null;
+  }
+
   /** Resolves once nothing is building or waiting. */
   async settled(): Promise<void> {
     while (this.current) await this.building;

@@ -1,4 +1,4 @@
-import { isQuality, MAX_VIDEO_BYTES, type CameraPose, type Health, type JobView, type Quality, type RoomSummary } from './protocol';
+import { isQuality, MAX_VIDEO_BYTES, readDetections, type CameraPose, type DetectionsFile, type Health, type JobView, type Quality, type RoomSummary } from './protocol';
 
 /** Same origin: the demo server serves both the app and this API (spec 2026-10-06 §5). */
 export const API = '/api/splat';
@@ -143,6 +143,17 @@ export async function fetchCameras(id: string, fetchFn: Fetch = browserFetch): P
     const res = await fetchFn(`${jobUrl(id)}/cameras`, { cache: 'no-store' });
     if (!res.ok) return null;
     return readCameras(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+/** The room's detected objects, per frame. The first call for a room runs the detector (about a minute); null on any failure. */
+export async function fetchDetections(id: string, fetchFn: Fetch = browserFetch): Promise<DetectionsFile | null> {
+  try {
+    const res = await fetchFn(`${jobUrl(id)}/objects`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return readDetections(await res.json());
   } catch {
     return null;
   }

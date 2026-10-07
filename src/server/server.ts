@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { isQuality, MAX_VIDEO_BYTES, type JobView, type PipelineHealth, type Quality, type RoomSummary } from '@/lib/splatJobs/protocol';
+import { isQuality, MAX_VIDEO_BYTES, type DetectionsFile, type JobView, type PipelineHealth, type Quality, type RoomSummary } from '@/lib/splatJobs/protocol';
 
 /** What the server needs from the job queue (JobQueue satisfies it). */
 export interface Jobs {
@@ -16,6 +16,7 @@ export interface Jobs {
   splatPath(id: string): string | null;
   rooms(): RoomSummary[];
   camerasPath(id: string): string | null;
+  jobDir(id: string): string | null;
 }
 
 export type ServerOptions = {
@@ -26,6 +27,7 @@ export type ServerOptions = {
   /** The static export (out/). */
   staticDir: string;
   maxBytes?: number;
+  findObjects?: (dir: string) => Promise<DetectionsFile>;
 };
 
 const VIDEO_EXT: Record<string, string> = {
@@ -61,7 +63,7 @@ function sendJson(res: Res, status: number, body: unknown): void {
 }
 
 /** The demo server (spec 2026-10-06 §3, §5): the static export plus the /api/splat jobs API. */
-export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VIDEO_BYTES }: ServerOptions): http.Server {
+export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VIDEO_BYTES, findObjects }: ServerOptions): http.Server {
   const root = path.resolve(staticDir);
 
   async function upload(req: Req, res: Res, quality: string | null): Promise<void> {
@@ -125,6 +127,17 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     await pipeline(createReadStream(file), res);
   }
 
+  async function sendObjects(res: Res, id: string): Promise<void> {
+    const dir = jobs.jobDir(id);
+    if (!dir || !findObjects) return sendJson(res, 404, { error: 'not-found' });
+    try {
+      return sendJson(res, 200, await findObjects(dir));
+    } catch (error) {
+      console.error(error);
+      return sendJson(res, 500, { error: 'detect-failed' });
+    }
+  }
+
   async function api(req: Req, res: Res, url: URL, parts: string[]): Promise<void> {
     const [, resource, id, sub] = parts; // parts[0] is 'splat'
     const method = req.method ?? 'GET';
@@ -141,6 +154,7 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     if (resource === 'jobs' && id && sub === 'splat' && method === 'GET') return sendSplat(res, id);
     if (resource === 'rooms' && !id && method === 'GET') return sendJson(res, 200, jobs.rooms());
     if (resource === 'jobs' && id && sub === 'cameras' && method === 'GET') return sendCameras(res, id);
+    if (resource === 'jobs' && id && sub === 'objects' && method === 'GET') return sendObjects(res, id);
     req.resume();
     return sendJson(res, 404, { error: 'not-found' });
   }

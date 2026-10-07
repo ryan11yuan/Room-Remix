@@ -48,3 +48,26 @@ export type CameraPose = {
   position: [number, number, number];
   rotation: [[number, number, number], [number, number, number], [number, number, number]];
 };
+
+/** One object the detector saw in one frame; `box` is [x0, y0, x1, y1] in that image's pixels (spec 2026-10-07 sound §3.1). */
+export type Detection = { label: string; score: number; box: [number, number, number, number] };
+export type FrameDetections = { img_name: string; width: number; height: number; detections: Detection[] };
+export type DetectionsFile = { frames: FrameDetections[] };
+
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** The objects file as the server sends it; malformed frames and detections are dropped. Null unless it has a frames array. */
+export function readDetections(data: unknown): DetectionsFile | null {
+  const frames = (data as { frames?: unknown } | null)?.frames;
+  if (!Array.isArray(frames)) return null;
+  const out: FrameDetections[] = [];
+  for (const f of frames as Partial<FrameDetections>[]) {
+    if (!f || typeof f.img_name !== 'string' || !finite(f.width) || !finite(f.height) || !Array.isArray(f.detections)) continue;
+    const detections = f.detections.filter(
+      (d): d is Detection =>
+        !!d && typeof d.label === 'string' && finite(d.score) && Array.isArray(d.box) && d.box.length === 4 && d.box.every(finite),
+    );
+    out.push({ img_name: f.img_name, width: f.width, height: f.height, detections });
+  }
+  return { frames: out };
+}
