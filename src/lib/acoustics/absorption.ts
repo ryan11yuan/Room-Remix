@@ -1,6 +1,7 @@
 import { clippedArea, fixRect, fixSurface, rectContains, surfaceSize, toSurfaceCoords } from '@/lib/room/geometry';
 import { SURFACE_IDS, type Fix, type RoomState, type SurfaceId, type Vec3 } from '@/lib/room/types';
 import { NUM_BANDS, type Bands } from './bands';
+import { objectAbsorption } from './objects';
 import { FURNISHING_ALPHA_PER_FLOOR_M2, MATERIALS } from './materials';
 
 export type SurfaceLookup = (surface: SurfaceId, point: Vec3) => { alpha: Bands; fix: boolean };
@@ -24,6 +25,7 @@ export function makeSurfaceLookup(room: RoomState): SurfaceLookup {
  * Total absorption area Σ S·α per band (m²), including fixes, furnishing and calibration.
  * The calibration factor f scales the room as measured (surfaces and furnishing). Each switched-on fix then
  * replaces the calibrated surface it covers: A = f·(Σ S·α_surface + floor·α_furnishing) + Σ S_fix·(α_fix − f·α_under).
+ * Detected objects add their own absorption on top (spec 2026-10-07 sound §4).
  */
 export function absorptionArea(room: RoomState): Bands {
   const f = room.calibration.factor;
@@ -45,6 +47,11 @@ export function absorptionArea(room: RoomState): Bands {
     const base = MATERIALS[room.surfaces[surface]].alpha;
     const alpha = fixAlpha(fix);
     for (let b = 0; b < NUM_BANDS; b++) total[b] += area * (alpha[b] - f * base[b]);
+  }
+
+  for (const object of room.objects ?? []) {
+    const a = objectAbsorption(object);
+    for (let b = 0; b < NUM_BANDS; b++) total[b] += a[b];
   }
 
   return total;

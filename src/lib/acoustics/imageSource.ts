@@ -1,6 +1,7 @@
 import type { Dims, SurfaceId, Vec3 } from '@/lib/room/types';
 import type { SurfaceLookup } from './absorption';
 import { AIR_M, NUM_BANDS, SPEED_OF_SOUND, type Bands } from './bands';
+import { OCCLUSION_GAIN, segmentHitsBox, type Box } from './objects';
 
 export type ImageSourceInput = {
   dims: Dims;
@@ -9,6 +10,7 @@ export type ImageSourceInput = {
   maxOrder: number;
   lookup: SurfaceLookup;
   air?: Bands;
+  blockers?: Box[]; // objects that dim the direct sound when they sit between source and listener
 };
 
 export type Arrival = {
@@ -104,10 +106,15 @@ function trace(input: ImageSourceInput, n: [number, number, number]): Arrival {
     hitFix.push(fix);
   }
 
+  const order = Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]);
+  if (order === 0 && input.blockers?.some((box) => segmentHitsBox(source, listener, box))) {
+    for (let b = 0; b < NUM_BANDS; b++) reflection[b] *= OCCLUSION_GAIN[b];
+  }
+
   const distance = Math.hypot(dir.x, dir.y, dir.z);
   return {
     image,
-    order: Math.abs(n[0]) + Math.abs(n[1]) + Math.abs(n[2]),
+    order,
     distance,
     delay: distance / SPEED_OF_SOUND,
     reflection,

@@ -5,6 +5,7 @@ import { earResponse, listenerYaw } from './binaural';
 import { diffuseBounceFactor, diffuseGains } from './diffuse';
 import { applyBandMasks, bandMasks, bandNoise, fadeTail, highPass, nextPow2 } from './dsp';
 import { computeImageSources, type Arrival } from './imageSource';
+import { blockingBoxes } from './objects';
 import { toRayPath, type RayPath } from './rays';
 import { eyring, midRt60, roomVolume, totalSurfaceArea } from './reverbTime';
 
@@ -44,6 +45,7 @@ export function simulateRoom(room: RoomState, sampleRate: number): AcousticsResu
     listener: room.listener,
     maxOrder: IR_MAX_ORDER,
     lookup: makeSurfaceLookup(room),
+    blockers: blockingBoxes(room.objects),
   });
 
   let transition = MAX_TRANSITION_SECONDS;

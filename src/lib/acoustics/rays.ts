@@ -4,6 +4,7 @@ import { makeSurfaceLookup } from './absorption';
 import type { Bands } from './bands';
 import { diffuseBounceFactor, diffuseGains } from './diffuse';
 import { computeImageSources, type Arrival } from './imageSource';
+import { blockingBoxes } from './objects';
 
 export const RAY_ORDER = 4;
 export const MAX_RAYS = 150;
@@ -42,6 +43,7 @@ export function computeRayPaths(room: RoomState, maxOrder = RAY_ORDER, maxPaths 
     listener: room.listener,
     maxOrder,
     lookup: makeSurfaceLookup(room),
+    blockers: blockingBoxes(room.objects),
   })
     .map((a) => toRayPath(a, bounce))
     .sort((p, q) => q.energy - p.energy)
