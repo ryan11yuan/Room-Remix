@@ -106,7 +106,11 @@ A table, keyed by label:
 - **Each candidate is scored over all its listeners** on three things:
   - **Coverage (40 %):** the spread (standard deviation, dB) of the mid-band level across the listeners. The level counts the direct sound (with blocking), image sources to order 2, and the reverberant level from the room's reverb time. 0 dB spread scores 1; 6 dB or more scores 0.
   - **Clarity (35 %):** the mean C50 across the listeners: energy before 50 ms against after, the late part from the reverb time. −5 dB scores 0; +5 dB scores 1.
-  - **Even bass (25 %):** the box's room modes up to 200 Hz, summed for that speaker and each listener from 30 to 150 Hz. The score is the spread (dB) of the response across frequency, averaged over the listeners. 3 dB scores 1; 12 dB scores 0.
+  - **Even bass (25 %):** the box's room modes up to 200 Hz, summed for that speaker and each listener from 30 to 150 Hz. Two things count against it:
+    - the spread (dB) of the response across frequency, averaged over the listeners;
+    - the bass boost at the speaker's spot (dB, only when positive): its mean squared mode shape against the room's average. This is what makes corners and walls boomy.
+
+    3 dB of the two together scores 1; 12 dB scores 0.
 - **Score:** the weighted sum × 100. The weights can be retuned on the real room so the best spot is believable.
 - **Shown:**
   - a heat map on the floor, red through yellow to green, as a translucent texture on a plane just above the floor, drawn after the splat;
