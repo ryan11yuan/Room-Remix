@@ -7,7 +7,7 @@ import type { CameraPose } from '@/lib/splatJobs/protocol';
 import { anglesOf, lookDirection, MOVE_KEYS, moveStep, turn, type Angles } from './controls';
 import { fallbackView, viewFromCameras, type StartView } from './view';
 
-const BACKGROUND = 0x0a0a0a;
+const BACKGROUND = 0x100904; // walnut, the page's canvas colour (DESIGN.md)
 const CLICK_SLOP_PX = 5; // a press that moved further than this was a drag (spin), not a click (look around)
 
 /** The splat viewer (spec 2026-10-07 §4), Memento-style: spin and zoom, W/A/S/D and Q/E, click to look around. Browser only. */

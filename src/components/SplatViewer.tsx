@@ -3,13 +3,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { downloadSplat, fetchCameras } from '@/lib/splatJobs/client';
 import { ViewerScene } from '@/lib/viewer/ViewerScene';
+import { Arrow } from './Arrow';
 import { markWebGLUnavailable, useWebGL } from './useWebGL';
 
-const HELP = 'Drag to spin · Scroll to zoom · W A S D to move · Q / E down and up · Click to look around, Esc to stop';
+/** The controls, as keycap and what it does. */
+const HINTS: readonly [string, string][] = [
+  ['Drag', 'Spin'],
+  ['Scroll', 'Zoom'],
+  ['W A S D', 'Move'],
+  ['Q / E', 'Down / up'],
+  ['Click', 'Look around'],
+  ['Esc', 'Stop looking'],
+];
 type Status = 'loading' | 'ready' | 'error';
 
-/** One room, full screen (spec 2026-10-07 §4). */
-export function SplatViewer({ roomId, onBack }: { roomId: string; onBack: () => void }) {
+/** One room, full screen (spec 2026-10-07 §4). `title` is the room's label from the list, when the page has it. */
+export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?: string; onBack: () => void }) {
   const webgl = useWebGL();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>('loading');
@@ -55,25 +64,62 @@ export function SplatViewer({ roomId, onBack }: { roomId: string; onBack: () => 
   const message = !webgl
     ? "This browser can't show 3D."
     : status === 'loading'
-      ? 'Loading your room…'
+      ? 'Loading your room'
       : status === 'error'
         ? "Couldn't load this room."
         : '';
 
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-950">
-      {webgl && <canvas ref={canvasRef} className="block h-full w-full" aria-label="Your room in 3D" />}
-      <button
-        onClick={onBack}
-        className="absolute left-4 top-4 inline-flex min-h-11 items-center rounded-md border border-neutral-700 bg-neutral-950/80 px-4"
-      >
-        Back
-      </button>
-      <p role="status" className="pointer-events-none absolute inset-x-0 top-1/2 text-center text-lg text-neutral-200 empty:hidden">
-        {message}
-      </p>
+    <div className="darkroom fixed inset-0 z-50">
+      {webgl && (
+        <canvas
+          ref={canvasRef}
+          className={`block h-full w-full ${status === 'ready' ? 'motion-safe:animate-[develop_1.8s_var(--ease-develop)_both]' : 'opacity-0'}`}
+          aria-label="Your room in 3D"
+        />
+      )}
+      {/* Shade under the chrome so cream type reads over a bright room. Not decoration: it is where the labels sit. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-linear-to-b from-walnut/85 to-transparent" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-walnut/85 to-transparent" />
+
+      <header className="absolute left-0 top-0 flex items-center gap-5 p-4 sm:p-6">
+        <button onClick={onBack} className="ghost">
+          <Arrow to="left" />
+          Back
+        </button>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <span className="text-ui">Room Remix</span>
+          {title && <span className="truncate text-label text-cream/70">{title}</span>}
+        </div>
+      </header>
+
+      {message && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <div className="flex w-72 max-w-full flex-col gap-4">
+            <p role="status" className="text-heading-sm">
+              {message}
+            </p>
+            {status === 'loading' && webgl && (
+              <div aria-hidden className="h-px w-full overflow-hidden bg-cork">
+                <div className="h-full w-1/3 bg-cream motion-safe:animate-[indeterminate_1.6s_ease-in-out_infinite]" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {status === 'ready' && webgl && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-4 px-4 text-center text-sm text-neutral-300">{HELP}</p>
+        <ul
+          aria-label="Controls"
+          className="pointer-events-none absolute bottom-0 left-0 flex max-w-full flex-wrap gap-x-5 gap-y-3 p-4 text-label sm:p-6 lg:max-w-[62%]"
+        >
+          {HINTS.map(([key, does]) => (
+            <li key={key} className="flex items-center gap-2">
+              <kbd className="rounded-full border border-cream/60 px-2.5 py-1.5 font-[inherit] text-micro">{key}</kbd>
+              <span>{does}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

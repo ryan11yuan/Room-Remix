@@ -1,10 +1,68 @@
 @import "tailwindcss";
 
-/* A visible focus ring on every control for keyboard users. Parts that draw their own ring (the top view) use outline-none. */
+/*
+ * The darkroom palette (DESIGN.md): warm walnut dark, cream type, one ember for credit lines only.
+ * Depth is the two-step surface stack walnut -> bark; no shadows anywhere.
+ */
+@theme {
+  --color-walnut: #100904;
+  --color-bark: #382416;
+  --color-cork: #40372e;
+  --color-driftwood: #6c5f51;
+  --color-cream: #ffedd7;
+  --color-ember: #dc5000;
+
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+  --text-label: 12px;
+  --text-label--line-height: 1.2;
+  --text-ui: 14px;
+  --text-ui--line-height: 1.1;
+  --text-sub: 18px;
+  --text-sub--line-height: 1.3;
+  --text-heading-sm: 24px;
+  --text-heading-sm--line-height: 1.09;
+  --text-body: 29px;
+  --text-body--line-height: 1.26;
+  --text-heading: 41px;
+  --text-heading--line-height: 0.9;
+  --text-display: 51px;
+  --text-display--line-height: 0.9;
+
+  --radius-card: 12px;
+  --radius-ghost: 22.5px;
+  --radius-pill: 36px;
+
+  --ease-develop: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The Inter face comes from layout.tsx as --font-inter. Only the darkroom surfaces use it; the old acoustics pages keep the system face. */
+@theme inline {
+  --font-halyard: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scrollbar-color: var(--color-cork) var(--color-walnut);
+    scrollbar-width: thin;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  ::selection {
+    background: var(--color-bark);
+    color: var(--color-cream);
+  }
+
+  /* A visible focus ring on every control for keyboard users. Parts that draw their own ring (the top view) use outline-none. */
   :focus-visible {
-    outline: 2px solid var(--color-neutral-300, #d4d4d4);
-    outline-offset: 2px;
+    outline: 1px solid var(--color-cream);
+    outline-offset: 3px;
   }
 
   /* Below lg the room page's control bar is fixed to the bottom of the screen: a control that takes focus is scrolled
@@ -16,12 +74,111 @@
   }
 }
 
-/* The building row's bar before any step reports progress: a third-width bar sliding across its track. */
+@layer components {
+  /* Everything in the darkroom is a museum label: uppercase, weight 500, no tracking. Description opts out with .voice. */
+  .darkroom {
+    font-family: var(--font-halyard);
+    font-feature-settings: "ss01" on, "cv11" on;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--color-cream);
+    background: var(--color-walnut);
+  }
+
+  /* The one conversational voice: mixed case, weight 400. */
+  .voice {
+    font-weight: 400;
+    text-transform: none;
+  }
+
+  /* The one filled action of a section: bark pill, cream type. */
+  .pill {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-bark);
+    padding: 14px 24px;
+    font-size: var(--text-ui);
+    line-height: 1;
+    color: var(--color-cream);
+    transition:
+      background-color 240ms var(--ease-develop),
+      color 240ms var(--ease-develop);
+  }
+  .pill:hover {
+    background: var(--color-cream);
+    color: var(--color-walnut);
+  }
+
+  /* Secondary actions: a cream line, no fill. */
+  .ghost {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--color-cream);
+    border-radius: var(--radius-ghost);
+    padding: 7.5px 18px;
+    font-size: var(--text-label);
+    line-height: 1;
+    color: var(--color-cream);
+    transition:
+      background-color 240ms var(--ease-develop),
+      color 240ms var(--ease-develop);
+  }
+  .ghost:hover {
+    background: var(--color-cream);
+    color: var(--color-walnut);
+  }
+  .pill:disabled,
+  .ghost:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  .pill:disabled:hover {
+    background: var(--color-bark);
+    color: var(--color-cream);
+  }
+  .ghost:disabled:hover {
+    background: transparent;
+    color: var(--color-cream);
+  }
+
+  /* Plain text links: cream, underlined below the baseline. */
+  .text-link {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  /* The only divider: a dashed hairline in cork. */
+  .rule {
+    border-top: 1px dashed var(--color-cork);
+  }
+}
+
+/* The build bar before any step reports progress: a third-width bar sliding across its track. */
 @keyframes indeterminate {
   from {
     transform: translateX(-100%);
   }
   to {
     transform: translateX(300%);
+  }
+}
+
+/* A room comes up out of the dark like a print in the developer tray: blurred and dim, then sharp. */
+@keyframes develop {
+  from {
+    opacity: 0;
+    filter: blur(18px) brightness(0.6);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0) brightness(1);
   }
 }

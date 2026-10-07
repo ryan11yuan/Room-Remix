@@ -68,7 +68,10 @@ export function RoomsHome() {
     }
   };
 
-  if (openRoom) return <SplatViewer roomId={openRoom} onBack={back} />;
+  if (openRoom) {
+    const shown = rooms?.find((room) => room.id === openRoom);
+    return <SplatViewer roomId={openRoom} title={shown && roomLabel(shown)} onBack={back} />;
+  }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-8 px-4 py-10">
