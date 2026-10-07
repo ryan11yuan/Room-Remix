@@ -7,7 +7,7 @@ import type { Quality } from '@/lib/splatJobs/protocol';
 const buttonClass = 'inline-flex min-h-11 items-center rounded-md border border-neutral-700 px-3 disabled:opacity-40';
 const TIPS = 'Walk slowly around the room for 30–60 seconds. Move sideways rather than turning on the spot, and keep the light good.';
 const PRIVACY = 'Your video is sent to this laptop to build the room, and stays there.';
-const QUALITY_LABELS: Record<Quality, string> = { quick: 'Quick: a few minutes', best: 'Best: sharper, much slower' };
+const QUALITY_LABELS: Record<Quality, string> = { quick: 'Quick: about 5 minutes', best: 'Best: sharper, about half an hour' };
 
 function Bar({ fraction, label }: { fraction: number | null; label: string }) {
   if (fraction === null) {
