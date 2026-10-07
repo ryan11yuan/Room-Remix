@@ -47,5 +47,11 @@ with ffmpeg, COLMAP and OpenSplat in Docker (design: `docs/superpowers/specs/202
    set to Private.
 5. Open the printed `http://<laptop address>:8080` on the phone.
 
+If the image build stalls or Docker stops answering, rebuild with fewer parallel compile jobs (slower, but it needs less
+memory): `docker build --build-arg BUILD_JOBS=1 -t room-remix-splat pipeline`.
+
+If the venue Wi-Fi keeps devices apart, turn on Windows Mobile Hotspot on the laptop and connect the phone to it; the
+address printed for the hotspot adapter works the same way.
+
 `npm run demo:serve` restarts the server without rebuilding the app. Job folders (video, frames, COLMAP model, splat,
 logs) are kept in `%LOCALAPPDATA%\RoomRemix\jobs`; set `ROOM_REMIX_JOBS_DIR` or `PORT` to change where and which port.
