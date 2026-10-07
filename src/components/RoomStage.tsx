@@ -95,6 +95,8 @@ export function RoomStage({ id, room, children }: { id: string; room: RoomSummar
           )}
           {/* Warm grading: whites come up as cream, the way the darkroom prints them. */}
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-cream mix-blend-multiply" />
+          {/* and a step down, so the brightest wall stays under the cream type */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-walnut/15" />
           <div aria-hidden className="vignette pointer-events-none absolute inset-0" />
         </div>
       </div>

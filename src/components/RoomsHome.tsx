@@ -147,7 +147,10 @@ function NewestCard({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined
 
 function Hero({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOpen: (id: string) => void }) {
   return (
-    <section aria-label="Room Remix" className="relative flex min-h-svh flex-col px-4 pb-6 pt-24 sm:px-6 md:pr-14">
+    <section
+      aria-label="Room Remix"
+      className="relative flex min-h-svh flex-col px-4 pb-6 pt-24 sm:px-6 md:bg-[linear-gradient(to_left,rgb(16_9_4/0.85),rgb(16_9_4/0.4)_28%,transparent_45%)] md:pr-14"
+    >
       <p className="text-label">Made from one video. Built on this laptop.</p>
       <div className="mt-4 flex items-end justify-between gap-8">
         <h1 className="text-[clamp(64px,min(13.5vw,21svh),208px)] leading-[0.9]">

@@ -91,15 +91,14 @@
   }
 
   /* The void closing in at the edges of the hero's room, where the type sits; the centre stays clear for the room. */
-  /* --p (0..1, set from the scroll) tightens the ellipse, so at the reveal the room sits alone in the dark. */
+  /* --p (0..1, set on the stage from the scroll and inherited here) tightens the ellipse, so at the reveal the room sits alone in the dark. */
   .vignette {
-    --p: 0;
     background:
       radial-gradient(
-        ellipse calc(62% - 24% * var(--p)) calc(64% - 18% * var(--p)) at 50% 50%,
+        ellipse calc(62% - 24% * var(--p, 0)) calc(64% - 18% * var(--p, 0)) at 50% 50%,
         transparent 0%,
         transparent 38%,
-        rgb(16 9 4 / calc(0.6 + 0.3 * var(--p))) 72%,
+        rgb(16 9 4 / calc(0.6 + 0.3 * var(--p, 0))) 72%,
         var(--color-walnut) 100%
       ),
       linear-gradient(to bottom, rgb(16 9 4 / 0.7), transparent 22%, transparent 70%, rgb(16 9 4 / 0.85));
@@ -108,10 +107,10 @@
     .vignette {
       background:
         radial-gradient(
-          ellipse calc(90% - 20% * var(--p)) calc(46% - 12% * var(--p)) at 50% 50%,
+          ellipse calc(90% - 20% * var(--p, 0)) calc(46% - 12% * var(--p, 0)) at 50% 50%,
           transparent 0%,
           transparent 45%,
-          rgb(16 9 4 / calc(0.55 + 0.3 * var(--p))) 80%,
+          rgb(16 9 4 / calc(0.55 + 0.3 * var(--p, 0))) 80%,
           var(--color-walnut) 100%
         ),
         linear-gradient(to bottom, rgb(16 9 4 / 0.75), transparent 30%, transparent 62%, rgb(16 9 4 / 0.9));
