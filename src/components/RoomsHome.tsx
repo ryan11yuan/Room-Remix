@@ -6,6 +6,7 @@ import type { Health, RoomSummary } from '@/lib/splatJobs/protocol';
 import { roomFromHash, roomHash, roomLabel } from '@/lib/viewer/rooms';
 import { Arrow } from './Arrow';
 import { HomeImport } from './HomeImport';
+import { RoomSketch } from './RoomSketch';
 import { RoomStage } from './RoomStage';
 import { SplatViewer } from './SplatViewer';
 import { useVideoScan } from './useVideoScan';
@@ -36,6 +37,18 @@ const dateOf = (room: RoomSummary) =>
   new Date(room.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const timeOf = (room: RoomSummary) => new Date(room.createdAt).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
 const qualityOf = (room: RoomSummary) => (room.quality === 'best' ? 'Best' : 'Quick');
+
+/** Newest first, grouped by the day they were made; each keeps its serial number (the oldest room is 01). */
+function byDay(rooms: RoomSummary[]): { day: string; entries: { room: RoomSummary; serial: number }[] }[] {
+  const days: { day: string; entries: { room: RoomSummary; serial: number }[] }[] = [];
+  rooms.forEach((room, i) => {
+    const day = dateOf(room);
+    const entry = { room, serial: rooms.length - i };
+    if (days.at(-1)?.day === day) days.at(-1)!.entries.push(entry);
+    else days.push({ day, entries: [entry] });
+  });
+  return days;
+}
 
 /** Scroll to a section without adding to the history: the hash belongs to the viewer (`#room=<id>`). */
 function goTo(event: MouseEvent<HTMLAnchorElement>, id: SectionId) {
@@ -80,9 +93,9 @@ function TopNav() {
                   href={`#${id}`}
                   onClick={(e) => goTo(e, id)}
                   aria-current={current === id ? 'location' : undefined}
-                  className={`inline-flex min-h-11 items-center border-b border-dashed ${current === id ? 'border-cream' : 'border-transparent'}`}
+                  className="inline-flex min-h-11 items-center"
                 >
-                  {name}
+                  <span className={`border-b border-dashed pb-1 ${current === id ? 'border-cream' : 'border-transparent'}`}>{name}</span>
                 </a>
               </li>
             ))}
@@ -136,20 +149,26 @@ function Hero({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOp
   return (
     <section aria-label="Room Remix" className="relative flex min-h-svh flex-col px-4 pb-6 pt-24 sm:px-6 md:pr-14">
       <p className="text-label">Made from one video. Built on this laptop.</p>
-      <h1 className="mt-4 text-[clamp(64px,min(13.5vw,21svh),208px)] leading-[0.9]">
-        Room
-        <br />
-        Remix
-      </h1>
+      <div className="mt-4 flex items-end justify-between gap-8">
+        <h1 className="text-[clamp(64px,min(13.5vw,21svh),208px)] leading-[0.9]">
+          Room
+          <br />
+          Remix
+        </h1>
+        <p className="voice hidden max-w-[11em] pb-2 text-body md:block">Import a video of your room and walk around it in 3D.</p>
+      </div>
       <div className="mt-auto flex flex-col items-start justify-between gap-4 pt-10 sm:flex-row sm:items-end">
         <NewestCard rooms={rooms} onOpen={onOpen} />
         <a
           href="#import"
           onClick={(e) => goTo(e, 'import')}
-          className="hidden items-center gap-3 rounded-card border border-cork bg-walnut/75 px-5 py-4 text-label transition-colors duration-200 ease-develop hover:border-cream sm:inline-flex"
+          className="hidden flex-col gap-3 rounded-card border border-cork bg-walnut/75 p-4 text-label transition-colors duration-200 ease-develop hover:border-cream sm:flex"
         >
-          Import a video
-          <Arrow to="down" />
+          <RoomSketch className="w-36" />
+          <span className="flex items-center justify-between gap-3">
+            Import a video
+            <Arrow to="down" />
+          </span>
         </a>
       </div>
     </section>
@@ -169,7 +188,7 @@ function Reveal() {
           <br />a video.
         </h2>
         <p className="voice text-body lg:col-span-3 lg:col-start-10 lg:self-center">
-          Import a video of your room and walk around it in 3D. Every room here was built on this laptop, from one phone video.
+          Every room here was built on this laptop, from one phone video.
         </p>
       </div>
       <ol aria-label="How a video becomes a room" className="grid grid-cols-2 gap-x-4.5 gap-y-6 lg:grid-cols-4">
@@ -205,22 +224,32 @@ function RoomsList({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined;
         </p>
       )}
       {rooms && rooms.length > 0 && (
-        <ul className="flex flex-col">
-          {rooms.map((room, i) => (
-            <li key={room.id} className="rule">
-              <button
-                onClick={() => onOpen(room.id)}
-                aria-label={`Enter the room from ${roomLabel(room)}`}
-                className="group grid w-full grid-cols-[3rem_1fr_auto] items-center gap-x-4.5 gap-y-1 py-6 text-left transition-colors duration-200 ease-develop hover:bg-bark/50 sm:grid-cols-[4rem_1fr_8rem_auto] sm:px-2"
-              >
-                <span className="text-label text-cream/70">{pad(rooms.length - i)}</span>
-                <span className="text-heading-sm">{`${dateOf(room)}, ${timeOf(room)}`}</span>
-                <span className="col-start-2 row-start-2 text-label text-cream/70 sm:col-start-3 sm:row-start-1">{qualityOf(room)}</span>
-                <span className="col-start-3 row-span-2 row-start-1 inline-flex items-center gap-3 text-label sm:col-start-4 sm:row-span-1">
-                  <span className="hidden sm:inline">Enter</span>
-                  <Arrow to="right" className="transition-transform duration-300 ease-develop group-hover:translate-x-1" />
-                </span>
-              </button>
+        <ul className="flex flex-col gap-10">
+          {byDay(rooms).map(({ day, entries }) => (
+            <li key={day}>
+              <h3 className="pb-3 text-label text-cream/70">{day}</h3>
+              <ul className="flex flex-col">
+                {entries.map(({ room, serial }) => (
+                  <li key={room.id} className="rule">
+                    <button
+                      onClick={() => onOpen(room.id)}
+                      aria-label={`Enter the room from ${roomLabel(room)}`}
+                      className="group grid w-full grid-cols-[3rem_1fr_auto] items-center gap-x-4.5 py-5 text-left transition-colors duration-200 ease-develop hover:bg-bark/50 sm:grid-cols-[4rem_1fr_8rem_auto] sm:px-2"
+                    >
+                      <span className="text-label text-cream/70 tabular-nums">{pad(serial)}</span>
+                      <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                        <span className="text-heading-sm tabular-nums">{timeOf(room)}</span>
+                        <span className="text-label text-cream/70 sm:hidden">{qualityOf(room)}</span>
+                      </span>
+                      <span className="hidden text-label text-cream/70 sm:block">{qualityOf(room)}</span>
+                      <span className="inline-flex items-center gap-3 text-label">
+                        <span className="hidden sm:inline">Enter</span>
+                        <Arrow to="right" className="transition-transform duration-300 ease-develop group-hover:translate-x-1" />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>
@@ -308,7 +337,7 @@ export function RoomsHome() {
     );
   }
 
-  const count = rooms?.length ?? 0;
+  const newest = rooms?.[0];
   return (
     <div className="darkroom min-h-dvh">
       <TopNav />
@@ -316,11 +345,11 @@ export function RoomsHome() {
         aria-hidden
         className="pointer-events-none fixed right-3 top-1/2 z-20 hidden -translate-y-1/2 text-micro [writing-mode:vertical-rl] md:block"
       >
-        {`Room Remix · ${pad(count)} ${count === 1 ? 'room' : 'rooms'} on this laptop`}
+        {newest && rooms ? `Room Remix · No. ${pad(rooms.length)} · ${dateOf(newest)}` : 'Room Remix · Video to 3D'}
       </p>
       <main>
         {/* The hero and the reveal share the plinth, so the nav calls both of them Intro. */}
-        <RoomStage id="intro" room={rooms?.[0] ?? null}>
+        <RoomStage id="intro" room={newest ?? null}>
           <Hero rooms={rooms} onOpen={open} />
           <Reveal />
         </RoomStage>

@@ -19,6 +19,7 @@ export function RoomStage({ id, room, children }: { id: string; room: RoomSummar
   const still = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>('loading');
   const roomId = room?.id ?? null;
   const [shownRoom, setShownRoom] = useState(roomId);
@@ -45,7 +46,9 @@ export function RoomStage({ id, room, children }: { id: string; room: RoomSummar
     onScreen.observe(wrap);
     const scrolled = () => {
       const box = wrap.getBoundingClientRect();
-      scene.setProgress(-box.top / Math.max(box.height - window.innerHeight, 1));
+      const progress = Math.min(1, Math.max(0, -box.top / Math.max(box.height - window.innerHeight, 1)));
+      scene.setProgress(progress);
+      stageRef.current?.style.setProperty('--p', progress.toFixed(3)); // the vignette closes in as the reveal arrives
     };
     const pointed = (event: PointerEvent) =>
       scene.setPointer((event.clientX / window.innerWidth) * 2 - 1, (event.clientY / window.innerHeight) * 2 - 1);
@@ -78,7 +81,7 @@ export function RoomStage({ id, room, children }: { id: string; room: RoomSummar
   return (
     <div ref={wrapRef} id={id} className="relative">
       <div className="absolute inset-0">
-        <div className="sticky top-0 h-svh overflow-hidden">
+        <div ref={stageRef} className="sticky top-0 h-svh overflow-hidden">
           <RoomSketch
             className={`absolute left-1/2 top-1/2 w-[min(78vw,560px)] -translate-x-1/2 -translate-y-1/2 transition-opacity duration-[1400ms] ease-develop ${developed ? 'opacity-0' : 'opacity-100'}`}
           />
@@ -90,6 +93,8 @@ export function RoomStage({ id, room, children }: { id: string; room: RoomSummar
               className={`absolute inset-0 block h-full w-full ${developed ? 'motion-safe:animate-[develop_2.4s_var(--ease-develop)_both]' : 'opacity-0'}`}
             />
           )}
+          {/* Warm grading: whites come up as cream, the way the darkroom prints them. */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-cream mix-blend-multiply" />
           <div aria-hidden className="vignette pointer-events-none absolute inset-0" />
         </div>
       </div>
