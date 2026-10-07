@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { computeRayPaths } from '@/lib/acoustics/rays';
 import { withoutFixes } from '@/lib/acoustics/simulate';
 import type { ListenMode } from '@/lib/audio/mix';
@@ -12,11 +12,15 @@ import type { CameraPreset } from '@/lib/scene/layout';
 import { RoomScene } from '@/lib/scene/RoomScene';
 // Never import SplatLayer here (not even for SPLAT_WARN_COUNT): it would pull Spark into this page's bundle.
 import { ScanController, scanStatusParts, SPLAT_WARN_COUNT, type ScanStatus, type ScanUiStep } from '@/lib/scene/ScanController';
-import { pendingScanRoom, returnPendingScan, subscribePendingScan, takePendingScan } from './pendingScan';
+import { NOT_RUNNING } from '@/lib/splatJobs/panel';
+import { pendingScanRoom, returnPendingScan, setPendingScanForRoom, subscribePendingScan, takePendingScan } from './pendingScan';
 import { TopView } from './TopView';
 import { useReducedMotion } from './useReducedMotion';
+import { useSplatHealth } from './useSplatHealth';
 import { useUnits } from './useUnits';
+import { useVideoScan } from './useVideoScan';
 import { hasWebGL, markWebGLUnavailable, useWebGL } from './useWebGL';
+import { VideoScanPanel, VideoScanProgress } from './VideoScanPanel';
 
 const PRESET_LABELS: Record<CameraPreset, string> = { top: 'Top', corner: 'Corner', listener: "Listener's view" };
 const SPEAKER_HEIGHTS = [
@@ -115,6 +119,16 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     taps: 0,
     hint: null,
   });
+  const health = useSplatHealth();
+  const alignNext = useRef(false); // the next pending scan was built from a video: line it up as soon as it opens
+  const onVideoReady = useCallback((file: File, forRoom: string) => {
+    alignNext.current = true;
+    setPendingScanForRoom(file, forRoom); // opened by the pending-scan effect, which waits while the view is busy
+  }, []);
+  const video = useVideoScan(roomId, onVideoReady);
+  const [videoPanel, setVideoPanel] = useState(false);
+  // Once a build starts (or an upload fails), its progress row takes over from the panel.
+  if (videoPanel && video.state.kind !== 'idle' && video.state.kind !== 'uploading') setVideoPanel(false);
   // Another room was opened: walk mode, panel placing and any message stay behind with the room they belonged to.
   const [shownRoomId, setShownRoomId] = useState(roomId);
   if (roomId !== shownRoomId) {
@@ -122,6 +136,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     setWalking(false);
     setPlacing(false);
     setMessage(null);
+    setVideoPanel(false);
   }
   const aligning = alignStep.step !== null;
   const picking = alignStep.step === 'floor' || alignStep.step === 'corners'; // choosing points on the scan: the camera stays on it
@@ -223,11 +238,23 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     if (scans.busy) return;
     const file = takePendingScan(roomId);
     if (!file) return;
-    void scans.open(file, useRoomStore.getState().room);
+    const align = alignNext.current;
+    alignNext.current = false;
+    void scans.open(file, useRoomStore.getState().room).then(() => {
+      if (!align || scanRef.current !== scans) return;
+      // Built from a video: the three line-up steps begin at once (spec 2026-10-06 §6). A scan that didn't open is a no-op.
+      setWalking(false);
+      sceneRef.current?.setWalking(false);
+      setPlacing(false);
+      setMessage(null);
+      scans.startAlignment();
+    });
     // React's development double mount disposes this controller at once: hand the file back for the one that follows.
     return () =>
       queueMicrotask(() => {
-        if (scanRef.current !== scans) returnPendingScan(roomId, file);
+        if (scanRef.current === scans) return;
+        if (align) alignNext.current = true;
+        returnPendingScan(roomId, file);
       });
   }, [roomId, pendingFor, webgl, scanBusy]);
 
@@ -371,6 +398,17 @@ export function RoomView({ mode }: { mode: ListenMode }) {
             }}
           />
         </label>
+        {health && (
+          <button
+            aria-expanded={videoPanel}
+            disabled={health.pipeline !== 'ready' || video.state.kind !== 'idle'}
+            onClick={() => setVideoPanel((open) => !open)}
+            className={buttonClass}
+          >
+            Make from a video
+          </button>
+        )}
+        {health && health.pipeline !== 'ready' && <span className="text-neutral-400">{NOT_RUNNING}</span>}
         {scanReady && !aligning && (
           <>
             <button
@@ -400,6 +438,12 @@ export function RoomView({ mode }: { mode: ListenMode }) {
           {scanLine.warning && <span className="text-amber-200">{scanLine.warning}</span>}
         </span>
       </div>
+      {videoPanel && (video.state.kind === 'idle' || video.state.kind === 'uploading') && (
+        <VideoScanPanel state={video.state} onStart={video.start} onCancel={video.cancel} />
+      )}
+      {(video.state.kind === 'building' || video.state.kind === 'downloading' || video.state.kind === 'failed') && (
+        <VideoScanProgress state={video.state} onCancel={video.cancel} onDismiss={video.dismiss} onRetry={video.retry} />
+      )}
       {/* Mounted all the time (see the banner); while empty, -mt-2 cancels the gap it would add. */}
       <p role="status" className="text-sm text-amber-200 empty:-mt-2">
         {largeScanWarning}

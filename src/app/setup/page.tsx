@@ -10,6 +10,7 @@ import { setPendingScan, setPendingScanForRoom } from '@/components/pendingScan'
 import { SurfacePicker } from '@/components/SurfacePicker';
 import { Toggle } from '@/components/Toggle';
 import { TopView } from '@/components/TopView';
+import { useSplatHealth } from '@/components/useSplatHealth';
 import { useUnits } from '@/components/useUnits';
 import { useWebGL } from '@/components/useWebGL';
 import { FURNISHING_LABELS } from '@/lib/room/labels';
@@ -43,6 +44,7 @@ export default function SetupPage() {
   const [state, dispatch] = useReducer(wizardReducer, undefined, startWizard);
   const [unit, setUnit] = useUnits();
   const webgl = useWebGL();
+  const health = useSplatHealth();
   const [scan, setScan] = useState<File | null>(null);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<OpenError | null>(null);
@@ -200,7 +202,11 @@ export default function SetupPage() {
           ) : (
             <p className="text-neutral-400">This browser can&apos;t show 3D, so a scan can&apos;t be used here.</p>
           )}
-          <p className="text-neutral-400">No scan? Open your room now. You can add one later from the 3D view.</p>
+          <p className="text-neutral-400">
+            {health
+              ? 'No scan? Open your room now. You can add one, or make one from a video, from the 3D view.'
+              : 'No scan? Open your room now. You can add one later from the 3D view.'}
+          </p>
         </div>
       )}
 
