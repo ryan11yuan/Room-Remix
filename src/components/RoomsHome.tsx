@@ -52,7 +52,8 @@ export function RoomsHome() {
   const onReady = useCallback(
     (_file: File, _key: string, jobId: string) => {
       setListVersion((n) => n + 1);
-      open(jobId);
+      // Only take the person to the new room if they aren't already in one; otherwise it just joins the list.
+      if (!roomFromHash(window.location.hash)) open(jobId);
     },
     [open],
   );
