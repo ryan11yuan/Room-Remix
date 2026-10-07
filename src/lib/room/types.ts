@@ -32,6 +32,14 @@ export type RugFix = { kind: 'rug'; size: RugSize; x: number; z: number; on: boo
 export type PanelFix = { kind: 'panel'; wall: WallId; u: number; v: number; on: boolean };
 export type Fix = RugFix | PanelFix;
 
+/** What the object detector can name (spec 2026-10-07 sound §3). */
+export const OBJECT_LABELS = [
+  'chair', 'sofa', 'table', 'whiteboard', 'television', 'window', 'curtains', 'rug', 'bookshelf', 'bed', 'cabinet', 'plant',
+] as const;
+export type ObjectLabel = (typeof OBJECT_LABELS)[number];
+/** A detected object's box in room metres. */
+export type RoomObject = { label: ObjectLabel; min: Vec3; max: Vec3 };
+
 export type Dims = { length: number; width: number; height: number };
 
 export type RoomState = {
@@ -44,4 +52,5 @@ export type RoomState = {
   listener: Vec3 & { yaw: number | 'faceSpeaker' };
   fixes: Fix[];
   calibration: { factor: number; measuredRt60?: number };
+  objects?: RoomObject[]; // detected objects (splat rooms only): their absorption and blocking
 };
