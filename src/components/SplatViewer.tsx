@@ -55,8 +55,12 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
         await scene.open(bytes, cameras);
         if (!live) return;
         setStatus('ready');
-        controller = SoundController.create(scene, roomId, cameras);
-        setSound(controller);
+        try {
+          controller = SoundController.create(scene, roomId, cameras);
+          setSound(controller);
+        } catch (error) {
+          console.error(error); // the room stays viewable without the sound panel
+        }
       })
       .catch((error: unknown) => {
         console.error(error);

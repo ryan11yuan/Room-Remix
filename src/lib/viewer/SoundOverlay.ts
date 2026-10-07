@@ -21,6 +21,8 @@ function chip(text: string, className: string): CSS2DObject {
 export class SoundOverlay {
   readonly root = new THREE.Group();
   private readonly speaker = new THREE.Group();
+  private readonly body = new THREE.Group(); // the box with its light front, at speaker height
+  private readonly stand = new THREE.Group(); // a unit-height pole, scaled to reach the box
   private readonly marker = new THREE.Group();
   private heat: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
   private labels: CSS2DObject[] = [];
@@ -28,14 +30,18 @@ export class SoundOverlay {
   constructor(fit: RoomFit) {
     this.root.matrixAutoUpdate = false;
     this.root.matrix.copy(roomToWorldMatrix(fit));
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.35, 0.2), new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.3), new THREE.MeshBasicMaterial({ color: CREAM }));
+    front.position.z = 0.101; // a light front, just proud of the box's +z face
+    this.body.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.35, 0.2), new THREE.MeshBasicMaterial({ color: 0x2a2420 })), front);
+    this.stand.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 12), new THREE.MeshBasicMaterial({ color: 0x4a423c })));
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.22, 0.28, 48),
       new THREE.MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.85, depthTest: false, side: THREE.DoubleSide }),
     );
     ring.rotation.x = -Math.PI / 2;
     ring.renderOrder = ON_TOP;
-    this.speaker.add(body, ring);
+    ring.position.y = 0.03;
+    this.speaker.add(this.stand, this.body, ring);
     this.speaker.visible = false;
     const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.4), new THREE.MeshBasicMaterial({ color: BEST, depthTest: false }));
     pin.position.y = 0.7;
@@ -58,8 +64,10 @@ export class SoundOverlay {
     this.speaker.visible = p !== null;
     if (!p) return;
     this.speaker.position.set(p.x, 0, p.z);
-    this.speaker.children[0].position.y = p.y; // the box sits at speaker height; the ring stays on the floor
-    this.speaker.children[1].position.y = 0.03;
+    this.body.position.y = p.y; // the box sits at speaker height; the ring stays on the floor
+    const reach = Math.max(0.01, p.y - 0.175); // the stand runs from the floor to the bottom of the box
+    this.stand.scale.y = reach;
+    this.stand.position.y = reach / 2;
   }
 
   setObjects(objects: RoomObject[]): void {

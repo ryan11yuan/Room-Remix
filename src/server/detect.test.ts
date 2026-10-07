@@ -33,6 +33,15 @@ describe('cleanDetections', () => {
   });
 });
 
+describe('cleanDetections containment', () => {
+  const d = (label: string, score: number, box: Detection['box']): Detection => ({ label, score, box });
+  it('drops a box mostly inside a better one of the same group only', () => {
+    expect(cleanDetections([d('table', 0.5, [0, 0, 200, 100]), d('table', 0.35, [10, 10, 100, 90])])).toEqual([d('table', 0.5, [0, 0, 200, 100])]);
+    expect(cleanDetections([d('television', 0.5, [0, 0, 100, 100]), d('whiteboard', 0.2, [5, 5, 95, 95])])).toEqual([d('television', 0.5, [0, 0, 100, 100])]);
+    expect(cleanDetections([d('table', 0.5, [0, 0, 200, 100]), d('chair', 0.4, [10, 10, 100, 90])])).toHaveLength(2);
+  });
+});
+
 describe('createObjectFinder', () => {
   it('detects once, shares a concurrent run, saves detections.json and reads it afterwards', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'rr-detect-'));

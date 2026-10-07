@@ -43,7 +43,8 @@ export class ViewerScene {
     el.style.position = 'absolute';
     el.style.inset = '0';
     el.style.pointerEvents = 'none';
-    canvas.parentElement?.appendChild(el);
+    el.style.zIndex = '0'; // its own stacking context: label z-indexes stay below the chrome
+    canvas.after(el);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;

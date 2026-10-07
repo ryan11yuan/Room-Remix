@@ -27,8 +27,9 @@ export function SoundPanel({ controller }: { controller: SoundController }) {
       <section className="flex flex-col gap-1.5">
         <h2 className="text-heading-sm">Sound</h2>
         <p className="text-label text-cream/70">
-          About {s.dims.length.toFixed(1)} × {s.dims.width.toFixed(1)} × {s.dims.height.toFixed(1)} m · Echo time {s.rt60.toFixed(2)} s
+          About {s.dims.length.toFixed(1)} × {s.dims.width.toFixed(1)} × {s.dims.height.toFixed(1)} m
         </p>
+        <p className="text-label text-cream/70">Echo time {s.rt60.toFixed(2)} s</p>
       </section>
 
       <section className="rule flex flex-col gap-3 pt-4">

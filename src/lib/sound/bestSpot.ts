@@ -51,10 +51,11 @@ function gridAxis(size: number, gap: number, step: number): number[] {
   return out;
 }
 
-/** On something you can't stand or put a speaker on (rugs don't count). */
+/** On something you can't stand or put a speaker on (rugs, chairs and plants don't count: people sit, chairs move). */
+const SOFT = new Set(['rug', 'chair', 'plant']);
 function onFootprint(objects: RoomObject[], x: number, z: number, grow: number): boolean {
   return objects.some(
-    (o) => o.label !== 'rug' && x >= o.min.x - grow && x <= o.max.x + grow && z >= o.min.z - grow && z <= o.max.z + grow,
+    (o) => !SOFT.has(o.label) && x >= o.min.x - grow && x <= o.max.x + grow && z >= o.min.z - grow && z <= o.max.z + grow,
   );
 }
 

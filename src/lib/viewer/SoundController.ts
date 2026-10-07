@@ -43,6 +43,7 @@ export class SoundController {
   private lastRender: { position: Vec3; yaw: number } | null = null;
   private rendering = false;
   private disposed = false;
+  private generation = 0; // bumped when the objects arrive: an older best-spot map is stale
 
   /** Null without a cameras file: no scale, so no sound (spec §2). */
   static create(scene: ViewerScene, roomId: string, cameras: CameraPose[] | null): SoundController | null {
@@ -87,6 +88,7 @@ export class SoundController {
       if (!file) return this.set({ objects: 'failed' });
       const toRoomPoint = (x: number, y: number, z: number) => toRoom(fit, vec(new THREE.Vector3(x, y, z).applyQuaternion(rotation)));
       const objects = placeObjects(file, cameras, raw, toRoomPoint, fit.scale);
+      this.generation++;
       this.overlay.setObjects(objects);
       this.overlay.setSpots(null);
       this.lastRender = null; // the room changed: re-render the sound
@@ -112,15 +114,16 @@ export class SoundController {
 
   findBestSpot(): void {
     this.set({ spots: 'finding' });
+    const generation = this.generation;
     this.client
       .spots(this.room(this.state.speaker ?? clampSpeaker(this.fit.dims, { x: 0, z: 0 })))
       .then((map) => {
-        if (this.disposed) return;
+        if (this.disposed || generation !== this.generation) return;
         this.overlay.setSpots(map);
         this.set({ spots: map });
       })
       .catch(() => {
-        if (!this.disposed) this.set({ spots: 'failed' });
+        if (!this.disposed && generation === this.generation) this.set({ spots: 'failed' });
       });
   }
 
@@ -141,7 +144,7 @@ export class SoundController {
       this.clipLoaded = this.state.clip;
     }
     this.lastRender = null;
-    void this.engine.play();
+    this.engine.play().catch(() => {}); // a Back during resume() closes the context
     this.set({ playing: true });
   }
 
@@ -152,12 +155,13 @@ export class SoundController {
     if (!this.engine) return;
     this.engine.loadClip(synthClip(clip, this.engine.sampleRate), this.engine.sampleRate); // pauses
     this.clipLoaded = clip;
-    if (wasPlaying) void this.engine.play();
+    if (wasPlaying) this.engine.play().catch(() => {});
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.generation++;
     if (this.scene.onFrame === this.frame) this.scene.onFrame = null;
     this.client.dispose();
     this.engine?.dispose();

@@ -36,6 +36,14 @@ function iou(a: Detection['box'], b: Detection['box']): number {
   return inter / (area(a) + area(b) - inter || 1);
 }
 
+const CONTAINED = 0.8;
+/** A whiteboard and a television are the same flat rectangle to the detector; every other label is its own group. */
+const group = (label: string) => (label === 'whiteboard' || label === 'television' ? 'screen' : label);
+/** The share of `a` that lies inside `b`. */
+function covered(a: Detection['box'], b: Detection['box']): number {
+  return area([Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])]) / (area(a) || 1);
+}
+
 /** The pipeline gives every label above its threshold per box: keep the best label per box, threshold, then class-agnostic NMS. */
 export function cleanDetections(raw: Detection[]): Detection[] {
   const bestPerBox = new Map<string, Detection>();
@@ -49,7 +57,11 @@ export function cleanDetections(raw: Detection[]): Detection[] {
     .filter((d) => d.score >= (LABEL_THRESHOLDS[d.label] ?? DEFAULT_THRESHOLD))
     .sort((a, b) => b.score - a.score);
   const out: Detection[] = [];
-  for (const d of kept) if (out.every((o) => iou(o.box, d.box) <= NMS_IOU)) out.push(d);
+  for (const d of kept) {
+    if (!out.every((o) => iou(o.box, d.box) <= NMS_IOU)) continue;
+    if (out.some((o) => group(o.label) === group(d.label) && covered(d.box, o.box) >= CONTAINED)) continue; // a part of a better box
+    out.push(d);
+  }
   return out;
 }
 

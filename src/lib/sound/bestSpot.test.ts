@@ -19,6 +19,13 @@ describe('best speaker spot', () => {
     expect(scoreSpeakerAt(room([whiteboard]), spot)!).toBeLessThan(scoreSpeakerAt(room(), spot)!);
   });
 
+  it('chairs do not hide floor cells (people sit in them)', () => {
+    const chair: RoomObject = { label: 'chair', min: { x: 2.8, y: 0, z: 1.8 }, max: { x: 3.4, y: 1, z: 2.4 } };
+    const map = findBestSpots(room([chair]));
+    const at = (x: number, z: number) => map.scores[Math.round((z - map.z0) / map.step) * map.nx + Math.round((x - map.x0) / map.step)];
+    expect(at(2.9, 2.1)).not.toBeNull();
+  });
+
   it('maps the floor: cells on furniture are left out, the best is the top score, scores are 0–100', () => {
     const table: RoomObject = { label: 'table', min: { x: 2, y: 0, z: 1.5 }, max: { x: 4, y: 0.75, z: 2.5 } };
     const map = findBestSpots(room([table]));
