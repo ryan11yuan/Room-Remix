@@ -103,6 +103,23 @@ export class SplatLayer {
     return this.mesh ? [this.mesh] : [];
   }
 
+  /** The splat centres in the scan's own frame as xyz triples, every k-th one so there are at most `max`. */
+  centres(max = 200_000): Float32Array {
+    const packed = this.mesh?.packedSplats;
+    const count = packed?.numSplats ?? 0;
+    if (!packed || count === 0) return new Float32Array(0);
+    const stride = Math.max(1, Math.ceil(count / max));
+    const out = new Float32Array(Math.ceil(count / stride) * 3);
+    let j = 0;
+    packed.forEachSplat((index, c) => {
+      if (index % stride !== 0) return;
+      out[j++] = c.x;
+      out[j++] = c.y;
+      out[j++] = c.z;
+    });
+    return out.subarray(0, j);
+  }
+
   setAlignment(alignment: Alignment | null): void {
     this.alignment = alignment;
     this.applyAlignment();

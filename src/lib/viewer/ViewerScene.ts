@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { IDENTITY_ALIGNMENT } from '@/lib/scene/alignment';
 // Never a value import of SplatLayer here: it would pull Spark into this bundle (eslint enforces). open() uses import().
 import type { SplatLayer } from '@/lib/scene/SplatLayer';
 import type { CameraPose } from '@/lib/splatJobs/protocol';
 import { anglesOf, lookDirection, MOVE_KEYS, moveStep, turn, type Angles } from './controls';
+import { floorPoint } from './floorPoint';
 import { fallbackView, viewFromCameras, type StartView } from './view';
 
 const BACKGROUND = 0x100904; // walnut, the page's canvas colour (DESIGN.md)
@@ -12,6 +14,12 @@ const CLICK_SLOP_PX = 5; // a press that moved further than this was a drag (spi
 
 /** The splat viewer (spec 2026-10-07 §4), Memento-style: spin and zoom, W/A/S/D and Q/E, click to look around. Browser only. */
 export class ViewerScene {
+  /** Things drawn in the room (speaker, heat map, labels), in world coordinates. */
+  readonly overlay = new THREE.Group();
+  /** Called every frame before rendering (the sound follows the camera). */
+  onFrame: (() => void) | null = null;
+  private readonly labels = new CSS2DRenderer();
+  private placing: { floorY: number; onPlace: (world: THREE.Vector3) => void } | null = null;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(60, 1, 0.01, 1000);
@@ -30,6 +38,12 @@ export class ViewerScene {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.scene.background = new THREE.Color(BACKGROUND);
+    this.scene.add(this.overlay);
+    const el = this.labels.domElement;
+    el.style.position = 'absolute';
+    el.style.inset = '0';
+    el.style.pointerEvents = 'none';
+    canvas.parentElement?.appendChild(el);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
@@ -42,6 +56,26 @@ export class ViewerScene {
     window.addEventListener('keyup', this.keyUp);
     window.addEventListener('blur', this.releaseKeys);
     this.frame = requestAnimationFrame(this.tick);
+  }
+
+  get startView(): StartView | null {
+    return this.view;
+  }
+
+  /** The splat's centres in its own (raw) frame; empty before a room is open. */
+  get splatCentres(): Float32Array {
+    return this.layer?.centres() ?? new Float32Array(0);
+  }
+
+  pose(): { position: THREE.Vector3; forward: THREE.Vector3 } {
+    return { position: this.camera.position.clone(), forward: this.camera.getWorldDirection(new THREE.Vector3()) };
+  }
+
+  /** The next click on the floor calls `onPlace` with where it landed, instead of locking the pointer (spec §5). */
+  armPlacement(floorY: number, onPlace: (world: THREE.Vector3) => void): void {
+    this.placing = { floorY, onPlace };
+    if (this.locked) document.exitPointerLock();
+    this.canvas.style.cursor = 'crosshair';
   }
 
   /** Show a room: its splat, turned upright and seen from where the video began (or Memento's view without cameras). */
@@ -80,6 +114,7 @@ export class ViewerScene {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
+    this.labels.setSize(width, height);
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
   }
@@ -87,6 +122,8 @@ export class ViewerScene {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.onFrame = null;
+    this.labels.domElement.remove();
     cancelAnimationFrame(this.frame);
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     this.canvas.removeEventListener('pointerdown', this.press);
@@ -113,6 +150,20 @@ export class ViewerScene {
   private readonly click = (event: MouseEvent) => {
     const from = this.pressedAt;
     this.pressedAt = null;
+    if (this.placing && from && Math.hypot(event.clientX - from.x, event.clientY - from.y) <= CLICK_SLOP_PX) {
+      const rect = this.canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(ndc, this.camera);
+      const hit = floorPoint(raycaster.ray, this.placing.floorY);
+      if (hit) {
+        const { onPlace } = this.placing;
+        this.placing = null;
+        this.canvas.style.cursor = '';
+        onPlace(hit);
+      }
+      return;
+    }
     if (!this.view || this.locked || !from) return;
     if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > CLICK_SLOP_PX) return;
     // Chrome rejects a re-lock right after Esc; stay in spin mode quietly and let the next click try again.
@@ -163,7 +214,9 @@ export class ViewerScene {
       this.controls.target.add(step); // move the spin point with you, like Memento
     }
     if (this.controls.enabled) this.controls.update();
+    this.onFrame?.();
     this.renderer.render(this.scene, this.camera);
+    this.labels.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
   };
 }
