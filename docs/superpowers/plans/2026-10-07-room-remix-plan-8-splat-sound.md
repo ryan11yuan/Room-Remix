@@ -57,7 +57,7 @@ Each item says which task's test pins it:
 
 The tasks are written in dependency order. Run them in parallel where the files don't overlap:
 - **Wave A:** Tasks 1, 2 and 3 in parallel.
-- **Wave B:** Tasks 4, 5 and 7 in parallel. They need Wave A's types.
+- **Wave B:** Tasks 4, 5 and 7 in parallel. They need Wave A's types. Task 7 owns `src/lib/sound/heat.ts`.
 - **Wave C:** Task 6, then Task 8.
 - **Task 9** is the controller's real check.
 
@@ -1263,8 +1263,8 @@ git commit -m "feat: detections are placed in the room by projecting the splat i
 
 **Files:**
 - Create: `src/lib/sound/bestSpot.ts`
-- Create: `src/lib/sound/heat.ts`
-- Test: `src/lib/sound/bestSpot.test.ts`, `src/lib/sound/heat.test.ts`
+- Test: `src/lib/sound/bestSpot.test.ts`
+- (The heat-map pixels, `src/lib/sound/heat.ts`, belong to Task 7, their only user.)
 
 **Interfaces:**
 - Consumes:
@@ -1275,8 +1275,7 @@ git commit -m "feat: detections are placed in the room by projecting the splat i
   - `SPEAKER_HEIGHT` and `SPEAKER_WALL_GAP` (Task 3).
 - Produces:
   - `findBestSpots(room: RoomState): SpotMap`;
-  - `scoreSpeakerAt(room: RoomState, speaker: Vec3): number | null`;
-  - `heatPixels(map: SpotMap): Uint8Array`: RGBA with nx × nz pixels, rows in z order (row 0 = `z0`), for a `THREE.DataTexture`.
+  - `scoreSpeakerAt(room: RoomState, speaker: Vec3): number | null`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1317,28 +1316,9 @@ describe('best speaker spot', () => {
 });
 ```
 
-`src/lib/sound/heat.test.ts`:
+- [ ] **Step 2: Run it to check it fails**
 
-```ts
-import { describe, expect, it } from 'vitest';
-import { heatPixels } from './heat';
-
-describe('heatPixels', () => {
-  it('best is green, worst is red, gaps are clear, rows follow z', () => {
-    const px = heatPixels({ x0: 0.5, z0: 0.5, step: 0.4, nx: 2, nz: 2, scores: [10, 90, null, 50], best: { x: 0.9, z: 0.5, score: 90 } });
-    const pixel = (i: number) => Array.from(px.slice(4 * i, 4 * i + 4));
-    const [worst, best, gap] = [pixel(0), pixel(1), pixel(2)];
-    expect(worst[0]).toBeGreaterThan(worst[1]); // red
-    expect(best[1]).toBeGreaterThan(best[0]); // green
-    expect(gap[3]).toBe(0);
-    expect(best[3]).toBeGreaterThan(0);
-  });
-});
-```
-
-- [ ] **Step 2: Run them to check they fail**
-
-Run `npx vitest run src/lib/sound/bestSpot.test.ts src/lib/sound/heat.test.ts`.
+Run `npx vitest run src/lib/sound/bestSpot.test.ts`.
 Expected: FAIL (the modules are missing).
 
 - [ ] **Step 3: Implement `src/lib/sound/bestSpot.ts`**
@@ -1520,32 +1500,7 @@ export function findBestSpots(room: RoomState): SpotMap {
 }
 ```
 
-- [ ] **Step 4: Implement `src/lib/sound/heat.ts`**
-
-```ts
-import type { SpotMap } from './types';
-
-const ALPHA = 150; // of 255: the room still shows through
-
-/** Red (worst on this map) → yellow → green (best), one RGBA pixel per cell, rows in z order. Cells off the map are clear. */
-export function heatPixels(map: SpotMap): Uint8Array {
-  const out = new Uint8Array(map.nx * map.nz * 4);
-  const numbers = map.scores.filter((s): s is number => s !== null);
-  const lo = Math.min(...numbers);
-  const hi = Math.max(...numbers);
-  map.scores.forEach((score, i) => {
-    if (score === null) return;
-    const t = hi > lo ? (score - lo) / (hi - lo) : 1;
-    out[4 * i] = Math.round(255 * Math.min(1, 2 * (1 - t)));
-    out[4 * i + 1] = Math.round(255 * Math.min(1, 2 * t));
-    out[4 * i + 2] = 40;
-    out[4 * i + 3] = ALPHA;
-  });
-  return out;
-}
-```
-
-- [ ] **Step 5: Run the tests, check the speed, typecheck**
+- [ ] **Step 4: Run the tests, check the speed, typecheck**
 
 Run `npx vitest run src/lib/sound && npx tsc --noEmit`.
 Expected: PASS.
@@ -1554,10 +1509,10 @@ Then time `findBestSpots(room())` in a scratch test. In a 6 × 4 m room it shoul
 
 If the corner-ordering test fails, **don't fudge the weights**. Report the three sub-scores for each spot (coverage, clarity, bass and boost) as DONE_WITH_CONCERNS, and the controller will decide.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat: every speaker spot scored for the whole room (coverage, clarity, even bass)" -- src/lib/sound/bestSpot.ts src/lib/sound/bestSpot.test.ts src/lib/sound/heat.ts src/lib/sound/heat.test.ts
+git commit -m "feat: every speaker spot scored for the whole room (coverage, clarity, even bass)" -- src/lib/sound/bestSpot.ts src/lib/sound/bestSpot.test.ts
 ```
 (`git add` them first.)
 
@@ -1847,14 +1802,15 @@ git commit -m "feat: a sound worker for walking IRs and the best-spot map" -- sr
 - Modify: `src/lib/viewer/ViewerScene.ts` (overlay group, labels renderer, placement click, `pose()`, `onFrame`, `startView`, `splatCentres`)
 - Create: `src/lib/viewer/floorPoint.ts`
 - Create: `src/lib/viewer/SoundOverlay.ts`
-- Test: `src/lib/viewer/floorPoint.test.ts`
+- Create: `src/lib/sound/heat.ts` (the heat map's pixels; this task is its only user)
+- Test: `src/lib/viewer/floorPoint.test.ts`, `src/lib/sound/heat.test.ts`
 
 **Interfaces:**
 - Consumes:
   - `RoomFit`, `SpotMap` and `roomToWorldMatrix` (Task 3);
-  - `heatPixels` (Task 5). **If Task 5 hasn't landed yet**, create `src/lib/sound/heat.ts` exactly as written in Task 5 Step 4. Only one of the two tasks commits it.
   - `OBJECT_INFO` and `RoomObject` (Task 2).
 - Produces:
+  - `heatPixels(map: SpotMap): Uint8Array`: RGBA with nx × nz pixels, rows in z order (row 0 = `z0`), for a `THREE.DataTexture`;
   - `SplatLayer.centres(max?: number): Float32Array`: raw-frame xyz triples, strided down to at most `max` (default 200 000);
   - `ViewerScene` gains:
     - `readonly overlay: THREE.Group`, which is in world coordinates;
@@ -1885,12 +1841,56 @@ describe('floorPoint', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to check it fails**
+`src/lib/sound/heat.test.ts`:
 
-Run `npx vitest run src/lib/viewer/floorPoint.test.ts`.
-Expected: FAIL (the module is missing).
+```ts
+import { describe, expect, it } from 'vitest';
+import { heatPixels } from './heat';
+
+describe('heatPixels', () => {
+  it('best is green, worst is red, gaps are clear, rows follow z', () => {
+    const px = heatPixels({ x0: 0.5, z0: 0.5, step: 0.4, nx: 2, nz: 2, scores: [10, 90, null, 50], best: { x: 0.9, z: 0.5, score: 90 } });
+    const pixel = (i: number) => Array.from(px.slice(4 * i, 4 * i + 4));
+    const [worst, best, gap] = [pixel(0), pixel(1), pixel(2)];
+    expect(worst[0]).toBeGreaterThan(worst[1]); // red
+    expect(best[1]).toBeGreaterThan(best[0]); // green
+    expect(gap[3]).toBe(0);
+    expect(best[3]).toBeGreaterThan(0);
+  });
+});
+```
+
+- [ ] **Step 2: Run them to check they fail**
+
+Run `npx vitest run src/lib/viewer/floorPoint.test.ts src/lib/sound/heat.test.ts`.
+Expected: FAIL (the modules are missing).
 
 - [ ] **Step 3: Implement**
+
+`src/lib/sound/heat.ts`:
+
+```ts
+import type { SpotMap } from './types';
+
+const ALPHA = 150; // of 255: the room still shows through
+
+/** Red (worst on this map) → yellow → green (best), one RGBA pixel per cell, rows in z order. Cells off the map are clear. */
+export function heatPixels(map: SpotMap): Uint8Array {
+  const out = new Uint8Array(map.nx * map.nz * 4);
+  const numbers = map.scores.filter((s): s is number => s !== null);
+  const lo = Math.min(...numbers);
+  const hi = Math.max(...numbers);
+  map.scores.forEach((score, i) => {
+    if (score === null) return;
+    const t = hi > lo ? (score - lo) / (hi - lo) : 1;
+    out[4 * i] = Math.round(255 * Math.min(1, 2 * (1 - t)));
+    out[4 * i + 1] = Math.round(255 * Math.min(1, 2 * t));
+    out[4 * i + 2] = 40;
+    out[4 * i + 3] = ALPHA;
+  });
+  return out;
+}
+```
 
 `src/lib/viewer/floorPoint.ts`:
 
