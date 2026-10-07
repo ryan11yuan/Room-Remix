@@ -39,6 +39,12 @@ export async function registeredImages(dir: string): Promise<number> {
   }
 }
 
+const tag = (id: string) => id.slice(0, 8);
+const duration = (ms: number) => {
+  const seconds = Math.round(ms / 1000);
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, '0')}s`;
+};
+
 const countFrames = async (dir: string) => (await readdir(path.join(dir, 'images'))).filter((n) => n.endsWith('.jpg')).length;
 const exists = (file: string) => stat(file).then(
   () => true,
@@ -59,7 +65,17 @@ export class JobQueue {
   constructor(
     private readonly root: string,
     private readonly run: StepRunner,
-  ) {}
+    options: { log?: (line: string) => void } = {},
+  ) {
+    this.log = options.log ?? console.log;
+  }
+
+  private readonly log: (line: string) => void;
+
+  /** True while a job is building. */
+  get busy(): boolean {
+    return this.current !== null;
+  }
 
   /** Reads every job folder. Jobs that weren't finished when the server stopped become failed, `restarted`. */
   async init(): Promise<void> {
@@ -97,6 +113,7 @@ export class JobQueue {
     this.jobs.set(id, job);
     await this.save(job);
     this.waiting.push(id);
+    this.log(`job ${tag(id)} queued (${quality})`);
     const view = this.get(id)!;
     this.pump();
     return view;
@@ -121,6 +138,7 @@ export class JobQueue {
     if (at >= 0) {
       this.waiting.splice(at, 1);
       await this.finish(job, 'canceled');
+      this.log(`job ${tag(id)} canceled`);
     } else if (this.current?.id === id) {
       this.current.canceled = true;
       this.current.step?.kill();
@@ -166,6 +184,7 @@ export class JobQueue {
 
   private async build(job: JobRecord): Promise<void> {
     let outcome: Outcome;
+    const started = Date.now();
     try {
       outcome = await this.runSteps(job);
     } catch (error) {
@@ -173,6 +192,13 @@ export class JobQueue {
       outcome = { state: 'failed', code: 'step-failed' };
     }
     await this.finish(job, outcome.state, outcome.code);
+    this.log(
+      outcome.state === 'ready'
+        ? `job ${tag(job.id)} ready in ${duration(Date.now() - started)}`
+        : outcome.state === 'failed'
+          ? `job ${tag(job.id)} failed ${outcome.code}`
+          : `job ${tag(job.id)} canceled`,
+    );
   }
 
   private async runSteps(job: JobRecord): Promise<Outcome> {
@@ -183,6 +209,7 @@ export class JobQueue {
     for (const step of pipelineSteps(job.quality, job.videoName)) {
       if (job.state !== step.state) {
         job.state = step.state;
+        this.log(`job ${tag(job.id)} ${step.state}`);
         this.progress.delete(job.id);
         await this.save(job);
       }
@@ -198,6 +225,12 @@ export class JobQueue {
       const code = await running.done.catch(() => -1);
       current.step = null;
       if (current.canceled) return { state: 'canceled' };
+      // -1 is the docker CLI failing to start; 125-127 come from `docker run` itself (daemon, image or GPU). Not the video's fault.
+      // 137 (killed, out of memory) stays out of this: OpenSplat at 137 still says "Try Quick".
+      if (code === -1 || (code >= 125 && code <= 127)) {
+        console.error(`Job ${job.id}: docker couldn't run ${step.name} (exit ${code}); see logs/${step.name}.log`);
+        return { state: 'failed', code: 'step-failed' };
+      }
       switch (step.name) {
         case 'probe': {
           const probe = code === 0 ? readProbe(output.join('\n')) : ({ ok: false, code: 'not-video' } as const);

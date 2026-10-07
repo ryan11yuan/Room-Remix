@@ -4,9 +4,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pipelineSteps } from '@/lib/splatJobs/settings';
-import { dockerArgs, dockerRunner, IMAGE, lineSplitter, pipelineHealth } from './runner';
+import { dockerArgs, dockerRunner, IMAGE, lineSplitter, pipelineHealth, removeLeftoverContainers } from './runner';
 
 const steps = pipelineSteps('quick', 'video.mp4');
 const probe = steps[0];
@@ -80,6 +80,44 @@ describe('dockerRunner', () => {
     expect(spawned[1]).toEqual(['kill', 'rr-abc-training']);
   });
 
+  it('keeps killing the container every 3 seconds until the step ends, and gives up after 30 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const spawned: string[][] = [];
+      const children: ReturnType<typeof fakeChild>[] = [];
+      const run = dockerRunner((_command, args) => {
+        spawned.push(args);
+        const child = fakeChild();
+        children.push(child);
+        return asChild(child);
+      });
+      const kills = () => spawned.filter((args) => args[0] === 'kill').length;
+      const step = run('abc', dir, training, () => {});
+      step.kill();
+      expect(kills()).toBe(1);
+      vi.advanceTimersByTime(2999);
+      expect(kills()).toBe(1);
+      vi.advanceTimersByTime(1);
+      expect(kills()).toBe(2);
+      children[0].emit('close', 137);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(await step.done).toBe(137);
+      vi.advanceTimersByTime(10_000);
+      expect(kills()).toBe(2);
+      // A step that never ends: the first kill, then one every 3 s for 30 s.
+      const stuck = run('def', dir, training, () => {});
+      const before = kills();
+      stuck.kill();
+      vi.advanceTimersByTime(120_000);
+      expect(kills() - before).toBe(11);
+      children.find((_c, i) => spawned[i][0] === 'run' && spawned[i].includes('rr-def-training'))!.emit('close', 137);
+      await vi.advanceTimersByTimeAsync(0);
+      await stuck.done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('resolves -1 when docker cannot be started, and ignores a close after that', async () => {
     const child = fakeChild();
     const step = dockerRunner(() => asChild(child))('abc', dir, probe, () => {});
@@ -96,5 +134,21 @@ describe('pipelineHealth', () => {
     expect(await pipelineHealth(exec({ info: 1 }))).toBe('no-docker');
     expect(await pipelineHealth(exec({ image: 1 }))).toBe('no-image');
     expect(await pipelineHealth(exec({}))).toBe('ready');
+  });
+});
+
+describe('removeLeftoverContainers', () => {
+  it('removes every rr- container it finds, and counts them', async () => {
+    const calls: string[][] = [];
+    const exec = async (_command: string, args: string[]) => {
+      calls.push(args);
+      return args[0] === 'ps' ? 'a1\nb2\n\n' : '';
+    };
+    expect(await removeLeftoverContainers(exec)).toBe(2);
+    expect(calls).toEqual([['ps', '-aq', '--filter', 'name=^rr-'], ['rm', '-f', 'a1'], ['rm', '-f', 'b2']]);
+  });
+
+  it('is 0, not an error, when docker fails', async () => {
+    expect(await removeLeftoverContainers(async () => Promise.reject(new Error('no docker')))).toBe(0);
   });
 });

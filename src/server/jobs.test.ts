@@ -8,6 +8,7 @@ import { JobQueue, registeredImages, type StepRunner } from './jobs';
 
 type Behaviour = { lines?: string[]; code?: number; effect?: (dir: string) => Promise<unknown>; hold?: Promise<void>; throws?: boolean };
 
+const quiet = { log: () => {} };
 const PROBE_OK = JSON.stringify({ format: { duration: '45.0' }, streams: [{ codec_type: 'video' }] });
 
 async function writeImagesBin(dir: string, count: number) {
@@ -80,7 +81,7 @@ async function queued(queue: JobQueue, quality: 'quick' | 'best' = 'quick') {
 describe('JobQueue', () => {
   it('builds a video through every step to a ready splat, and keeps the record in job.json', async () => {
     const runner = fakeRunner();
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const job = await queued(queue);
     expect(job).toEqual({ id: job.id, quality: 'quick', state: 'queued', place: 0 });
@@ -94,7 +95,7 @@ describe('JobQueue', () => {
 
   it('reports the running step state and its progress', async () => {
     const training = gate();
-    const queue = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run);
+    const queue = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run, quiet);
     await queue.init();
     const job = await queued(queue);
     // Progress appears once OpenSplat is running (the state changes a moment earlier, before job.json is saved).
@@ -108,7 +109,7 @@ describe('JobQueue', () => {
   it('fails a video that is too long without pulling frames', async () => {
     const tooLong = JSON.stringify({ format: { duration: '200' }, streams: [{ codec_type: 'video' }] });
     const runner = fakeRunner({ probe: { lines: [tooLong] } });
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const job = await queued(queue);
     await queue.settled();
@@ -118,7 +119,7 @@ describe('JobQueue', () => {
 
   it('fails as not-video when ffprobe or ffmpeg fail, or no frames come out', async () => {
     for (const overrides of [{ probe: { code: 1 } }, { frames: { code: 1 } }, { frames: { effect: async () => {} } }]) {
-      const queue = new JobQueue(root, fakeRunner(overrides).run);
+      const queue = new JobQueue(root, fakeRunner(overrides).run, quiet);
       await queue.init();
       const job = await queued(queue);
       await queue.settled();
@@ -128,7 +129,7 @@ describe('JobQueue', () => {
 
   it('fails with no-model when COLMAP registers fewer than 10 frames, and skips training', async () => {
     const runner = fakeRunner({ mapper: { effect: (dir) => writeImagesBin(dir, 3) } });
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const job = await queued(queue);
     await queue.settled();
@@ -138,7 +139,7 @@ describe('JobQueue', () => {
 
   it('fails with training-failed when OpenSplat exits non-zero or writes no splat', async () => {
     for (const overrides of [{ training: { code: 1 } }, { training: { effect: async () => {} } }]) {
-      const queue = new JobQueue(root, fakeRunner(overrides).run);
+      const queue = new JobQueue(root, fakeRunner(overrides).run, quiet);
       await queue.init();
       const job = await queued(queue);
       await queue.settled();
@@ -148,17 +149,82 @@ describe('JobQueue', () => {
   });
 
   it('fails as step-failed when a step cannot even run', async () => {
-    const queue = new JobQueue(root, fakeRunner({ features: { throws: true } }).run);
+    const queue = new JobQueue(root, fakeRunner({ features: { throws: true } }).run, quiet);
     await queue.init();
     const job = await queued(queue);
     await queue.settled();
     expect(queue.get(job.id)?.error?.code).toBe('step-failed');
   });
 
+  it('blames docker, not the video, when docker itself cannot run a step; OpenSplat killed for memory still says training-failed', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      for (const code of [-1, 125, 126, 127]) {
+        const queue = new JobQueue(root, fakeRunner({ probe: { code } }).run, quiet);
+        await queue.init();
+        const job = await queued(queue);
+        await queue.settled();
+        expect(queue.get(job.id)?.error?.code).toBe('step-failed');
+      }
+      const queue = new JobQueue(root, fakeRunner({ training: { code: 137 } }).run, quiet);
+      await queue.init();
+      const job = await queued(queue);
+      await queue.settled();
+      expect(queue.get(job.id)?.error?.code).toBe('training-failed');
+      expect(error).toHaveBeenCalledWith(expect.stringContaining("docker couldn't run probe (exit 125)"));
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it('says when it is busy', async () => {
+    const training = gate();
+    const queue = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run, quiet);
+    await queue.init();
+    expect(queue.busy).toBe(false);
+    await queued(queue);
+    expect(queue.busy).toBe(true);
+    training.open();
+    await queue.settled();
+    expect(queue.busy).toBe(false);
+  });
+
+  it('prints one line per job event: queued, each state, and how it ended', async () => {
+    const lines: string[] = [];
+    const queue = new JobQueue(root, fakeRunner().run, { log: (line) => lines.push(line) });
+    await queue.init();
+    const job = await queued(queue);
+    await queue.settled();
+    const tag = `job ${job.id.slice(0, 8)}`;
+    expect(lines[0]).toBe(`${tag} queued (quick)`);
+    expect(lines.slice(1, -1)).toEqual(expect.arrayContaining([`${tag} frames`, `${tag} training`]));
+    expect(lines.at(-1)).toMatch(new RegExp(`^${tag} ready in \\d+s$`));
+    const failing = new JobQueue(root, fakeRunner({ mapper: { effect: (dir) => writeImagesBin(dir, 3) } }).run, { log: (line) => lines.push(line) });
+    await failing.init();
+    const bad = await queued(failing);
+    await failing.settled();
+    expect(lines.at(-1)).toBe(`job ${bad.id.slice(0, 8)} failed no-model`);
+  });
+
+  it('prints canceled for canceled jobs, queued or running', async () => {
+    const lines: string[] = [];
+    const training = gate();
+    const queue = new JobQueue(root, fakeRunner({ training: { hold: training.opened } }).run, { log: (line) => lines.push(line) });
+    await queue.init();
+    const first = await queued(queue);
+    const second = await queued(queue);
+    await queue.cancel(second.id);
+    await vi.waitFor(() => expect(queue.get(first.id)?.state).toBe('training'));
+    await queue.cancel(first.id);
+    training.open();
+    await queue.settled();
+    expect(lines).toEqual(expect.arrayContaining([`job ${first.id.slice(0, 8)} canceled`, `job ${second.id.slice(0, 8)} canceled`]));
+  });
+
   it('builds one job at a time and tells queued jobs their place in line', async () => {
     const training = gate();
     const runner = fakeRunner({ training: { hold: training.opened } });
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const first = await queued(queue);
     await vi.waitFor(() => expect(queue.get(first.id)?.state).toBe('training'));
@@ -176,7 +242,7 @@ describe('JobQueue', () => {
   it('cancels a queued job without running it', async () => {
     const training = gate();
     const runner = fakeRunner({ training: { hold: training.opened } });
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const first = await queued(queue);
     const second = await queued(queue);
@@ -190,11 +256,11 @@ describe('JobQueue', () => {
   it('cancels a running job by killing its step, ends it canceled (not failed) and starts the next', async () => {
     const training = gate();
     const runner = fakeRunner({ training: { hold: training.opened } });
-    const queue = new JobQueue(root, runner.run);
+    const queue = new JobQueue(root, runner.run, quiet);
     await queue.init();
     const first = await queued(queue);
     const second = await queued(queue);
-    await vi.waitFor(() => expect(queue.get(first.id)?.progress).toBeDefined()); // OpenSplat is running
+    await vi.waitFor(() => expect(queue.get(first.id)).toMatchObject({ state: 'training', progress: expect.anything() })); // OpenSplat is running
     await queue.cancel(first.id);
     expect(runner.killed).toEqual([`${first.id}:training`]);
     training.open();
@@ -212,7 +278,7 @@ describe('JobQueue', () => {
     await write('waiting', 'queued');
     await write('done', 'ready');
     await mkdir(path.join(root, 'upload-cut-off'));
-    const queue = new JobQueue(root, fakeRunner().run);
+    const queue = new JobQueue(root, fakeRunner().run, quiet);
     await queue.init();
     expect(queue.get('building')).toMatchObject({ state: 'failed', error: { code: 'restarted', message: JOB_ERROR_MESSAGES.restarted } });
     expect(queue.get('waiting')?.state).toBe('failed');
@@ -222,7 +288,7 @@ describe('JobQueue', () => {
   });
 
   it('creates its folder, answers null for unknown ids and discards only folders that never became jobs', async () => {
-    const queue = new JobQueue(path.join(root, 'nested', 'jobs'), fakeRunner().run);
+    const queue = new JobQueue(path.join(root, 'nested', 'jobs'), fakeRunner().run, quiet);
     await queue.init();
     expect(queue.get('nope')).toBeNull();
     expect(await queue.cancel('nope')).toBeNull();

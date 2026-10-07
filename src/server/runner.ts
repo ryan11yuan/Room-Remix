@@ -38,6 +38,9 @@ export function lineSplitter(onLine: (line: string) => void): { push(chunk: stri
   };
 }
 
+const KILL_EVERY_MS = 3000;
+const KILL_RETRIES = 10;
+
 type Spawn = (command: string, args: string[]) => ChildProcess;
 const spawnHidden: Spawn = (command, args) => spawn(command, args, { windowsHide: true });
 
@@ -46,6 +49,7 @@ export function dockerRunner(spawnFn: Spawn = spawnHidden): StepRunner {
   return (jobId, dir, step, onLine) => {
     mkdirSync(path.join(dir, 'logs'), { recursive: true });
     const log = createWriteStream(path.join(dir, 'logs', `${step.name}.log`));
+    log.on('error', (error) => console.error(`Couldn't write ${step.name}.log:`, error));
     const child = spawnFn('docker', dockerArgs(jobId, dir, step));
     const out = lineSplitter(onLine);
     const err = lineSplitter(onLine);
@@ -70,11 +74,23 @@ export function dockerRunner(spawnFn: Spawn = spawnHidden): StepRunner {
       child.on('error', (error) => end(-1, `\n${String(error)}\n`));
       child.on('close', (code: number | null) => end(code ?? -1));
     });
+    let settled = false;
+    void done.then(() => {
+      settled = true;
+    });
     return {
       done,
-      // Killing the docker CLI alone can leave the container running: kill the container by name.
+      // Killing the docker CLI alone can leave the container running, and a kill sent before the container exists
+      // finds nothing: kill the container by name now, then again every 3 s until the step ends (30 s at most).
       kill: () => {
-        spawnFn('docker', ['kill', containerName(jobId, step)]).on('error', () => {});
+        const kill = () => spawnFn('docker', ['kill', containerName(jobId, step)]).on('error', () => {});
+        kill();
+        let tries = 0;
+        const timer = setInterval(() => {
+          if (settled || ++tries > KILL_RETRIES) return clearInterval(timer);
+          kill();
+        }, KILL_EVERY_MS);
+        void done.then(() => clearInterval(timer));
       },
     };
   };
@@ -91,4 +107,22 @@ export async function pipelineHealth(exec: Exec = exitCode): Promise<PipelineHea
   if ((await exec('docker', ['info'])) !== 0) return 'no-docker';
   if ((await exec('docker', ['image', 'inspect', IMAGE])) !== 0) return 'no-image';
   return 'ready';
+}
+
+type ExecOut = (command: string, args: string[]) => Promise<string>;
+const stdoutOf: ExecOut = (command, args) =>
+  new Promise((resolve, reject) => {
+    execFile(command, args, { windowsHide: true, timeout: 30_000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+  });
+
+/** Removes pipeline containers (rr-*) left over from a server that died mid-build. Returns how many; 0 if Docker fails. */
+export async function removeLeftoverContainers(exec: ExecOut = stdoutOf): Promise<number> {
+  try {
+    const ids = (await exec('docker', ['ps', '-aq', '--filter', 'name=^rr-'])).split(/\s+/).filter(Boolean);
+    for (const id of ids) await exec('docker', ['rm', '-f', id]);
+    return ids.length;
+  } catch (error) {
+    console.error("Couldn't check for leftover containers:", error);
+    return 0;
+  }
 }
