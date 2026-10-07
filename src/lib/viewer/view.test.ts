@@ -73,6 +73,22 @@ describe('viewFromCameras', () => {
     expect(view.speed).toBeCloseTo(Math.sqrt(10) * 0.25);
   });
 
+  it("takes the first camera's vertical field of view: 2·atan(height / 2 / fy)", () => {
+    const view = viewFromCameras([camera('0001.jpg', [0, 0, 0], new THREE.Vector3(0, 0, -1), UP)])!;
+    expect(view.fov).toBeCloseTo((2 * Math.atan(375 / 800) * 180) / Math.PI, 6); // about 50.24
+  });
+
+  it('keeps the field of view between 30 and 90 degrees', () => {
+    const wide = camera('0001.jpg', [0, 0, 0], new THREE.Vector3(0, 0, -1), UP);
+    wide.height = 1000;
+    wide.fy = 100;
+    expect(viewFromCameras([wide])!.fov).toBe(90);
+    const narrow = camera('0001.jpg', [0, 0, 0], new THREE.Vector3(0, 0, -1), UP);
+    narrow.height = 100;
+    narrow.fy = 1000;
+    expect(viewFromCameras([narrow])!.fov).toBe(30);
+  });
+
   it('orders frames numerically so 9.jpg comes before 10.jpg', () => {
     const view = viewFromCameras([
       camera('10.jpg', [5, 0, 0], new THREE.Vector3(0, 0, -1), UP),
@@ -97,5 +113,9 @@ describe('fallbackView', () => {
     close(view.position, new THREE.Vector3(1, -1 + 6 * 0.25, -1 + 6 * 1.8));
     close(view.forward, new THREE.Vector3(0, -1.5, -10.8).normalize());
     expect(view.speed).toBeCloseTo(Math.sqrt(56) * 0.25);
+  });
+
+  it('has no field of view of its own', () => {
+    expect(fallbackView({ min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 }, centre: { x: 0, y: 0, z: 0 } }).fov).toBeUndefined();
   });
 });

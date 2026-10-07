@@ -2,7 +2,14 @@ import * as THREE from 'three';
 import type { Vec3 } from '@/lib/room/types';
 import type { CameraPose } from '@/lib/splatJobs/protocol';
 
-export type StartView = { rotation: THREE.Quaternion; position: THREE.Vector3; forward: THREE.Vector3; speed: number };
+export type StartView = {
+  rotation: THREE.Quaternion;
+  position: THREE.Vector3;
+  forward: THREE.Vector3;
+  speed: number;
+  /** Vertical field of view in degrees, from the video's camera; unset in the fallback (the viewer keeps its default). */
+  fov?: number;
+};
 
 /**
  * Which rotation column, and which sign, is a camera's up and its viewing direction in OpenSplat's cameras file. OpenSplat
@@ -26,6 +33,13 @@ function speedFor(box: THREE.Box3): number {
   return diagonal > 1e-6 ? diagonal * 0.25 : MIN_SPEED;
 }
 
+/** The video camera's vertical field of view in degrees, kept within [30, 90]; undefined if its intrinsics are unusable. */
+function fovOf(camera: CameraPose): number | undefined {
+  if (!(camera.fy > 0) || !(camera.height > 0) || !Number.isFinite(camera.fy) || !Number.isFinite(camera.height)) return undefined;
+  const degrees = (2 * Math.atan(camera.height / 2 / camera.fy) * 180) / Math.PI;
+  return Math.min(90, Math.max(30, degrees));
+}
+
 /**
  * Upright and the start view from the video's cameras: the average camera up becomes +Y (the video was held upright),
  * and the view starts at the first frame (lowest image name), looking along it. Null without usable cameras.
@@ -44,6 +58,7 @@ export function viewFromCameras(cameras: CameraPose[]): StartView | null {
     position: new THREE.Vector3(...first.position).applyQuaternion(rotation),
     forward: axis(first.rotation, CAMERA_FORWARD).normalize().applyQuaternion(rotation),
     speed: speedFor(box),
+    fov: fovOf(first),
   };
 }
 

@@ -69,6 +69,7 @@ export class ViewerScene {
     const size = view.speed * 4; // the diagonal the speed came from
     this.camera.near = Math.max(size / 10_000, 0.001);
     this.camera.far = Math.max(size * 100, 10);
+    if (view.fov !== undefined) this.camera.fov = view.fov; // match the video's field of view
     this.camera.updateProjectionMatrix();
     this.targetDistance = Math.max(size * 0.1, 0.05);
     this.camera.position.copy(view.position);
@@ -114,7 +115,8 @@ export class ViewerScene {
     this.pressedAt = null;
     if (!this.view || this.locked || !from) return;
     if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > CLICK_SLOP_PX) return;
-    void this.canvas.requestPointerLock?.();
+    // Chrome rejects a re-lock right after Esc; stay in spin mode quietly and let the next click try again.
+    Promise.resolve(this.canvas.requestPointerLock?.()).catch(() => {});
   };
 
   private readonly lockChanged = () => {
