@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Room Remix',
-  description: 'Hear how your room sounds, and what a rug would fix, before you buy anything.',
+  description: 'Import a video of your room and walk around it in 3D.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

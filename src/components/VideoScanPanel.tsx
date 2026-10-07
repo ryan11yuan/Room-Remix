@@ -37,10 +37,14 @@ export function VideoScanPanel({
   state,
   onStart,
   onCancel,
+  buttonLabel = 'Choose or record a video',
+  showPrivacy = true,
 }: {
   state: Extract<VideoScanState, { kind: 'idle' | 'uploading' }>;
   onStart: (file: File, quality: Quality) => void;
   onCancel: () => void;
+  buttonLabel?: string;
+  showPrivacy?: boolean;
 }) {
   const [quality, setQuality] = useState<Quality>('quick');
   const group = useId();
@@ -58,11 +62,11 @@ export function VideoScanPanel({
               </label>
             ))}
           </fieldset>
-          <p className="text-neutral-400">{PRIVACY}</p>
+          {showPrivacy && <p className="text-neutral-400">{PRIVACY}</p>}
           <label
             className={`${buttonClass} cursor-pointer self-start has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-neutral-300`}
           >
-            Choose or record a video
+            {buttonLabel}
             <input
               type="file"
               accept="video/*"

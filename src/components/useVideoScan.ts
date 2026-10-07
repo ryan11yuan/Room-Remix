@@ -7,11 +7,11 @@ import type { Quality } from '@/lib/splatJobs/protocol';
 import { forgetJob, recallJob, rememberJob } from '@/lib/splatJobs/remembered';
 
 /**
- * Builds a room scan from a video on the demo laptop (spec 2026-10-06 §6). `onReady(file, roomId)` gets the finished
+ * Builds a room scan from a video on the demo laptop (spec 2026-10-06 §6). `onReady(file, roomId, jobId)` gets the finished
  * splat for the room its build belongs to. Builds are remembered per room: a reload, or coming back to the room, picks
  * one up again, and one that finished while its room wasn't open is fetched then.
  */
-export function useVideoScan(roomId: string | null, onReady: (file: File, roomId: string) => void) {
+export function useVideoScan(roomId: string | null, onReady: (file: File, roomId: string, jobId: string) => void) {
   const [state, setState] = useState<VideoScanState>({ kind: 'idle' });
   const [follow, setFollow] = useState(0); // bumped to (re)start following this room's remembered build
   const upload = useRef<{ abort(): void } | null>(null);
@@ -67,7 +67,7 @@ export function useVideoScan(roomId: string | null, onReady: (file: File, roomId
           if (!live) return; // still remembered: fetched again when this room is next open
           forgetJob(room);
           setState({ kind: 'idle' });
-          ready.current(file, room);
+          ready.current(file, room, id);
         } catch {
           if (live) setState({ kind: 'failed', message: DOWNLOAD_FAILED, retry: true });
         }
