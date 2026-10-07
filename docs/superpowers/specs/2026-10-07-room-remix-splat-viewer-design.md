@@ -49,7 +49,7 @@ Full-screen over the page. Its URL hash is `#room=<job id>`, so Back is browser 
 - **Drawing:**
   - three.js with a dark background.
   - The splat comes from `GET /api/splat/jobs/:id/splat` and is drawn by Spark through the existing `SplatLayer`, which is reached by dynamic `import()`, so the ESLint rule that keeps Spark in its own chunk still holds.
-  - The scene is rotated upright by setting the transform of `SplatLayer`'s group.
+  - The splat is turned upright through `SplatLayer`'s alignment, which sets the splat mesh's own transform. Spark's renderer lives in the same group and must not be rotated.
 - **Upright and the start view** come from `GET /api/splat/jobs/:id/cameras`, OpenSplat's `--output-cameras` file in the same frame as the splat: one `{ id, img_name, width, height, fx, fy, position[3], rotation[3][3] }` per frame.
   - **Up:** the average of the cameras' "up" directions, taken from the rotation matrices. The video was held upright, so this is the room's up. The scene is rotated so it points to +Y.
   - **Start:** the camera with the lowest `img_name` (the video's first frame), at its position and looking along its viewing direction.
