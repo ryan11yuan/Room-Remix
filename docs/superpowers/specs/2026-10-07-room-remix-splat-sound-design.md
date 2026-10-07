@@ -135,6 +135,15 @@ A panel on the right of the viewer, about 300 px wide, above the canvas. From to
    - then two groups: **Absorbs sound** (for example "Chair ×5") and **Reflects sound** (for example "Table ×2, Whiteboard");
    - if the search fails: "Couldn't find objects. Sound still works without them."
 
+**Look:** the site's restyle (commit cb53742), with tokens in `src/app/globals.css`.
+- **Inherited:** the panel sits inside the viewer's `darkroom` root, which gives uppercase Inter, weight 500, in cream.
+- **Panel:** `rounded-card border border-cork bg-walnut/80`, with no shadows and no blur.
+- **Buttons:** one `pill` for the main action, `ghost` for the others.
+- **Text:** `text-label` or `text-ui` for text, `text-heading-sm` for headings, `voice` for full sentences, and `text-cream/70` for secondary text.
+- **Dividers:** `rule`.
+- **Placement:** top right. The restyle's own controls are at the top left and bottom left.
+- **Object labels:** the teal and amber chips are this feature's only extra colours. Ember stays reserved for credit lines.
+
 In the 3D view, each object gets a floating label above its box, "Chair · absorbs" in teal or "Whiteboard · reflects" in amber, using three's `CSS2DRenderer`.
 
 ## 9. Cut for tonight
