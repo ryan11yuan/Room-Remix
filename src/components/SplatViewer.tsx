@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { downloadSplat, fetchCameras } from '@/lib/splatJobs/client';
+import { SoundController } from '@/lib/viewer/SoundController';
 import { ViewerScene } from '@/lib/viewer/ViewerScene';
 import { Arrow } from './Arrow';
+import { SoundPanel } from './SoundPanel';
 import { markWebGLUnavailable, useWebGL } from './useWebGL';
 
 /** The controls, as keycap and what it does. */
@@ -22,11 +24,13 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
   const webgl = useWebGL();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>('loading');
+  const [sound, setSound] = useState<SoundController | null>(null);
   // Another room: back to loading (set during render, like RoomView's room switch, not in an effect).
   const [shownRoom, setShownRoom] = useState(roomId);
   if (shownRoom !== roomId) {
     setShownRoom(roomId);
     setStatus('loading');
+    setSound(null);
   }
 
   useEffect(() => {
@@ -43,12 +47,16 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
     const observer = new ResizeObserver(([entry]) => scene.resize(entry.contentRect.width, entry.contentRect.height));
     observer.observe(canvas);
     let live = true;
+    let controller: SoundController | null = null;
     void Promise.all([downloadSplat(roomId), fetchCameras(roomId)])
       .then(async ([file, cameras]) => {
         const bytes = await file.arrayBuffer();
         if (!live) return;
         await scene.open(bytes, cameras);
-        if (live) setStatus('ready');
+        if (!live) return;
+        setStatus('ready');
+        controller = SoundController.create(scene, roomId, cameras);
+        setSound(controller);
       })
       .catch((error: unknown) => {
         console.error(error);
@@ -57,6 +65,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
     return () => {
       live = false;
       observer.disconnect();
+      controller?.dispose();
       scene.dispose();
     };
   }, [webgl, roomId]);
@@ -121,6 +130,8 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
           ))}
         </ul>
       )}
+
+      {status === 'ready' && webgl && sound && <SoundPanel controller={sound} />}
     </div>
   );
 }
