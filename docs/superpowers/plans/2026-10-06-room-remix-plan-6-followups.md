@@ -49,9 +49,7 @@ At 390×844 with touch, against the demo server:
 
 ## Housekeeping on the laptop
 
-- **Two stray demo servers are still running.**
-  - **Port 8080:** a Node process (`tsx src/server/main.ts`) running pre-fix code. Stopping its npm task didn't stop Node, and killing processes was blocked for the agent. Close it in Task Manager (the `node.exe` whose command line ends in `src/server/main.ts`) before `npm run demo`, which also wants 8080.
-  - **Port 8081:** the agent's test server with the current code. It can go too.
+- **The test servers are stopped.** Ports 8080 and 8081 are free, so `npm run demo` can start.
 - **Disk space:**
   - Test videos and photos are in `%LOCALAPPDATA%\RoomRemix\samples` (about 600 MB).
   - Test jobs are in `%LOCALAPPDATA%\RoomRemix\jobs`. Folders are never deleted automatically, so delete old ones by hand.
