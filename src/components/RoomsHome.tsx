@@ -1,19 +1,237 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import { fetchHealth, fetchRooms } from '@/lib/splatJobs/client';
-import { NOT_RUNNING } from '@/lib/splatJobs/panel';
 import type { Health, RoomSummary } from '@/lib/splatJobs/protocol';
 import { roomFromHash, roomHash, roomLabel } from '@/lib/viewer/rooms';
+import { Arrow } from './Arrow';
+import { HomeImport } from './HomeImport';
+import { RoomStage } from './RoomStage';
 import { SplatViewer } from './SplatViewer';
 import { useVideoScan } from './useVideoScan';
-import { VideoScanPanel, VideoScanProgress } from './VideoScanPanel';
 
 const BUILD_KEY = 'home'; // useVideoScan remembers the running build per key; this page has one
 const subscribeHash = (changed: () => void) => {
   window.addEventListener('hashchange', changed);
   return () => window.removeEventListener('hashchange', changed);
 };
+
+const SECTIONS = [
+  { id: 'intro', name: 'Intro' },
+  { id: 'import', name: 'Import' },
+  { id: 'rooms', name: 'Rooms' },
+] as const;
+type SectionId = (typeof SECTIONS)[number]['id'];
+
+/** What each tool in the pipeline does, credited by name. */
+const PIPELINE: readonly { step: string; tool: string }[] = [
+  { step: 'Frames from the video', tool: 'ffmpeg' },
+  { step: 'Where the camera stood', tool: 'COLMAP' },
+  { step: 'The room, as a splat', tool: 'OpenSplat' },
+  { step: 'Walking around it', tool: 'Spark' },
+];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const dateOf = (room: RoomSummary) =>
+  new Date(room.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+const timeOf = (room: RoomSummary) => new Date(room.createdAt).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
+const qualityOf = (room: RoomSummary) => (room.quality === 'best' ? 'Best' : 'Quick');
+
+/** Scroll to a section without adding to the history: the hash belongs to the viewer (`#room=<id>`). */
+function goTo(event: MouseEvent<HTMLAnchorElement>, id: SectionId) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  event.preventDefault();
+  section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+
+/** The section in the middle of the screen, for the nav's dashed underline. */
+function useCurrentSection(): SectionId {
+  const [current, setCurrent] = useState<SectionId>('intro');
+  useEffect(() => {
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) if (entry.isIntersecting) setCurrent(entry.target.id as SectionId);
+      },
+      { rootMargin: '-45% 0px -50% 0px' },
+    );
+    for (const { id } of SECTIONS) {
+      const section = document.getElementById(id);
+      if (section) seen.observe(section);
+    }
+    return () => seen.disconnect();
+  }, []);
+  return current;
+}
+
+function TopNav() {
+  const current = useCurrentSection();
+  return (
+    <header className="pointer-events-none fixed inset-x-0 top-0 z-30 bg-linear-to-b from-walnut/80 to-transparent">
+      <div className="flex items-center justify-between gap-6 px-4 py-5 sm:px-6">
+        <a href="#intro" onClick={(e) => goTo(e, 'intro')} className="pointer-events-auto text-ui">
+          Room Remix
+        </a>
+        <nav aria-label="Sections" className="pointer-events-auto">
+          <ul className="flex gap-5 text-label sm:gap-8">
+            {SECTIONS.map(({ id, name }) => (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  onClick={(e) => goTo(e, id)}
+                  aria-current={current === id ? 'location' : undefined}
+                  className={`inline-flex min-h-11 items-center border-b border-dashed ${current === id ? 'border-cream' : 'border-transparent'}`}
+                >
+                  {name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+/** The newest room's card, bottom left of the hero: when it was made, and the way in. */
+function NewestCard({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOpen: (id: string) => void }) {
+  const newest = rooms?.[0];
+  return (
+    <div className="flex w-full flex-col gap-4 rounded-card border border-cork bg-walnut/75 p-5 sm:w-80">
+      {rooms === undefined && <p className="text-ui text-cream/70">Loading your rooms…</p>}
+      {rooms === null && <p className="text-ui">Couldn&apos;t load the rooms on this laptop.</p>}
+      {rooms?.length === 0 && (
+        <>
+          <p className="text-heading-sm">No rooms yet.</p>
+          <div className="rule" />
+          <p className="voice text-sub text-cream/70">Import a video to make the first one.</p>
+          <a href="#import" onClick={(e) => goTo(e, 'import')} className="pill self-start">
+            Import a video
+            <Arrow to="down" />
+          </a>
+        </>
+      )}
+      {newest && (
+        <>
+          <p className="text-heading-sm">
+            {dateOf(newest)}
+            <br />
+            {timeOf(newest)}
+          </p>
+          <div className="rule" />
+          <p className="text-label text-cream/70">
+            {`${qualityOf(newest)} · the newest of ${rooms.length} ${rooms.length === 1 ? 'room' : 'rooms'}`}
+          </p>
+          <button onClick={() => onOpen(newest.id)} className="pill self-start">
+            Enter the room
+            <Arrow to="right" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Hero({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOpen: (id: string) => void }) {
+  return (
+    <section aria-label="Room Remix" className="relative flex min-h-svh flex-col px-4 pb-6 pt-24 sm:px-6 md:pr-14">
+      <p className="text-label">Made from one video. Built on this laptop.</p>
+      <h1 className="mt-4 text-[clamp(64px,min(13.5vw,21svh),208px)] leading-[0.9]">
+        Room
+        <br />
+        Remix
+      </h1>
+      <div className="mt-auto flex flex-col items-start justify-between gap-4 pt-10 sm:flex-row sm:items-end">
+        <NewestCard rooms={rooms} onOpen={onOpen} />
+        <a
+          href="#import"
+          onClick={(e) => goTo(e, 'import')}
+          className="hidden items-center gap-3 rounded-card border border-cork bg-walnut/75 px-5 py-4 text-label transition-colors duration-200 ease-develop hover:border-cream sm:inline-flex"
+        >
+          Import a video
+          <Arrow to="down" />
+        </a>
+      </div>
+    </section>
+  );
+}
+
+/** The second plinth view: the room has turned a little, flanked by what it is and how it was made. */
+function Reveal() {
+  return (
+    <section
+      aria-labelledby="reveal-heading"
+      className="relative flex min-h-svh flex-col bg-walnut/55 px-4 pb-10 pt-28 sm:px-6 md:pr-14 lg:bg-transparent lg:bg-[linear-gradient(to_right,rgb(16_9_4/0.88),rgb(16_9_4/0.35)_32%,transparent_42%,transparent_58%,rgb(16_9_4/0.35)_68%,rgb(16_9_4/0.88))]"
+    >
+      <div className="grid flex-1 grid-cols-1 content-center gap-x-4.5 gap-y-8 lg:grid-cols-12">
+        <h2 id="reveal-heading" className="text-heading lg:col-span-3 lg:self-center">
+          It isn&apos;t just
+          <br />a video.
+        </h2>
+        <p className="voice text-body lg:col-span-3 lg:col-start-10 lg:self-center">
+          Import a video of your room and walk around it in 3D. Every room here was built on this laptop, from one phone video.
+        </p>
+      </div>
+      <ol aria-label="How a video becomes a room" className="grid grid-cols-2 gap-x-4.5 gap-y-6 lg:grid-cols-4">
+        {PIPELINE.map(({ step, tool }) => (
+          <li key={tool} className="rule flex flex-col gap-2 bg-walnut/40 pt-4">
+            <span className="text-label">{step}</span>
+            <span className="text-label text-ember">{tool}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function RoomsList({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOpen: (id: string) => void }) {
+  return (
+    <section id="rooms" aria-labelledby="rooms-heading" className="flex min-h-svh flex-col bg-walnut px-4 pt-28 sm:px-6 md:pr-14">
+      <div className="flex flex-wrap items-end justify-between gap-4 pb-10">
+        <h2 id="rooms-heading" className="text-heading">
+          Your rooms.
+        </h2>
+        {rooms && rooms.length > 0 && <p className="text-label text-cream/70">{`${pad(rooms.length)} on this laptop`}</p>}
+      </div>
+      {rooms === undefined && <p className="rule pt-6 text-ui text-cream/70">Loading your rooms…</p>}
+      {rooms === null && <p className="rule pt-6 text-ui">Couldn&apos;t load the rooms on this laptop.</p>}
+      {rooms?.length === 0 && (
+        <p className="rule pt-6 text-ui">
+          No rooms yet.{' '}
+          <a href="#import" onClick={(e) => goTo(e, 'import')} className="text-link">
+            Import a video
+          </a>{' '}
+          to make one.
+        </p>
+      )}
+      {rooms && rooms.length > 0 && (
+        <ul className="flex flex-col">
+          {rooms.map((room, i) => (
+            <li key={room.id} className="rule">
+              <button
+                onClick={() => onOpen(room.id)}
+                aria-label={`Enter the room from ${roomLabel(room)}`}
+                className="group grid w-full grid-cols-[3rem_1fr_auto] items-center gap-x-4.5 gap-y-1 py-6 text-left transition-colors duration-200 ease-develop hover:bg-bark/50 sm:grid-cols-[4rem_1fr_8rem_auto] sm:px-2"
+              >
+                <span className="text-label text-cream/70">{pad(rooms.length - i)}</span>
+                <span className="text-heading-sm">{`${dateOf(room)}, ${timeOf(room)}`}</span>
+                <span className="col-start-2 row-start-2 text-label text-cream/70 sm:col-start-3 sm:row-start-1">{qualityOf(room)}</span>
+                <span className="col-start-3 row-span-2 row-start-1 inline-flex items-center gap-3 text-label sm:col-start-4 sm:row-span-1">
+                  <span className="hidden sm:inline">Enter</span>
+                  <Arrow to="right" className="transition-transform duration-300 ease-develop group-hover:translate-x-1" />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <footer className="rule mt-auto flex flex-col gap-3 py-8 sm:flex-row sm:items-end sm:justify-between">
+        <p className="text-label text-ember">Built with ffmpeg, COLMAP, OpenSplat and Spark, after Memento</p>
+        <p className="font-[Arial,sans-serif] text-[8px] leading-[1.2]">Your video is sent to this laptop to build the room, and stays there.</p>
+      </footer>
+    </section>
+  );
+}
 
 /** The whole app now (spec 2026-10-07 §3): import a video, follow its build, and open rooms in the viewer. */
 export function RoomsHome() {
@@ -73,64 +291,42 @@ export function RoomsHome() {
     return <SplatViewer roomId={openRoom} title={shown && roomLabel(shown)} onBack={back} />;
   }
 
+  // Served without the laptop's server (no health, no rooms): say how to start it.
+  if (health === null && rooms === null) {
+    return (
+      <main className="darkroom flex min-h-dvh flex-col justify-between px-4 py-6 sm:px-6">
+        <p className="text-ui">Room Remix</p>
+        <div className="flex max-w-3xl flex-col gap-8">
+          <h1 className="text-heading">The room builder isn&apos;t running.</h1>
+          <p className="voice text-body">
+            Start it with <code className="rounded-card bg-bark px-2 font-[inherit]">npm run demo</code>, then open
+            http://localhost:8080.
+          </p>
+        </div>
+        <p className="text-label text-ember">Built with ffmpeg, COLMAP, OpenSplat and Spark, after Memento</p>
+      </main>
+    );
+  }
+
+  const count = rooms?.length ?? 0;
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-8 px-4 py-10">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-4xl font-bold">Room Remix</h1>
-        <p className="text-lg text-neutral-300">Import a video of your room and walk around it in 3D.</p>
-      </header>
-      {health === null && rooms === null && (
-        <p className="text-neutral-300">
-          Start the room builder with <code className="rounded bg-neutral-800 px-1">pnpm run demo</code>, then open
-          http://localhost:8080.
-        </p>
-      )}
-      {health === undefined && (
-        <section aria-label="Import a video" className="flex flex-col gap-3">
-          <p className="text-neutral-400">Checking the room builder…</p>
-        </section>
-      )}
-      {(health || (health === null && rooms !== null)) && (
-        <section aria-label="Import a video" className="flex flex-col gap-3">
-          {(!health || health.pipeline !== 'ready') && <p className="text-amber-200">{NOT_RUNNING}</p>}
-          {health && health.pipeline === 'ready' && (build.state.kind === 'idle' || build.state.kind === 'uploading') && (
-            <VideoScanPanel
-              state={build.state}
-              onStart={build.start}
-              onCancel={build.cancel}
-              buttonLabel="Import a video"
-              showPrivacy={false}
-            />
-          )}
-          {(build.state.kind === 'building' || build.state.kind === 'downloading' || build.state.kind === 'failed') && (
-            <VideoScanProgress state={build.state} onCancel={build.cancel} onDismiss={build.dismiss} onRetry={build.retry} />
-          )}
-        </section>
-      )}
-      {!(health === null && rooms === null) && (
-        <section aria-labelledby="your-rooms" className="flex flex-col gap-3">
-          <h2 id="your-rooms" className="text-xl font-semibold">
-            Your rooms
-          </h2>
-          {rooms === undefined && <p className="text-neutral-400">Loading your rooms…</p>}
-          {rooms === null && <p className="text-neutral-400">Couldn&apos;t load the rooms on this laptop.</p>}
-          {rooms?.length === 0 && <p className="text-neutral-400">No rooms yet. Import a video to make one.</p>}
-          {rooms && rooms.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {rooms.map((room) => (
-                <li key={room.id}>
-                  <button
-                    onClick={() => open(room.id)}
-                    className="flex min-h-11 w-full items-center rounded-lg border border-neutral-800 px-4 text-left hover:border-neutral-600"
-                  >
-                    {roomLabel(room)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-    </main>
+    <div className="darkroom min-h-dvh">
+      <TopNav />
+      <p
+        aria-hidden
+        className="pointer-events-none fixed right-3 top-1/2 z-20 hidden -translate-y-1/2 text-micro [writing-mode:vertical-rl] md:block"
+      >
+        {`Room Remix · ${pad(count)} ${count === 1 ? 'room' : 'rooms'} on this laptop`}
+      </p>
+      <main>
+        {/* The hero and the reveal share the plinth, so the nav calls both of them Intro. */}
+        <RoomStage id="intro" room={rooms?.[0] ?? null}>
+          <Hero rooms={rooms} onOpen={open} />
+          <Reveal />
+        </RoomStage>
+        <HomeImport health={health} build={build} />
+        <RoomsList rooms={rooms} onOpen={open} />
+      </main>
+    </div>
   );
 }

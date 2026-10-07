@@ -85,6 +85,25 @@
     background: var(--color-walnut);
   }
 
+  /* Form controls reset text-transform in preflight; inside the darkroom they follow the labels. */
+  .darkroom :where(button, input, select, textarea) {
+    text-transform: inherit;
+  }
+
+  /* The void closing in at the edges of the hero's room, where the type sits; the centre stays clear for the room. */
+  .vignette {
+    background:
+      radial-gradient(ellipse 62% 64% at 50% 50%, transparent 0%, transparent 38%, rgb(16 9 4 / 0.6) 72%, var(--color-walnut) 100%),
+      linear-gradient(to bottom, rgb(16 9 4 / 0.7), transparent 22%, transparent 70%, rgb(16 9 4 / 0.85));
+  }
+  @media (max-aspect-ratio: 1/1) {
+    .vignette {
+      background:
+        radial-gradient(ellipse 90% 46% at 50% 50%, transparent 0%, transparent 45%, rgb(16 9 4 / 0.55) 80%, var(--color-walnut) 100%),
+        linear-gradient(to bottom, rgb(16 9 4 / 0.75), transparent 30%, transparent 62%, rgb(16 9 4 / 0.9));
+    }
+  }
+
   /* The one conversational voice: mixed case, weight 400. */
   .voice {
     font-weight: 400;
