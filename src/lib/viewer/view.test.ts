@@ -57,6 +57,29 @@ describe('viewFromCameras', () => {
     expect(viewFromCameras([camera('0001.jpg', [0, 0, 0], new THREE.Vector3(0, 0, -1), UP)])!.speed).toBe(MIN_SPEED);
     expect(viewFromCameras([])).toBeNull();
   });
+
+  it('turns position, view direction and speed with the room when the video was tilted 45°', () => {
+    const up = new THREE.Vector3(1, 1, 0);
+    const forward = new THREE.Vector3(1, -1, 0);
+    const view = viewFromCameras([
+      camera('0002.jpg', [0, 0, 0], forward, up),
+      camera('0001.jpg', [0, 2, 0], forward, up),
+      camera('0003.jpg', [2, 0, 0], forward, up),
+    ])!;
+    close(up.clone().normalize().applyQuaternion(view.rotation), UP);
+    close(view.position, new THREE.Vector3(-Math.SQRT2, Math.SQRT2, 0)); // (0, 2, 0) turned 45° about Z
+    close(view.forward, new THREE.Vector3(1, 0, 0)); // (1, -1, 0) turned 45° about Z
+    // The turned cameras span 2√2 × √2 × 0 (diagonal √10); unturned they would span 2 × 2 × 0 (diagonal 2√2).
+    expect(view.speed).toBeCloseTo(Math.sqrt(10) * 0.25);
+  });
+
+  it('orders frames numerically so 9.jpg comes before 10.jpg', () => {
+    const view = viewFromCameras([
+      camera('10.jpg', [5, 0, 0], new THREE.Vector3(0, 0, -1), UP),
+      camera('9.jpg', [0, 0, 0], new THREE.Vector3(0, 0, -1), UP),
+    ])!;
+    close(view.position, new THREE.Vector3(0, 0, 0));
+  });
 });
 
 describe('fallbackView', () => {
@@ -66,5 +89,13 @@ describe('fallbackView', () => {
     close(view.position, new THREE.Vector3(0, 0.5, 3.6)); // centre + (0, 0.25, 1.8) × the largest side (2)
     close(view.forward, new THREE.Vector3(0, -0.5, -3.6).normalize());
     expect(view.speed).toBeCloseTo(Math.sqrt(12) * 0.25);
+  });
+
+  it('flips an off-centre box too, so the start view follows the flipped centre', () => {
+    const view = fallbackView({ min: { x: 0, y: 0, z: 0 }, max: { x: 2, y: 4, z: 6 }, centre: { x: 1, y: 1, z: 1 } });
+    // π about X: the centre (1, 1, 1) becomes (1, -1, -1); the largest side is 6.
+    close(view.position, new THREE.Vector3(1, -1 + 6 * 0.25, -1 + 6 * 1.8));
+    close(view.forward, new THREE.Vector3(0, -1.5, -10.8).normalize());
+    expect(view.speed).toBeCloseTo(Math.sqrt(56) * 0.25);
   });
 });

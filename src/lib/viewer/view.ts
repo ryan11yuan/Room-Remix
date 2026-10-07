@@ -36,7 +36,7 @@ export function viewFromCameras(cameras: CameraPose[]): StartView | null {
   for (const camera of cameras) up.add(axis(camera.rotation, CAMERA_UP).normalize());
   if (up.lengthSq() < 1e-12) return null;
   const rotation = new THREE.Quaternion().setFromUnitVectors(up.normalize(), Y_UP);
-  const first = [...cameras].sort((a, b) => a.img_name.localeCompare(b.img_name))[0];
+  const first = [...cameras].sort((a, b) => a.img_name.localeCompare(b.img_name, undefined, { numeric: true }))[0];
   const box = new THREE.Box3();
   for (const camera of cameras) box.expandByPoint(new THREE.Vector3(...camera.position).applyQuaternion(rotation));
   return {
