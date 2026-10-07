@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jobFraction, jobLine, uploadFailMessage } from './panel';
+import { buildFailure, jobFraction, jobLine, uploadFailMessage } from './panel';
 import type { JobView } from './protocol';
 
 const job = (fields: Partial<JobView>): JobView => ({ id: 'j1', quality: 'quick', state: 'queued', ...fields });
@@ -20,6 +20,19 @@ describe('jobLine', () => {
     expect(jobLine(job({ state: 'failed', error: { code: 'training-failed', message: 'Building the room failed. Try Quick.' } }))).toBe(
       'Building the room failed. Try Quick.',
     );
+  });
+});
+
+describe('buildFailure', () => {
+  it("shows the filming tips when COLMAP couldn't work out the room", () => {
+    const message = "Couldn't work out the room from this video.";
+    expect(buildFailure(job({ state: 'failed', error: { code: 'no-model', message } }))).toEqual({ kind: 'failed', message, tips: true });
+  });
+
+  it('shows only the message for other failures', () => {
+    const message = 'Building the room failed. Try Quick.';
+    expect(buildFailure(job({ state: 'failed', error: { code: 'training-failed', message } }))).toEqual({ kind: 'failed', message });
+    expect(buildFailure(job({ state: 'failed' }))).toEqual({ kind: 'failed', message: 'Building the room failed.' });
   });
 });
 

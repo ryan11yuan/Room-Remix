@@ -7,13 +7,23 @@ export type VideoScanState =
   | { kind: 'uploading'; fraction: number }
   | { kind: 'building'; job: JobView; offline: boolean }
   | { kind: 'downloading' }
-  | { kind: 'failed'; message: string; retry?: boolean };
+  | { kind: 'failed'; message: string; retry?: boolean; tips?: boolean };
 
 export const KEEP_SCREEN_ON = 'Keep your screen on until the upload finishes.';
 export const LOST_CONTACT = 'Lost contact with the laptop. Trying again…';
 export const GONE = 'This build is no longer on the laptop.';
 export const NOT_RUNNING = "The laptop's scan builder isn't running.";
 export const DOWNLOAD_FAILED = "Couldn't fetch the finished room from the laptop.";
+const BUILD_FAILED = 'Building the room failed.';
+
+/** How to film a video COLMAP can work out: it needs the camera to move, and things to track. */
+export const FILMING_TIPS: readonly string[] = [
+  "Walk slowly around the edge of the room with the camera pointed across the room, toward the middle. Don't stand in one spot and turn.",
+  'Take about a minute for one lap, and keep the video under 2 minutes.',
+  'Keep furniture and objects in view, not a blank wall, a whiteboard, the ceiling or the floor.',
+  "Turn the lights on, and don't point the camera at bright windows.",
+  "Hold the phone steady with both hands so the frames aren't blurry.",
+];
 export const POLL_MS = 2000;
 export const OFFLINE_POLL_MS = 5000;
 
@@ -47,10 +57,17 @@ export function jobLine(job: JobView): string {
     case 'ready':
       return 'Ready';
     case 'failed':
-      return job.error?.message ?? 'Building the room failed.';
+      return job.error?.message ?? BUILD_FAILED;
     case 'canceled':
       return 'Canceled';
   }
+}
+
+/** What to show for a failed build. A video COLMAP couldn't work out gets the filming tips with it. */
+export function buildFailure(job: JobView): Extract<VideoScanState, { kind: 'failed' }> {
+  const failure: Extract<VideoScanState, { kind: 'failed' }> = { kind: 'failed', message: job.error?.message ?? BUILD_FAILED };
+  if (job.error?.code === 'no-model') failure.tips = true;
+  return failure;
 }
 
 /** The progress bar's fill, 0..1, or null for a step with nothing to measure. */

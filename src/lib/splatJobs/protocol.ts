@@ -28,7 +28,7 @@ export const MAX_VIDEO_SECONDS = 120;
 export const JOB_ERROR_MESSAGES: Record<JobErrorCode, string> = {
   'too-long': 'This video is too long. Keep it under 2 minutes.',
   'not-video': "This file isn't a video we can read.",
-  'no-model': "Couldn't work out the room from this video. Walk slowly sideways around the room in good light, and try again.",
+  'no-model': "Couldn't work out the room from this video. Walk around the room instead of turning on the spot, and keep furniture in view.",
   'training-failed': 'Building the room failed. Try Quick.',
   'step-failed': "Something went wrong on the laptop. Its log is in the job's folder.",
   restarted: 'The laptop restarted while building. Start again.',

@@ -16,7 +16,7 @@ describe('protocol', () => {
 
   it('uses the spec messages and limits', () => {
     expect(JOB_ERROR_MESSAGES['no-model']).toBe(
-      "Couldn't work out the room from this video. Walk slowly sideways around the room in good light, and try again.",
+      "Couldn't work out the room from this video. Walk around the room instead of turning on the spot, and keep furniture in view.",
     );
     expect(JOB_ERROR_MESSAGES.restarted).toBe('The laptop restarted while building. Start again.');
     expect(JOB_ERROR_MESSAGES['too-long']).toBe('This video is too long. Keep it under 2 minutes.');

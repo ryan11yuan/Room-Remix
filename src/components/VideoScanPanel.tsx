@@ -1,11 +1,10 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { jobFraction, jobLine, KEEP_SCREEN_ON, LOST_CONTACT, type VideoScanState } from '@/lib/splatJobs/panel';
+import { FILMING_TIPS, jobFraction, jobLine, KEEP_SCREEN_ON, LOST_CONTACT, type VideoScanState } from '@/lib/splatJobs/panel';
 import type { Quality } from '@/lib/splatJobs/protocol';
 
 const buttonClass = 'inline-flex min-h-11 items-center rounded-md border border-neutral-700 px-3 disabled:opacity-40';
-const TIPS = 'Walk slowly around the room for 30–60 seconds. Move sideways rather than turning on the spot, and keep the light good.';
 const PRIVACY = 'Your video is sent to this laptop to build the room, and stays there.';
 const QUALITY_LABELS: Record<Quality, string> = { quick: 'Quick: about 5 minutes', best: 'Best: sharper, about half an hour' };
 
@@ -32,6 +31,19 @@ function Bar({ fraction, label }: { fraction: number | null; label: string }) {
   );
 }
 
+function FilmingTips() {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-medium text-neutral-200">How to film</p>
+      <ul className="list-disc space-y-1 pl-5 text-neutral-300">
+        {FILMING_TIPS.map((tip) => (
+          <li key={tip}>{tip}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Opened by "Make from a video": the tips, Quick or Best, and the video; then the upload's progress. */
 export function VideoScanPanel({
   state,
@@ -50,7 +62,7 @@ export function VideoScanPanel({
   const group = useId();
   return (
     <section aria-label="Make a scan from a video" className="flex flex-col gap-3 rounded-lg border border-neutral-800 p-3 text-sm">
-      <p className="text-neutral-300">{TIPS}</p>
+      <FilmingTips />
       {state.kind === 'idle' ? (
         <>
           <fieldset className="flex flex-wrap gap-x-4">
@@ -107,18 +119,21 @@ export function VideoScanProgress({
 }) {
   if (state.kind === 'failed') {
     return (
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <p role="status" className="min-w-0 flex-1 text-amber-200">
-          {state.message}
-        </p>
-        {state.retry && (
-          <button onClick={onRetry} className={buttonClass}>
-            Try again
+      <div className="flex flex-col gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="status" className="min-w-0 flex-1 text-amber-200">
+            {state.message}
+          </p>
+          {state.retry && (
+            <button onClick={onRetry} className={buttonClass}>
+              Try again
+            </button>
+          )}
+          <button onClick={onDismiss} className={buttonClass}>
+            Close
           </button>
-        )}
-        <button onClick={onDismiss} className={buttonClass}>
-          Close
-        </button>
+        </div>
+        {state.tips && <FilmingTips />}
       </div>
     );
   }

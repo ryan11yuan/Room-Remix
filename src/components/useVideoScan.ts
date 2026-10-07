@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cancelJob, downloadSplat, fetchJob, uploadVideo } from '@/lib/splatJobs/client';
-import { DOWNLOAD_FAILED, GONE, OFFLINE_POLL_MS, POLL_MS, uploadFailMessage, type VideoScanState } from '@/lib/splatJobs/panel';
+import { buildFailure, DOWNLOAD_FAILED, GONE, OFFLINE_POLL_MS, POLL_MS, uploadFailMessage, type VideoScanState } from '@/lib/splatJobs/panel';
 import type { Quality } from '@/lib/splatJobs/protocol';
 import { forgetJob, recallJob, rememberJob } from '@/lib/splatJobs/remembered';
 
@@ -75,7 +75,7 @@ export function useVideoScan(roomId: string | null, onReady: (file: File, roomId
       }
       if (job.state === 'failed' || job.state === 'canceled') {
         forgetJob(room);
-        setState(job.state === 'failed' ? { kind: 'failed', message: job.error?.message ?? 'Building the room failed.' } : { kind: 'idle' });
+        setState(job.state === 'failed' ? buildFailure(job) : { kind: 'idle' });
         return;
       }
       setState({ kind: 'building', job, offline: false });
