@@ -1,0 +1,486 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T23:43:00.177Z",
+  "title": "Design System: Room Remix",
+  "extensions": {
+    "colorMeta": {
+      "walnut": {
+        "role": "neutral",
+        "displayName": "Walnut Void",
+        "canonical": "oklch(14.7% 0.018 63.8)",
+        "tonalRamp": [
+          "#110904",
+          "#2a221b",
+          "#494039",
+          "#685e56",
+          "#8b8178",
+          "#ada299",
+          "#d3c8bf",
+          "#f8ece2"
+        ]
+      },
+      "bark": {
+        "role": "primary",
+        "displayName": "Bark",
+        "canonical": "oklch(28.1% 0.039 55.4)",
+        "tonalRamp": [
+          "#160700",
+          "#321f11",
+          "#533d2e",
+          "#725b4b",
+          "#967e6d",
+          "#b89f8e",
+          "#dfc5b3",
+          "#ffeadd"
+        ]
+      },
+      "cork": {
+        "role": "neutral",
+        "displayName": "Cork Hairline",
+        "canonical": "oklch(34.3% 0.020 67.1)",
+        "tonalRamp": [
+          "#110904",
+          "#2b221a",
+          "#4a4137",
+          "#685e55",
+          "#8c8177",
+          "#ada298",
+          "#d4c8bd",
+          "#f8ece1"
+        ]
+      },
+      "driftwood": {
+        "role": "neutral",
+        "displayName": "Driftwood",
+        "canonical": "oklch(49.4% 0.027 69.2)",
+        "tonalRamp": [
+          "#130901",
+          "#2d2215",
+          "#4c4033",
+          "#6b5e50",
+          "#8e8172",
+          "#b0a293",
+          "#d7c8b8",
+          "#fbecdb"
+        ]
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Darkroom Cream",
+        "canonical": "oklch(95.5% 0.035 72.9)",
+        "tonalRamp": [
+          "#130900",
+          "#2e2110",
+          "#4e402e",
+          "#6d5e4b",
+          "#90806c",
+          "#b2a28d",
+          "#d9c8b2",
+          "#fdebd5"
+        ]
+      },
+      "ember": {
+        "role": "secondary",
+        "displayName": "Ember Credit",
+        "canonical": "oklch(61.4% 0.188 41.2)",
+        "tonalRamp": [
+          "#1a0400",
+          "#411301",
+          "#722600",
+          "#a33900",
+          "#da5002",
+          "#ff763f",
+          "#ffb79c",
+          "#ffe9e1"
+        ]
+      },
+      "data-absorbs": {
+        "role": "data",
+        "displayName": "Absorb Teal",
+        "canonical": "oklch(79.8% 0.109 183.3)",
+        "tonalRamp": [
+          "#000f0c",
+          "#022b26",
+          "#034e46",
+          "#037065",
+          "#0c9889",
+          "#42bbab",
+          "#6ee2d1",
+          "#b9fff3"
+        ]
+      },
+      "data-reflects": {
+        "role": "data",
+        "displayName": "Reflect Amber",
+        "canonical": "oklch(77.8% 0.143 70.4)",
+        "tonalRamp": [
+          "#130900",
+          "#351e01",
+          "#5d3901",
+          "#855402",
+          "#b47302",
+          "#dc9328",
+          "#ffbc68",
+          "#feebd6"
+        ]
+      },
+      "data-best": {
+        "role": "data",
+        "displayName": "Best-Spot Green",
+        "canonical": "oklch(79.3% 0.180 154.0)",
+        "tonalRamp": [
+          "#001005",
+          "#012d15",
+          "#03502a",
+          "#04743f",
+          "#079d57",
+          "#08c46e",
+          "#52ec93",
+          "#c5ffd6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The stacked ROOM / REMIX in the hero only; the one size off the scale."
+      },
+      "display": {
+        "displayName": "Display",
+        "purpose": "The upload and build percentage, tabular; 96px from lg."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings and the drop target."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card headings, build status lines, room times, the sound panel heading."
+      },
+      "body": {
+        "displayName": "Body (voice)",
+        "purpose": "The one mixed-case description per section."
+      },
+      "voice": {
+        "displayName": "Voice",
+        "purpose": "Mixed-case instructions: filming tips, quality details, fix and retry hints."
+      },
+      "ui": {
+        "displayName": "UI",
+        "purpose": "Pill text, the brand mark, small sub-headings, loading lines."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Nav, ghost buttons, metadata, day headers, credits, key hints, sound panel readouts."
+      },
+      "micro": {
+        "displayName": "Micro",
+        "purpose": "The vertical serial, keycaps, the Done mark, 3D chips."
+      }
+    },
+    "shadows": [],
+    "scrims": [
+      {
+        "name": "panel-over-room",
+        "value": "rgb(16 9 4 / 0.75)",
+        "purpose": "Hero cards over the live room (0.8 for the sound panel and 3D chips, 0.9 for the drop target)."
+      },
+      {
+        "name": "nav-fade",
+        "value": "linear-gradient(to bottom, rgb(16 9 4 / 0.8), transparent)",
+        "purpose": "Under the fixed top nav."
+      },
+      {
+        "name": "viewer-shade",
+        "value": "linear-gradient(to bottom, rgb(16 9 4 / 0.85), transparent)",
+        "purpose": "Top 144px and bottom 160px (reversed) of the viewer, where its labels sit."
+      },
+      {
+        "name": "hero-side",
+        "value": "linear-gradient(to left, rgb(16 9 4 / 0.85), rgb(16 9 4 / 0.4) 28%, transparent 45%)",
+        "purpose": "From md, under the hero description."
+      },
+      {
+        "name": "reveal-sides",
+        "value": "linear-gradient(to right, rgb(16 9 4 / 0.88), rgb(16 9 4 / 0.35) 32%, transparent 42%, transparent 58%, rgb(16 9 4 / 0.35) 68%, rgb(16 9 4 / 0.88))",
+        "purpose": "From lg, under the reveal heading and line; below lg a flat rgb(16 9 4 / 0.55)."
+      },
+      {
+        "name": "vignette",
+        "value": "radial-gradient(ellipse calc(62% - 24% * var(--p, 0)) calc(64% - 18% * var(--p, 0)) at 50% 50%, transparent 0%, transparent 38%, rgb(16 9 4 / calc(0.6 + 0.3 * var(--p, 0))) 72%, #100904 100%), linear-gradient(to bottom, rgb(16 9 4 / 0.7), transparent 22%, transparent 70%, rgb(16 9 4 / 0.85))",
+        "purpose": "Closes in on the plinth room as --p (scroll progress 0..1) rises; a wider, flatter ellipse on portrait screens."
+      },
+      {
+        "name": "print-grade",
+        "value": "#ffedd7 with mix-blend-mode: multiply, then rgb(16 9 4 / 0.15)",
+        "purpose": "Warm grade over a room shown behind type, so whites print as cream and the brightest wall stays under cream type."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-develop",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The one easing: hovers, slides, fades, the bar fill and the develop entrance."
+      },
+      {
+        "name": "hover-button",
+        "value": "240ms",
+        "purpose": "Pill and ghost fill to cream."
+      },
+      {
+        "name": "hover-surface",
+        "value": "200ms",
+        "purpose": "Card border to cream, option border to driftwood, room row fill to bark 50%."
+      },
+      {
+        "name": "nudge",
+        "value": "300ms",
+        "purpose": "The room row arrow slides 4px right on hover."
+      },
+      {
+        "name": "bar-fill",
+        "value": "500ms",
+        "purpose": "Progress fill width."
+      },
+      {
+        "name": "sketch-fade",
+        "value": "1400ms",
+        "purpose": "The room sketch fades out as the splat develops."
+      },
+      {
+        "name": "develop",
+        "value": "opacity 0, blur(18px) brightness(0.6) to opacity 1, blur(0) brightness(1)",
+        "purpose": "A room coming up out of the dark: 2.4s on the plinth, 1.8s in the viewer; skipped under reduced motion."
+      },
+      {
+        "name": "indeterminate",
+        "value": "1.6s ease-in-out infinite, translateX(-100%) to translateX(300%)",
+        "purpose": "A third-width bar sliding across the track before any step reports progress; still under reduced motion."
+      },
+      {
+        "name": "step-pulse",
+        "value": "2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "purpose": "The current build step's dot (Tailwind's default pulse)."
+      },
+      {
+        "name": "plinth-sway",
+        "value": "4.5deg either side, 24s sine period",
+        "purpose": "The idle turntable sway of the hero room."
+      },
+      {
+        "name": "plinth-scroll",
+        "value": "26deg turn, 10% dolly back",
+        "purpose": "Applied across the scroll from hero to reveal."
+      },
+      {
+        "name": "plinth-pointer",
+        "value": "2.5deg turn, 1.5deg tilt",
+        "purpose": "Pointer parallax on the hero room."
+      },
+      {
+        "name": "plinth-catch-up",
+        "value": "exponential ease, rate 3.5 per second",
+        "purpose": "How quickly the camera catches up with scroll and pointer."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "portrait",
+        "value": "(max-aspect-ratio: 1/1)"
+      },
+      {
+        "name": "fine-pointer",
+        "value": "(pointer: fine)"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "(prefers-reduced-motion: reduce)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Pill",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled action of a section or panel: bark fill, cream UI type, trailing arrow; develops to cream on hover.",
+      "html": "<div class=\"ds-pill-stage\"><button class=\"ds-pill\">Enter the room<svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"square\" aria-hidden=\"true\" style=\"flex-shrink:0\"><path d=\"M1 8h14M9 2l6 6-6 6\"/></svg></button><button class=\"ds-pill\" disabled>Play</button></div>",
+      "css": ".ds-pill-stage { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 24px; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7);  } .ds-pill { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 14px 24px; border: 0; border-radius: var(--radius-pill, 36px); background: var(--color-bark, #382416); color: var(--color-cream, #ffedd7); font-size: 14px; line-height: 1; cursor: pointer; transition: background-color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)), color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-pill:hover { background: var(--color-cream, #ffedd7); color: var(--color-walnut, #100904); } .ds-pill:focus-visible { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; } .ds-pill:disabled { opacity: 0.4; cursor: not-allowed; } .ds-pill:disabled:hover { background: var(--color-bark, #382416); color: var(--color-cream, #ffedd7); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Every secondary action: a 1px cream line, no fill, label type. Hover and the pressed toggle state fill it cream.",
+      "html": "<div class=\"ds-ghost-stage\"><button class=\"ds-ghost\"><svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"square\" aria-hidden=\"true\" style=\"flex-shrink:0\"><path d=\"M15 8H1M7 2 1 8l6 6\"/></svg>Back</button><button class=\"ds-ghost\">Cancel</button><div class=\"ds-ghost-group\" role=\"group\" aria-label=\"Music\"><button class=\"ds-ghost\" aria-pressed=\"true\">Drum loop</button><button class=\"ds-ghost\" aria-pressed=\"false\">Guitar riff</button></div></div>",
+      "css": ".ds-ghost-stage { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 24px; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7);  } .ds-ghost-group { display: flex; gap: 8px; } .ds-ghost { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 7.5px 18px; border: 1px solid var(--color-cream, #ffedd7); border-radius: var(--radius-ghost, 22.5px); background: transparent; color: var(--color-cream, #ffedd7); font-size: 12px; line-height: 1; cursor: pointer; transition: background-color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)), color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-ghost:hover, .ds-ghost[aria-pressed=\"true\"] { background: var(--color-cream, #ffedd7); color: var(--color-walnut, #100904); } .ds-ghost:focus-visible { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; } .ds-ghost:disabled { opacity: 0.4; cursor: not-allowed; background: transparent; color: var(--color-cream, #ffedd7); }"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Fixed top bar over a walnut fade: brand at UI size left, section links at label size right; the current section carries a dashed cream underline.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"#intro\">Room Remix</a><nav aria-label=\"Sections\"><ul class=\"ds-nav-list\"><li><a href=\"#intro\" aria-current=\"location\"><span>Intro</span></a></li><li><a href=\"#import\"><span>Import</span></a></li><li><a href=\"#rooms\"><span>Rooms</span></a></li></ul></nav></header>",
+      "css": ".ds-nav { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 24px; background: linear-gradient(to bottom, rgb(16 9 4 / 0.8), transparent), var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); } .ds-nav a { color: inherit; text-decoration: none; } .ds-nav-brand { font-size: 14px; line-height: 1.1; } .ds-nav-list { display: flex; gap: 32px; margin: 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.2; } .ds-nav-list a { display: inline-flex; min-height: 44px; align-items: center; } .ds-nav-list span { padding-bottom: 4px; border-bottom: 1px dashed transparent; } .ds-nav-list a[aria-current] span { border-bottom-color: var(--color-cream, #ffedd7); } .ds-nav a:focus-visible { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; }"
+    },
+    {
+      "name": "Room Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The newest room over the live splat: a 12px walnut card with a cork line, title, dashed rule, a 70% cream meta line and the one pill.",
+      "html": "<div class=\"ds-card-stage\"><div class=\"ds-card\"><p class=\"ds-card-title\">Oct 7, 2026<br>7:12 PM</p><div class=\"ds-card-rule\"></div><p class=\"ds-card-meta\">Quick · the newest of 3 rooms</p><button class=\"ds-card-pill\">Enter the room<svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"square\" aria-hidden=\"true\" style=\"flex-shrink:0\"><path d=\"M1 8h14M9 2l6 6-6 6\"/></svg></button></div></div>",
+      "css": ".ds-card-stage { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 24px; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); background: linear-gradient(135deg, #6c5f51, #100904); } .ds-card { display: flex; flex-direction: column; gap: 16px; width: 320px; max-width: 100%; padding: 20px; border: 1px solid var(--color-cork, #40372e); border-radius: var(--radius-card, 12px); background: rgb(16 9 4 / 0.75); } .ds-card p { margin: 0; } .ds-card-title { font-size: 24px; line-height: 1.09; } .ds-card-rule { border-top: 1px dashed var(--color-cork, #40372e); } .ds-card-meta { font-size: 12px; line-height: 1.2; color: rgb(255 237 215 / 0.7); } .ds-card-pill { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 14px 24px; border: 0; border-radius: var(--radius-pill, 36px); background: var(--color-bark, #382416); color: var(--color-cream, #ffedd7); font-size: 14px; line-height: 1; cursor: pointer; transition: background-color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)), color 240ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-card-pill:hover { background: var(--color-cream, #ffedd7); color: var(--color-walnut, #100904); } .ds-card-pill:focus-visible { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; }"
+    },
+    {
+      "name": "Quality Options",
+      "kind": "input",
+      "refersTo": "option",
+      "description": "A radio pair as cards: cork line at rest, driftwood on hover, cream line and bark fill when checked; the detail is the 18px voice.",
+      "html": "<fieldset class=\"ds-options\"><legend class=\"ds-sr\">Quality</legend><label class=\"ds-option\"><input class=\"ds-sr\" type=\"radio\" name=\"ds-quality\" checked><span class=\"ds-option-head\">Quick<span class=\"ds-option-dot\" aria-hidden=\"true\"></span></span><span class=\"ds-option-detail\">About 5 minutes</span></label><label class=\"ds-option\"><input class=\"ds-sr\" type=\"radio\" name=\"ds-quality\"><span class=\"ds-option-head\">Best<span class=\"ds-option-dot\" aria-hidden=\"true\"></span></span><span class=\"ds-option-detail\">Sharper, about half an hour</span></label></fieldset>",
+      "css": ".ds-options { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding: 24px; border: 0; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); } .ds-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .ds-option { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 44px; padding: 20px; border: 1px solid var(--color-cork, #40372e); border-radius: var(--radius-card, 12px); cursor: pointer; transition: border-color 200ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)), background-color 200ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-option:hover { border-color: var(--color-driftwood, #6c5f51); } .ds-option:has(input:checked) { border-color: var(--color-cream, #ffedd7); background: var(--color-bark, #382416); } .ds-option:has(input:focus-visible) { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; } .ds-option-head { display: flex; align-items: center; justify-content: space-between; font-size: 14px; line-height: 1.1; } .ds-option-dot { width: 12px; height: 12px; border: 1px solid var(--color-cream, #ffedd7); border-radius: 9999px; } .ds-option:has(input:checked) .ds-option-dot { background: var(--color-cream, #ffedd7); } .ds-option-detail { font-size: 18px; line-height: 1.3; font-weight: 400; text-transform: none; color: rgb(255 237 215 / 0.7); }"
+    },
+    {
+      "name": "Room List Row",
+      "kind": "custom",
+      "refersTo": "room-row",
+      "description": "One room per dashed rule, grouped by day: zero-padded serial, tabular time, quality, and an Enter arrow that slides on hover.",
+      "html": "<div class=\"ds-rows\"><h3 class=\"ds-rows-day\">Oct 7, 2026</h3><ul><li><button class=\"ds-row\" aria-label=\"Enter the room from 7:12 PM\"><span class=\"ds-row-serial\">03</span><span class=\"ds-row-time\">7:12 PM</span><span class=\"ds-row-meta\">Best</span><span class=\"ds-row-enter\">Enter<svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"square\" aria-hidden=\"true\" style=\"flex-shrink:0\"><path d=\"M1 8h14M9 2l6 6-6 6\"/></svg></span></button></li><li><button class=\"ds-row\" aria-label=\"Enter the room from 2:40 PM\"><span class=\"ds-row-serial\">02</span><span class=\"ds-row-time\">2:40 PM</span><span class=\"ds-row-meta\">Quick</span><span class=\"ds-row-enter\">Enter<svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"square\" aria-hidden=\"true\" style=\"flex-shrink:0\"><path d=\"M1 8h14M9 2l6 6-6 6\"/></svg></span></button></li></ul></div>",
+      "css": ".ds-rows { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; padding: 24px; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); } .ds-rows ul { margin: 0; padding: 0; list-style: none; } .ds-rows-day { margin: 0; padding-bottom: 12px; font-size: 12px; line-height: 1.2; font-weight: 500; color: rgb(255 237 215 / 0.7); } .ds-rows li { border-top: 1px dashed var(--color-cork, #40372e); } .ds-row { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: grid; grid-template-columns: 4rem 1fr 8rem auto; align-items: center; column-gap: 18px; width: 100%; padding: 20px 8px; border: 0; background: transparent; color: var(--color-cream, #ffedd7); text-align: left; cursor: pointer; transition: background-color 200ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-row:hover { background: rgb(56 36 22 / 0.5); } .ds-row:focus-visible { outline: 1px solid var(--color-cream, #ffedd7); outline-offset: 3px; } .ds-row-serial, .ds-row-meta { font-size: 12px; line-height: 1.2; color: rgb(255 237 215 / 0.7); font-variant-numeric: tabular-nums; } .ds-row-time { font-size: 24px; line-height: 1.09; font-variant-numeric: tabular-nums; } .ds-row-enter { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; line-height: 1.2; } .ds-row-enter svg { transition: transform 300ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-row:hover .ds-row-enter svg { transform: translateX(4px); }"
+    },
+    {
+      "name": "Build Progress",
+      "kind": "custom",
+      "refersTo": "progress-track",
+      "description": "Display-size tabular percentage, a 2px cork track with a cream fill, and the pipeline steps on dashed rules with outlined, filled and pulsing dots.",
+      "html": "<div class=\"ds-progress\"><p class=\"ds-progress-num\">42%</p><p class=\"ds-progress-line\" role=\"status\">Finding camera positions</p><div class=\"ds-bar\" role=\"progressbar\" aria-label=\"Building your room\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"42\"><div class=\"ds-bar-fill\"></div></div><ol class=\"ds-steps\" aria-label=\"Steps\"><li class=\"is-done\"><span class=\"ds-dot\"></span><span class=\"ds-step-name\">Check the video</span><span class=\"ds-done\">Done</span></li><li class=\"is-done\"><span class=\"ds-dot\"></span><span class=\"ds-step-name\">Pull frames</span><span class=\"ds-done\">Done</span></li><li class=\"is-now\" aria-current=\"step\"><span class=\"ds-dot\"></span><span class=\"ds-step-name\">Find camera positions</span></li><li><span class=\"ds-dot\"></span><span class=\"ds-step-name\">Build the room</span></li></ol></div>",
+      "css": ".ds-progress { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-direction: column; gap: 12px; padding: 24px; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); } .ds-progress p { margin: 0; } .ds-progress-num { font-size: 51px; line-height: 0.9; font-variant-numeric: tabular-nums; } .ds-progress-line { font-size: 24px; line-height: 1.09; } .ds-bar { height: 2px; width: 100%; overflow: hidden; background: var(--color-cork, #40372e); margin: 12px 0; } .ds-bar-fill { height: 100%; width: 42%; background: var(--color-cream, #ffedd7); transition: width 500ms var(--ease-develop, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-steps { margin: 0; padding: 0; list-style: none; } .ds-steps li { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px dashed var(--color-cork, #40372e); font-size: 12px; line-height: 1.2; color: rgb(255 237 215 / 0.6); } .ds-steps li.is-done { color: rgb(255 237 215 / 0.7); } .ds-steps li.is-now { color: var(--color-cream, #ffedd7); } .ds-dot { width: 8px; height: 8px; flex-shrink: 0; border: 1px solid currentColor; border-radius: 9999px; } .is-done .ds-dot { background: currentColor; } .is-now .ds-dot { background: var(--color-cream, #ffedd7); animation: ds-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; } .ds-step-name { flex: 1; } .ds-done { font-size: 10px; } @keyframes ds-pulse { 50% { opacity: 0.5; } } @media (prefers-reduced-motion: reduce) { .is-now .ds-dot { animation: none; } }"
+    },
+    {
+      "name": "Key Hints",
+      "kind": "chip",
+      "refersTo": "keycap",
+      "description": "The viewer's controls, bottom left: a fully round keycap in micro type with a 60% cream line, then what it does.",
+      "html": "<ul class=\"ds-hints\" aria-label=\"Controls\"><li><kbd>Drag</kbd><span>Spin</span></li><li><kbd>Scroll</kbd><span>Zoom</span></li><li><kbd>W A S D</kbd><span>Move</span></li><li><kbd>Q / E</kbd><span>Down / up</span></li><li><kbd>Esc</kbd><span>Stop looking</span></li></ul>",
+      "css": ".ds-hints { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0; padding: 24px; list-style: none; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); font-size: 12px; line-height: 1.2; } .ds-hints li { display: flex; align-items: center; gap: 8px; } .ds-hints kbd { font: inherit; font-size: 10px; line-height: 1.2; padding: 6px 10px; border: 1px solid rgb(255 237 215 / 0.6); border-radius: 9999px; }"
+    },
+    {
+      "name": "Pipeline Credits",
+      "kind": "custom",
+      "refersTo": "credit-line",
+      "description": "What each tool did, credited by name: a label on a dashed rule with the tool in ember. Ember appears only on credits like this.",
+      "html": "<ol class=\"ds-credits\" aria-label=\"How a video becomes a room\"><li><span>Frames from the video</span><span class=\"ds-credit\">ffmpeg</span></li><li><span>Where the camera stood</span><span class=\"ds-credit\">COLMAP</span></li><li><span>The room, as a splat</span><span class=\"ds-credit\">OpenSplat</span></li><li><span>Walking around it</span><span class=\"ds-credit\">Spark</span></li></ol>",
+      "css": ".ds-credits { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 18px; margin: 0; padding: 24px; list-style: none; background: var(--color-walnut, #100904); color: var(--color-cream, #ffedd7); font-size: 12px; line-height: 1.2; } .ds-credits li { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; border-top: 1px dashed var(--color-cork, #40372e); } .ds-credit { color: var(--color-ember, #dc5000); }"
+    },
+    {
+      "name": "Sound Data Chips",
+      "kind": "chip",
+      "refersTo": "data-chip",
+      "description": "Labels pinned in the 3D room by the sound overlay: walnut 80%, a 1px line and text in the data hue. Viewer only.",
+      "html": "<div class=\"ds-chips\"><span class=\"ds-chip ds-chip-absorbs\">Sofa · absorbs</span><span class=\"ds-chip ds-chip-reflects\">Table · reflects</span><span class=\"ds-chip ds-chip-best\">Best spot</span></div>",
+      "css": ".ds-chips { font-family: var(--font-halyard, Inter, ui-sans-serif, system-ui, sans-serif); font-weight: 500; text-transform: uppercase; font-feature-settings: \"ss01\" on, \"cv11\" on; letter-spacing: normal; display: flex; flex-wrap: wrap; gap: 12px; padding: 24px; background: linear-gradient(135deg, #6c5f51, #100904); } .ds-chip { padding: 4px 10px; border: 1px solid currentColor; border-radius: 9999px; background: rgb(16 9 4 / 0.8); font-size: 10px; line-height: 1.2; white-space: nowrap; } .ds-chip-absorbs { color: #5fd4c4; } .ds-chip-reflects { color: #f0a540; } .ds-chip-best { color: #3ddc84; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Darkroom Plinth",
+    "overview": "The room the maker filmed is the object on display, and the interface is the gallery around it: a warm walnut void, cream museum labels, nothing lit but the room. Pages are tall and sparse, one idea per viewport, with type set large and uppercase like captions on a gallery wall. On the home page the newest room's live Gaussian splat sits on a sticky plinth behind the first two sections. It is graded so its whites print as cream, and a vignette closes in on it as the visitor scrolls, until the room sits alone in the dark.\n\nThe world is the ORYZO darkroom product-editorial reference the user pinned, adapted for a live 3D subject and a free-tools-only rule. Inter (self-hosted variable) stands in for the paid Halyard Display. A mixed-case \"voice\" at 18px carries instructions alongside the 29px description. Walnut scrims and the vignette keep cream type legible over a moving, sometimes bright room. Secondary text is cream at 70%, because driftwood fails contrast for text. Depth is tonal and never shadowed, and all motion follows one metaphor: things develop out of the dark like a print in the tray.\n\nScope: the system covers every surface under the darkroom root, meaning the home page sections, the full-screen viewer and its sound panel. The hidden acoustics pages (/room, /setup, /about) are out of scope and keep their older look on purpose.",
+    "keyCharacteristics": [
+      "Warm near-monochrome: walnut canvas, cream ink, bark for the one filled action, ember rationed to credit lines.",
+      "Uppercase weight-500 labels with no tracking; mixed-case weight 400 only for sentences meant to be read.",
+      "One filled pill per section or panel; every other action is a 1px cream ghost or an underlined text link.",
+      "Dashed cork hairlines as the only divider; 1px strokes throughout.",
+      "No shadows: depth comes from the walnut-to-bark step and translucent walnut scrims.",
+      "Rooms develop on arrival: from 18px blur and 60% brightness to sharp, on the develop ease."
+    ],
+    "rules": [
+      {
+        "name": "The Ember Credit Rule",
+        "body": "Ember is the color of a name being credited. If the text is not crediting a tool or a source, it is not ember: never an action, a state, a heading or a paragraph.",
+        "section": "colors"
+      },
+      {
+        "name": "The Driftwood Is Structure Rule",
+        "body": "Driftwood draws lines and never sets type; at 3.2:1 on walnut it fails text contrast. Secondary text is cream at 70%.",
+        "section": "colors"
+      },
+      {
+        "name": "The Data-Only Hues Rule",
+        "body": "Teal, amber and green encode acoustic data in the viewer. They never color chrome, buttons or headings, and never appear on the home page.",
+        "section": "colors"
+      },
+      {
+        "name": "The Museum Label Rule",
+        "body": "Every darkroom string is uppercase at weight 500 with no tracking (letter-spacing normal). Buttons, inputs and selects inherit the case instead of resetting it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Voice Rule",
+        "body": "Mixed case at weight 400 is reserved for sentences a person reads rather than scans: one description per section at 29px, and instructions at 18px. The sound panel's terse help lines drop it to 12px. Labels, buttons and headings never use it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Serials, times and percentages use tabular figures so lists and counters do not jitter. Serials are two digits, zero-padded (01, 02), and the oldest room is 01.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Shadow Rule",
+        "body": "No box-shadow, drop-shadow or glow, anywhere. A surface that needs to rise steps from walnut to bark, or gains a cork line.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Scrim Is Where Type Sits Rule",
+        "body": "A walnut gradient is added only under type that sits over the live room. It is legibility, not decoration, and the centre where the room stands stays clear.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Print Grade Rule",
+        "body": "A room shown behind type is graded in cream multiply plus a 15% walnut step-down. In the viewer the room is the content, so it shows ungraded with only the corner shades.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Dashed Hairline Rule",
+        "body": "The only divider is a 1px dashed cork rule above the item it separates. Never a solid divider, a filled band or a gap pretending to be a line.",
+        "section": "shapes"
+      },
+      {
+        "name": "The One Icon Rule",
+        "body": "The only icon is the hairline arrow: 14px, 1.25 stroke, square caps, pointing left, right or down. Status uses small circles. No icon library, no glyph icons.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do set every new surface inside the darkroom root: Inter with ss01 and cv11, uppercase at weight 500, cream on walnut.",
+      "Do use cream at 70% (8.6:1) for every secondary line: dates, counts, serials, help.",
+      "Do give each section or panel exactly one bark pill; make every other action a 1px cream ghost or an underlined text link.",
+      "Do separate list items and panel sections with the 1px dashed cork rule.",
+      "Do lay a walnut scrim under any type that sits over the live room, and keep the centre clear for the room.",
+      "Do grade a room shown behind type with a cream multiply layer and a 15% walnut step-down.",
+      "Do keep every control at least 44px tall with the 1px cream focus ring 3px out.",
+      "Do bring a room in with the develop motion (blur and dim to sharp on cubic-bezier(0.16, 1, 0.3, 1)), and drop it under reduced motion.",
+      "Do use tabular, zero-padded figures for serials, times and percentages."
+    ],
+    "donts": [
+      "Don't use box-shadow, drop-shadow or glow anywhere; step to bark or add a cork line instead.",
+      "Don't use ember for anything but a credit line.",
+      "Don't set text in driftwood (3.2:1 on walnut) or cork; they are structure only.",
+      "Don't bring the sound overlay's teal, amber or green into chrome or onto the home page.",
+      "Don't track uppercase labels or bold them; the system has one weight for labels and one for the voice.",
+      "Don't add icons beyond the hairline arrow, and don't pull in an icon library.",
+      "Don't set type below the 10px micro step or in a system face; Inter is the only face on darkroom surfaces.",
+      "Don't use Tailwind's grey or neutral palette on darkroom surfaces; every tone is a walnut-to-cream token or one of them at reduced opacity.",
+      "Don't restyle the hidden acoustics pages (/room, /setup, /about) as part of darkroom work; they are out of scope."
+    ]
+  }
+}
