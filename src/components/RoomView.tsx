@@ -223,6 +223,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
   useEffect(() => {
     const scans = scanRef.current;
     if (!roomId || !scans || scans.roomKey === roomId) return; // the first room's scan is restored where the controller is made
+    alignNext.current = false; // a video scan not opened before its room was left must not line up a later, unrelated scan
     const opened = useRoomStore.getState().room;
     sceneRef.current?.setCameraPreset(opened, 'corner'); // a different room: frame it afresh
     void scans.switchRoom(roomId, opened);
@@ -241,7 +242,7 @@ export function RoomView({ mode }: { mode: ListenMode }) {
     const align = alignNext.current;
     alignNext.current = false;
     void scans.open(file, useRoomStore.getState().room).then(() => {
-      if (!align || scanRef.current !== scans) return;
+      if (!align || scanRef.current !== scans || scans.roomKey !== roomId) return;
       // Built from a video: the three line-up steps begin at once (spec 2026-10-06 §6). A scan that didn't open is a no-op.
       setWalking(false);
       sceneRef.current?.setWalking(false);
