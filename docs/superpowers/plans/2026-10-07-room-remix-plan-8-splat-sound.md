@@ -2125,9 +2125,9 @@ Expected: PASS and clean, including `SplatLayer.test.ts`. If its Spark mock lack
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat: the viewer can place on the floor and draw the speaker, heat map and object labels" -- src/lib/scene/SplatLayer.ts src/lib/viewer/ViewerScene.ts src/lib/viewer/floorPoint.ts src/lib/viewer/floorPoint.test.ts src/lib/viewer/SoundOverlay.ts
+git commit -m "feat: the viewer can place on the floor and draw the speaker, heat map and object labels" -- src/lib/scene/SplatLayer.ts src/lib/viewer/ViewerScene.ts src/lib/viewer/floorPoint.ts src/lib/viewer/floorPoint.test.ts src/lib/viewer/SoundOverlay.ts src/lib/sound/heat.ts src/lib/sound/heat.test.ts
 ```
-(`git add` the new files first.) Add `src/lib/sound/heat.ts` and its test to the commit if this task created them.
+(`git add` the new files first.)
 
 ---
 
