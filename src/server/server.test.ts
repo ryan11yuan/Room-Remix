@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JobView, Quality } from '@/lib/splatJobs/protocol';
+import type { JobView, Quality, RoomSummary } from '@/lib/splatJobs/protocol';
 import { createServer, type Jobs } from './server';
 
 function fakeJobs(root: string) {
@@ -15,6 +15,8 @@ function fakeJobs(root: string) {
     canceled: [] as string[],
     views: new Map<string, JobView>(),
     splat: null as string | null,
+    rooms: [] as RoomSummary[],
+    cameras: new Map<string, string>(),
   };
   const jobs: Jobs = {
     async reserve() {
@@ -39,6 +41,8 @@ function fakeJobs(root: string) {
       return view ? { ...view, state: 'canceled' } : null;
     },
     splatPath: (id) => (state.views.get(id)?.state === 'ready' ? state.splat : null),
+    rooms: () => state.rooms,
+    camerasPath: (id) => state.cameras.get(id) ?? null,
   };
   return { jobs, state };
 }
@@ -197,6 +201,28 @@ describe('jobs API', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/octet-stream');
     expect(await res.text()).toBe('SPZ!');
+  });
+
+  it('lists the finished rooms', async () => {
+    fake.state.rooms = [{ id: 'b', quality: 'best', createdAt: 2 }, { id: 'a', quality: 'quick', createdAt: 1 }];
+    const res = await fetch(`${base}/api/splat/rooms`);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toEqual(fake.state.rooms);
+  });
+
+  it('serves a room cameras file, and 404s when the job or the file is missing', async () => {
+    const file = path.join(tmp, 'cameras.json');
+    await writeFile(file, '[{"id":0}]');
+    fake.state.cameras.set('with', file);
+    fake.state.cameras.set('older', path.join(tmp, 'no-such-cameras.json'));
+    const ok = await fetch(`${base}/api/splat/jobs/with/cameras`);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get('content-type')).toContain('application/json');
+    expect(await ok.text()).toBe('[{"id":0}]');
+    expect((await fetch(`${base}/api/splat/jobs/older/cameras`)).status).toBe(404);
+    const unknown = await fetch(`${base}/api/splat/jobs/nope/cameras`);
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: 'no-cameras' });
   });
 
   it('answers unknown API paths and methods with 404 JSON', async () => {

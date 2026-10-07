@@ -9,6 +9,7 @@ import {
   type JobState,
   type JobView,
   type Quality,
+  type RoomSummary,
 } from '@/lib/splatJobs/protocol';
 import { MIN_REGISTERED, pipelineSteps, SETTINGS, type PipelineStep } from '@/lib/splatJobs/settings';
 
@@ -28,6 +29,7 @@ type Outcome = { state: 'ready' | 'failed' | 'canceled'; code?: JobErrorCode };
 
 const RECORD = 'job.json';
 const SPLAT = 'splat.spz';
+const CAMERAS = 'cameras.json';
 
 /** How many images COLMAP registered: the first 8 bytes (little-endian) of sparse/0/images.bin. 0 without a model. */
 export async function registeredImages(dir: string): Promise<number> {
@@ -150,6 +152,19 @@ export class JobQueue {
 
   splatPath(id: string): string | null {
     return this.jobs.get(id)?.state === 'ready' ? path.join(this.dirOf(id), SPLAT) : null;
+  }
+
+  /** Finished rooms, newest first (spec 2026-10-07 §5). */
+  rooms(): RoomSummary[] {
+    return [...this.jobs.values()]
+      .filter((job) => job.state === 'ready')
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(({ id, quality, createdAt }) => ({ id, quality, createdAt }));
+  }
+
+  /** Where a ready job's cameras file would be; null for unknown or unfinished jobs. Older builds have no such file. */
+  camerasPath(id: string): string | null {
+    return this.jobs.get(id)?.state === 'ready' ? path.join(this.dirOf(id), CAMERAS) : null;
   }
 
   /** Resolves once nothing is building or waiting. */

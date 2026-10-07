@@ -33,3 +33,18 @@ export const JOB_ERROR_MESSAGES: Record<JobErrorCode, string> = {
   'step-failed': "Something went wrong on the laptop. Its log is in the job's folder.",
   restarted: 'The laptop restarted while building. Start again.',
 };
+
+/** A finished room on the laptop (spec 2026-10-07 §3). */
+export type RoomSummary = { id: string; quality: Quality; createdAt: number };
+
+/** One video frame's camera, as OpenSplat's --output-cameras writes it, in the splat's frame (spec 2026-10-07 §4). */
+export type CameraPose = {
+  id: number;
+  img_name: string;
+  width: number;
+  height: number;
+  fx: number;
+  fy: number;
+  position: [number, number, number];
+  rotation: [[number, number, number], [number, number, number], [number, number, number]];
+};

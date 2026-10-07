@@ -93,7 +93,7 @@ export function pipelineSteps(quality: Quality, videoName: string): PipelineStep
       gpu: true,
       db: false,
       // OpenSplat reads the COLMAP model from sparse/0 and the frames from images/ (its colmap.cpp); .spz by extension.
-      args: ['opensplat', JOB, '-n', String(steps), '--max-gaussians', String(MAX_GAUSSIANS), '-o', `${JOB}/splat.spz`],
+      args: ['opensplat', JOB, '-n', String(steps), '--max-gaussians', String(MAX_GAUSSIANS), '--output-cameras', `${JOB}/cameras.json`, '-o', `${JOB}/splat.spz`],
     },
   ];
 }

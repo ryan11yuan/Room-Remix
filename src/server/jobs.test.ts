@@ -342,6 +342,25 @@ describe('JobQueue', () => {
     await queue.discard(job.id);
     expect(queue.get(job.id)?.state).toBe('ready');
   });
+
+  it('lists finished rooms newest first, and where their cameras file is', async () => {
+    const write = async (id: string, state: string, createdAt: number, quality = 'quick') => {
+      await mkdir(path.join(root, id), { recursive: true });
+      await writeFile(path.join(root, id, 'job.json'), JSON.stringify({ id, quality, videoName: 'video.mp4', state, createdAt }));
+    };
+    await write('old', 'ready', 1000);
+    await write('broken', 'failed', 2000);
+    await write('new', 'ready', 3000, 'best');
+    const queue = new JobQueue(root, fakeRunner().run, quiet);
+    await queue.init();
+    expect(queue.rooms()).toEqual([
+      { id: 'new', quality: 'best', createdAt: 3000 },
+      { id: 'old', quality: 'quick', createdAt: 1000 },
+    ]);
+    expect(queue.camerasPath('new')).toBe(path.join(root, 'new', 'cameras.json'));
+    expect(queue.camerasPath('broken')).toBeNull();
+    expect(queue.camerasPath('nope')).toBeNull();
+  });
 });
 
 describe('registeredImages', () => {

@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { isQuality, MAX_VIDEO_BYTES, type JobView, type PipelineHealth, type Quality } from '@/lib/splatJobs/protocol';
+import { isQuality, MAX_VIDEO_BYTES, type JobView, type PipelineHealth, type Quality, type RoomSummary } from '@/lib/splatJobs/protocol';
 
 /** What the server needs from the job queue (JobQueue satisfies it). */
 export interface Jobs {
@@ -14,6 +14,8 @@ export interface Jobs {
   get(id: string): JobView | null;
   cancel(id: string): Promise<JobView | null>;
   splatPath(id: string): string | null;
+  rooms(): RoomSummary[];
+  camerasPath(id: string): string | null;
 }
 
 export type ServerOptions = {
@@ -115,6 +117,14 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     await pipeline(createReadStream(file), res);
   }
 
+  async function sendCameras(res: Res, id: string): Promise<void> {
+    const file = jobs.camerasPath(id);
+    const info = file ? await stat(file).catch(() => null) : null;
+    if (!file || !info?.isFile()) return sendJson(res, 404, { error: 'no-cameras' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': info.size, 'Cache-Control': 'no-store' });
+    await pipeline(createReadStream(file), res);
+  }
+
   async function api(req: Req, res: Res, url: URL, parts: string[]): Promise<void> {
     const [, resource, id, sub] = parts; // parts[0] is 'splat'
     const method = req.method ?? 'GET';
@@ -129,6 +139,8 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
       return job ? sendJson(res, 200, job) : sendJson(res, 404, { error: 'not-found' });
     }
     if (resource === 'jobs' && id && sub === 'splat' && method === 'GET') return sendSplat(res, id);
+    if (resource === 'rooms' && !id && method === 'GET') return sendJson(res, 200, jobs.rooms());
+    if (resource === 'jobs' && id && sub === 'cameras' && method === 'GET') return sendCameras(res, id);
     req.resume();
     return sendJson(res, 404, { error: 'not-found' });
   }

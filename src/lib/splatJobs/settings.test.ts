@@ -48,7 +48,8 @@ describe('pipelineSteps', () => {
 
   it('trains for the quality steps, caps the splat count and writes .spz', () => {
     expect(pipelineSteps('quick', 'video.mp4').at(-1)!.args).toEqual([
-      'opensplat', '/job', '-n', String(SETTINGS.quick.steps), '--max-gaussians', '1500000', '-o', '/job/splat.spz',
+      'opensplat', '/job', '-n', String(SETTINGS.quick.steps), '--max-gaussians', '1500000',
+      '--output-cameras', '/job/cameras.json', '-o', '/job/splat.spz',
     ]);
     expect(pipelineSteps('best', 'video.mp4').at(-1)!.args[3]).toBe(String(SETTINGS.best.steps));
     expect(MAX_GAUSSIANS).toBe(1_500_000);
