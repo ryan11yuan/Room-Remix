@@ -43,7 +43,7 @@ describe('fetchHealth', () => {
   it('reads the pipeline state from the demo server', async () => {
     const fetchFn = vi.fn(async () => json({ pipeline: 'no-image' }));
     expect(await fetchHealth(fetchFn)).toEqual({ pipeline: 'no-image' });
-    expect(fetchFn).toHaveBeenCalledWith('/api/splat/health', expect.objectContaining({ cache: 'no-store' }));
+    expect(fetchFn).toHaveBeenCalledWith('/api/splat/health', expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }));
   });
 
   it('is null where the page is not served by the demo server', async () => {

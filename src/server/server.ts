@@ -19,6 +19,8 @@ export interface Jobs {
 export type ServerOptions = {
   jobs: Jobs;
   health: () => Promise<PipelineHealth>;
+  /** True while a build is running: health then answers ready without asking Docker, which may be slow under load. */
+  busy?: () => boolean;
   /** The static export (out/). */
   staticDir: string;
   maxBytes?: number;
@@ -57,7 +59,7 @@ function sendJson(res: Res, status: number, body: unknown): void {
 }
 
 /** The demo server (spec 2026-10-06 §3, §5): the static export plus the /api/splat jobs API. */
-export function createServer({ jobs, health, staticDir, maxBytes = MAX_VIDEO_BYTES }: ServerOptions): http.Server {
+export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VIDEO_BYTES }: ServerOptions): http.Server {
   const root = path.resolve(staticDir);
 
   async function upload(req: Req, res: Res, quality: string | null): Promise<void> {
@@ -84,9 +86,13 @@ export function createServer({ jobs, health, staticDir, maxBytes = MAX_VIDEO_BYT
     });
     try {
       await pipeline(req, counter, createWriteStream(path.join(dir, videoName)));
-    } catch {
-      await jobs.discard(id); // cut off midway: nobody is left to answer
-      if (!res.headersSent) res.destroy();
+    } catch (error) {
+      await jobs.discard(id);
+      const abandoned = req.destroyed || req.readableAborted;
+      if (!abandoned) console.error(`Couldn't store the upload for job ${id}:`, error);
+      // Cut off midway by the phone: nobody is left to answer. Otherwise (a write failure) say so.
+      if (abandoned || res.headersSent) res.destroy();
+      else sendJson(res, 500, { error: 'server' });
       return;
     }
     if (received > maxBytes) {
@@ -112,7 +118,7 @@ export function createServer({ jobs, health, staticDir, maxBytes = MAX_VIDEO_BYT
   async function api(req: Req, res: Res, url: URL, parts: string[]): Promise<void> {
     const [, resource, id, sub] = parts; // parts[0] is 'splat'
     const method = req.method ?? 'GET';
-    if (resource === 'health' && !id && method === 'GET') return sendJson(res, 200, { pipeline: await health() });
+    if (resource === 'health' && !id && method === 'GET') return sendJson(res, 200, { pipeline: busy?.() ? 'ready' : await health() });
     if (resource === 'jobs' && !id && method === 'POST') return upload(req, res, url.searchParams.get('quality'));
     if (resource === 'jobs' && id && !sub && method === 'GET') {
       const job = jobs.get(id);
@@ -131,7 +137,8 @@ export function createServer({ jobs, health, staticDir, maxBytes = MAX_VIDEO_BYT
     res.writeHead(status, {
       'Content-Type': TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
       'Content-Length': size,
-      'Cache-Control': 'no-cache',
+      // Files under /_next/static/ are named by their content hash, so a phone can keep them for good.
+      'Cache-Control': file.split(path.sep).join('/').includes('/_next/static/') ? 'public, max-age=31536000, immutable' : 'no-cache',
     });
     if (req.method === 'HEAD') return void res.end();
     await pipeline(createReadStream(file), res);
@@ -183,7 +190,9 @@ export function createServer({ jobs, health, staticDir, maxBytes = MAX_VIDEO_BYT
 
   const server = http.createServer((req, res) => {
     handle(req, res).catch((error: unknown) => {
-      console.error(error);
+      // A phone navigating away mid-download is not worth a stack trace.
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (code !== 'ERR_STREAM_PREMATURE_CLOSE' && code !== 'ECONNRESET') console.error(error);
       if (!res.headersSent) sendJson(res, 500, { error: 'server' });
       else res.destroy();
     });

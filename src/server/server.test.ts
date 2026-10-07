@@ -90,6 +90,8 @@ describe('static files', () => {
     expect(await (await fetch(`${base}/room`)).text()).toBe('<p>room</p>');
     const js = await fetch(`${base}/_next/static/app.js?v=1`);
     expect(js.headers.get('content-type')).toContain('text/javascript');
+    expect(js.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    expect(landing.headers.get('cache-control')).toBe('no-cache');
     const missing = await fetch(`${base}/nowhere`);
     expect(missing.status).toBe(404);
     expect(await missing.text()).toBe('<p>missing</p>');
@@ -113,6 +115,20 @@ describe('jobs API', () => {
     const res = await fetch(`${base}/api/splat/health`);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(await res.json()).toEqual({ pipeline: 'no-image' });
+  });
+
+  it('answers ready without asking docker while a build is running', async () => {
+    const health = vi.fn(async () => 'no-docker' as const);
+    const busy = createServer({ jobs: fake.jobs, health, staticDir: tmp, busy: () => true });
+    await new Promise<void>((resolve) => busy.listen(0, '127.0.0.1', resolve));
+    try {
+      const res = await fetch(`http://127.0.0.1:${(busy.address() as AddressInfo).port}/api/splat/health`);
+      expect(await res.json()).toEqual({ pipeline: 'ready' });
+      expect(health).not.toHaveBeenCalled();
+    } finally {
+      busy.closeAllConnections();
+      await new Promise<void>((resolve) => busy.close(() => resolve()));
+    }
   });
 
   it('stores an uploaded video in a new job folder and queues it', async () => {

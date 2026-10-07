@@ -32,7 +32,7 @@ const jobUrl = (id: string) => `${API}/jobs/${encodeURIComponent(id)}`;
 /** The demo server's health, or null where this page isn't served by it (no server, `next dev`, a static host). */
 export async function fetchHealth(fetchFn: Fetch = browserFetch): Promise<Health | null> {
   try {
-    const res = await fetchFn(`${API}/health`, { cache: 'no-store' });
+    const res = await fetchFn(`${API}/health`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
     if (!res.ok || !(res.headers.get('content-type') ?? '').includes('application/json')) return null;
     const { pipeline } = (await res.json()) as Partial<Health>;
     return pipeline === 'ready' || pipeline === 'no-docker' || pipeline === 'no-image' ? { pipeline } : null;
