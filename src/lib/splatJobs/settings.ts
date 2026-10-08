@@ -12,6 +12,12 @@ export const SETTINGS: Record<Quality, Settings> = {
 export const MAX_GAUSSIANS = 1_500_000;
 /** Fewer registered frames than this and COLMAP hasn't really found the room. */
 export const MIN_REGISTERED = 10;
+/**
+ * COLMAP's first focal guess, times the frame's longer side. Video frames have no EXIF, so COLMAP falls back to 1.2,
+ * a 45° lens. Phone video is far wider (both test rooms solved to 0.45, about 96°), and from 1.2 a classroom of
+ * identical chairs registered 2 of 199 frames; from 0.6 it registered all 199. 0.6 is also near a 1× lens (roughly 0.7).
+ */
+export const FOCAL_FACTOR = 0.6;
 /** Where the job folder is mounted inside the pipeline container. */
 export const JOB = '/job';
 /** Where COLMAP's database lives: a per-job Docker volume, because SQLite's small writes are slow on the Windows bind mount. */
@@ -57,6 +63,7 @@ export function pipelineSteps(quality: Quality, videoName: string): PipelineStep
         '--image_path', images,
         '--ImageReader.single_camera', '1',
         '--ImageReader.camera_model', 'SIMPLE_RADIAL',
+        '--ImageReader.default_focal_length_factor', String(FOCAL_FACTOR),
         '--SiftExtraction.use_gpu', '0',
       ],
     },

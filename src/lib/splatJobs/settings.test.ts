@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DB, frameFilter, MAX_GAUSSIANS, MIN_REGISTERED, pipelineSteps, SETTINGS } from './settings';
+import { DB, FOCAL_FACTOR, frameFilter, MAX_GAUSSIANS, MIN_REGISTERED, pipelineSteps, SETTINGS } from './settings';
 
 describe('pipelineSteps', () => {
   it('runs the six steps in order, each under its job state', () => {
@@ -27,12 +27,13 @@ describe('pipelineSteps', () => {
     ]);
   });
 
-  it('uses the Memento COLMAP settings, with SIFT on the CPU', () => {
+  it('uses the Memento COLMAP settings, with SIFT on the CPU and a phone lens as the first focal guess', () => {
     const steps = pipelineSteps('quick', 'video.mp4');
     const args = (name: string) => steps.find((s) => s.name === name)!.args.join(' ');
     expect(args('features')).toBe(
-      'colmap feature_extractor --database_path /db/database.db --image_path /job/images --ImageReader.single_camera 1 --ImageReader.camera_model SIMPLE_RADIAL --SiftExtraction.use_gpu 0',
+      'colmap feature_extractor --database_path /db/database.db --image_path /job/images --ImageReader.single_camera 1 --ImageReader.camera_model SIMPLE_RADIAL --ImageReader.default_focal_length_factor 0.6 --SiftExtraction.use_gpu 0',
     );
+    expect(FOCAL_FACTOR).toBe(0.6);
     expect(args('matching')).toBe(
       'colmap sequential_matcher --database_path /db/database.db --SequentialMatching.overlap 15 --SequentialMatching.quadratic_overlap 1 --SiftMatching.use_gpu 0',
     );
