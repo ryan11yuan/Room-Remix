@@ -158,7 +158,7 @@ function Hero({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOp
           <br />
           Remix
         </h1>
-        <p className="voice hidden max-w-[11em] pb-2 text-body md:block">Import a video of your room and walk around it in 3D.</p>
+        <p className="voice hidden max-w-[11em] pb-2 text-body md:block">Film a place once. Someone who can&apos;t see it can explore it by sound.</p>
       </div>
       <div className="mt-auto flex flex-col items-start justify-between gap-4 pt-10 sm:flex-row sm:items-end">
         <NewestCard rooms={rooms} onOpen={onOpen} />

@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { downloadSplat, fetchCameras } from '@/lib/splatJobs/client';
+import { ExploreController } from '@/lib/viewer/ExploreController';
 import { ViewerScene } from '@/lib/viewer/ViewerScene';
 import { Arrow } from './Arrow';
+import { ExplorePanel } from './ExplorePanel';
 import { markWebGLUnavailable, useWebGL } from './useWebGL';
 
 /** The controls, as keycap and what it does. */
@@ -17,17 +19,21 @@ const HINTS: readonly [string, string][] = [
 ];
 type Status = 'loading' | 'ready' | 'error';
 
-/** One room, full screen (spec 2026-10-07 §4). `title` is the room's label from the list, when the page has it. */
+/** One room, full screen (spec 2026-10-07 §4), with check and explore modes (spec 2026-10-08 §6–9). */
 export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?: string; onBack: () => void }) {
   const webgl = useWebGL();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>('loading');
-  // Another room: back to loading (set during render, like RoomView's room switch, not in an effect).
+  const [explore, setExplore] = useState<ExploreController | null>(null);
+  // Another room: back to loading (set during render, not in an effect).
   const [shownRoom, setShownRoom] = useState(roomId);
   if (shownRoom !== roomId) {
     setShownRoom(roomId);
     setStatus('loading');
+    setExplore(null);
   }
+  const subscribe = useCallback((listener: () => void) => explore?.subscribe(listener) ?? (() => {}), [explore]);
+  const exploring = useSyncExternalStore(subscribe, () => explore?.getState().mode === 'exploring', () => false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -43,6 +49,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
     const observer = new ResizeObserver(([entry]) => scene.resize(entry.contentRect.width, entry.contentRect.height));
     observer.observe(canvas);
     let live = true;
+    let controller: ExploreController | null = null;
     void Promise.all([downloadSplat(roomId), fetchCameras(roomId)])
       .then(async ([file, cameras]) => {
         const bytes = await file.arrayBuffer();
@@ -50,6 +57,12 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
         await scene.open(bytes, cameras);
         if (!live) return;
         setStatus('ready');
+        try {
+          controller = ExploreController.create(scene, roomId, cameras);
+          setExplore(controller);
+        } catch (error) {
+          console.error(error); // the room stays viewable without the panel
+        }
       })
       .catch((error: unknown) => {
         console.error(error);
@@ -58,6 +71,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
     return () => {
       live = false;
       observer.disconnect();
+      controller?.dispose();
       scene.dispose();
     };
   }, [webgl, roomId]);
@@ -109,7 +123,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
         </div>
       )}
 
-      {status === 'ready' && webgl && (
+      {status === 'ready' && webgl && !exploring && (
         <ul
           aria-label="Controls"
           className="pointer-events-none absolute bottom-0 left-0 flex max-w-full flex-wrap gap-x-5 gap-y-3 p-4 text-label sm:p-6 lg:max-w-[62%]"
@@ -122,6 +136,8 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
           ))}
         </ul>
       )}
+
+      {status === 'ready' && webgl && explore && <ExplorePanel controller={explore} />}
     </div>
   );
 }

@@ -12,7 +12,7 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   title: 'Room Remix',
-  description: 'Import a video of your room and walk around it in 3D.',
+  description: "Film a place once. Someone who can't see it can explore it by sound.",
 };
 
 export const viewport: Viewport = { themeColor: '#100904', colorScheme: 'dark' };
