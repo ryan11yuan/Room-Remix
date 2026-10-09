@@ -69,10 +69,6 @@ export class ViewerScene {
     return this.layer?.centres() ?? new Float32Array(0);
   }
 
-  pose(): { position: THREE.Vector3; forward: THREE.Vector3 } {
-    return { position: this.camera.position.clone(), forward: this.camera.getWorldDirection(new THREE.Vector3()) };
-  }
-
   /** The next click on the floor calls `onPlace` with where it landed, instead of locking the pointer (spec §5). */
   armPlacement(floorY: number, onPlace: (world: THREE.Vector3) => void): void {
     this.placing = { floorY, onPlace };
@@ -80,12 +76,17 @@ export class ViewerScene {
     this.canvas.style.cursor = 'crosshair';
   }
 
+  /** Disarms Add (spec 2026-10-08 §5): no crosshair, and the next click is an ordinary one. */
+  cancelPlacement(): void {
+    this.placing = null;
+    this.canvas.style.cursor = '';
+  }
+
   /** Explore mode (spec 2026-10-08 §7.1): the viewer's own controls stop, and the camera follows setPose. */
   setExploring(on: boolean): void {
     this.exploring = on;
     this.keys.clear();
-    this.placing = null;
-    this.canvas.style.cursor = '';
+    this.cancelPlacement();
     if (on && this.locked) document.exitPointerLock();
     this.controls.enabled = !on && !this.locked;
   }
@@ -209,6 +210,7 @@ export class ViewerScene {
 
   private readonly keyDown = (event: KeyboardEvent) => {
     if (this.exploring || event.ctrlKey || event.metaKey || event.altKey) return;
+    if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea, [contenteditable]')) return; // typing in a name select isn't flying
     if (!(event.code in MOVE_KEYS) && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return;
     this.keys.add(event.code);
     event.preventDefault();

@@ -49,6 +49,8 @@ export class ExploreController {
   private runToken = 0; // a newer action's sounds replace an older one's that are still queued
   private scanToken = 0; // a new scan replaces the one playing
   private lastPulse = 0;
+  private saving = false;
+  private pendingSave: RoomObject[] | null = null;
   private disposed = false;
 
   /** Null without a cameras file or splat points: no scale, so no room box (spec §12). */
@@ -121,7 +123,7 @@ export class ExploreController {
     this.scene.armPlacement(this.fit.floorY, (world) => {
       if (this.disposed || this.state.mode !== 'check') return;
       const at = toRoom(this.fit, vec(world));
-      const r = addObject(this.objects, 'door', at);
+      const r = addObject(this.objects, 'door', at, this.fit.dims);
       this.setObjects(r.objects, true);
       this.set({ adding: false, focus: r.index });
     });
@@ -138,6 +140,7 @@ export class ExploreController {
   async startExploring(): Promise<void> {
     if (this.state.mode !== 'check' || this.state.objects === 'finding') return;
     (document.activeElement as HTMLElement | null)?.blur?.(); // Space or Enter must not click a focused button
+    this.scene.cancelPlacement(); // on every path, success or failure
     this.set({ mode: 'starting', voicesFailed: false, adding: false });
     let audio: SpatialAudio;
     try {
@@ -216,7 +219,23 @@ export class ExploreController {
   private setObjects(objects: RoomObject[], save: boolean): void {
     this.overlay.setObjects(objects);
     this.set({ objects, highlight: null });
-    if (save) void saveChecked(this.roomId, objects).then((ok) => this.set({ saveFailed: !ok }));
+    if (save) this.save(objects);
+  }
+
+  /** One save in flight; meanwhile only the newest list waits, and only its result sets saveFailed (spec 2026-10-08 §6). */
+  private save(objects: RoomObject[]): void {
+    if (this.saving) {
+      this.pendingSave = objects;
+      return;
+    }
+    this.saving = true;
+    void saveChecked(this.roomId, objects).then((ok) => {
+      this.saving = false;
+      const next = this.pendingSave;
+      this.pendingSave = null;
+      if (next) this.save(next);
+      else this.set({ saveFailed: !ok });
+    });
   }
 
   private readonly keyDown = (event: KeyboardEvent) => {
@@ -233,6 +252,12 @@ export class ExploreController {
 
   private perform(action: Action): void {
     if (!this.session) return;
+    if (action !== 'forward' && action !== 'back' && action !== 'left' && action !== 'right') {
+      // Anything but a step cuts off a running scan and what's speaking; moving keeps the scan going (spec 2026-10-08 §7.4).
+      this.scanToken++;
+      this.audio?.stopAll();
+      this.narrator.stop();
+    }
     const { session, effects } = act(this.session, action);
     const moved = session.pose !== this.session.pose;
     this.session = session;
