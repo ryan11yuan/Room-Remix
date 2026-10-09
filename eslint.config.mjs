@@ -6,7 +6,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Keep the Spark splat renderer in its own lazy chunk. A static value import of SplatLayer anywhere (it imports Spark) would
-  // pull Spark into the page's main bundle; the layer is only reached through ScanController's dynamic import().
+  // pull Spark into the page's main bundle; the layer is only reached through the dynamic import() in ViewerScene and HeroScene.
   // (`import type` is erased at build time, so it is fine. The dynamic import() itself isn't covered by this rule, which is intended.)
   {
     files: ["**/*.{ts,tsx,mts}"],
@@ -25,7 +25,7 @@ const eslintConfig = defineConfig([
             {
               group: ["**/SplatLayer", "./SplatLayer", "@/lib/scene/SplatLayer"],
               message:
-                "A value import of SplatLayer pulls Spark into this bundle. Use `import type`, or the dynamic import() in ScanController.",
+                "A value import of SplatLayer pulls Spark into this bundle. Use `import type`, or a dynamic import() as ViewerScene does.",
               allowTypeImports: true,
             },
           ],

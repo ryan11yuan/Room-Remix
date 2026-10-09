@@ -24,7 +24,7 @@ describe('text contrast', () => {
 
   it('finds the pages and components to check', () => {
     expect(files.some((f) => f.endsWith('page.tsx'))).toBe(true);
-    expect(files.some((f) => f.endsWith('Player.tsx'))).toBe(true);
+    expect(files.some((f) => f.endsWith('SplatViewer.tsx'))).toBe(true);
   });
 
   it('uses no grey darker than neutral-400 for text', () => {
