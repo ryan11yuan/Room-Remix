@@ -12,6 +12,7 @@
     "pipeline:build": "docker build -t room-remix-splat pipeline",
     "demo": "next build && tsx src/server/main.ts",
     "demo:serve": "tsx src/server/main.ts",
+    "voices": "tsx scripts/make-voices.ts",
     "pipeline:check": "docker run --rm --gpus all room-remix-splat rr-check"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@types/three": "^0.186.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "kokoro-js": "^1.2.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
