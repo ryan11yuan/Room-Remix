@@ -40,10 +40,12 @@ describe('placeObjects', () => {
     expect((o.min.z + o.max.z) / 2).toBeLessThan(4.8);
     expect(o.max.z).toBeLessThan(5.2); // the wall at z = 10 was left out
   });
-  it('drops objects seen in only one frame, maps desk to table, and ignores frames with no camera', () => {
+  it('drops objects seen in only one frame, labels that are not names, and frames with no camera', () => {
     expect(placeObjects(file([['0001.jpg', 430, 430, 570, 570, 'chair', 0.5]]), cameras, scene(), identity, 1)).toEqual([]);
     expect(placeObjects(file([['9999.jpg', 430, 430, 570, 570, 'chair', 0.5], ['9998.jpg', 430, 430, 570, 570, 'chair', 0.5]]), cameras, scene(), identity, 1)).toEqual([]);
     const desks = placeObjects(file([['0001.jpg', 430, 430, 570, 570, 'desk', 0.5], ['0002.jpg', 408, 430, 548, 570, 'desk', 0.5]]), cameras, scene(), identity, 1);
-    expect(desks.map((o) => o.label)).toEqual(['table']);
+    expect(desks).toEqual([]); // the server maps "desk" to "table"; placement only takes names
+    const doors = placeObjects(file([['0001.jpg', 430, 430, 570, 570, 'door', 0.5], ['0002.jpg', 408, 430, 548, 570, 'door', 0.5]]), cameras, scene(), identity, 1);
+    expect(doors.map((o) => o.label)).toEqual(['door']);
   });
 });

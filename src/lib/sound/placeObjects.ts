@@ -1,11 +1,7 @@
+import { isNameId } from '@/lib/explore/names';
 import type { ObjectLabel, RoomObject, Vec3 } from '@/lib/room/types';
 import type { CameraPose, DetectionsFile } from '@/lib/splatJobs/protocol';
 import { quantile } from './roomFit';
-
-const LABELS: Record<string, ObjectLabel> = {
-  chair: 'chair', sofa: 'sofa', table: 'table', desk: 'table', whiteboard: 'whiteboard', television: 'television', window: 'window',
-  curtains: 'curtains', rug: 'rug', bookshelf: 'bookshelf', bed: 'bed', cabinet: 'cabinet', plant: 'plant',
-};
 const CORE = 0.2; // trim this share off each side of a box for the depth estimate (spec §3.2: the central 60 %)
 const FRONT_Q = 0.15;
 const DEPTH_BEHIND_M = 1;
@@ -47,7 +43,7 @@ export function placeObjects(
   const candidates: Candidate[] = [];
   for (const frame of file.frames) {
     const camera = byName.get(frame.img_name);
-    const detections = frame.detections.filter((d) => LABELS[d.label]);
+    const detections = frame.detections.filter((d) => isNameId(d.label));
     if (!camera || detections.length === 0 || !(frame.width > 0) || !(frame.height > 0)) continue;
     const us = new Float32Array(n);
     const vs = new Float32Array(n);
@@ -92,7 +88,7 @@ export function placeObjects(
       const [ay, by] = span(ys);
       const [az, bz] = span(zs);
       candidates.push({
-        label: LABELS[d.label],
+        label: d.label as ObjectLabel,
         centre: { x: (ax + bx) / 2, y: (ay + by) / 2, z: (az + bz) / 2 },
         size: { x: bx - ax, y: by - ay, z: bz - az },
         frame: frame.img_name,

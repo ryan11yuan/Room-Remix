@@ -1,19 +1,18 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DETECT_PROMPTS, PROMPT_TO_NAME } from '@/lib/explore/names';
 import type { Detection, DetectionsFile, FrameDetections } from '@/lib/splatJobs/protocol';
 
-/** What the detector looks for (spec 2026-10-07 sound §3.1). `desk` comes back as `table`. */
-export const DETECT_LABELS = [
-  'chair', 'sofa', 'table', 'desk', 'whiteboard', 'television', 'window', 'curtains', 'rug', 'bookshelf', 'bed', 'cabinet', 'plant',
-] as const;
-export const FRAME_COUNT = 12;
-export const DETECTIONS_FILE = 'detections.json';
 export const MODEL = 'Xenova/owlvit-base-patch32';
 const PROMPT = 'a photo of a ';
 const PIPELINE_THRESHOLD = 0.1; // the pipeline's own cut; cleanDetections applies the real per-label ones
 const DEFAULT_THRESHOLD = 0.3;
-const LABEL_THRESHOLDS: Record<string, number> = { whiteboard: 0.15, television: 0.15 }; // the spike: these score low even when right
+/** 24 frames, not 12: a door can be on screen for only a few seconds of the video (spec 2026-10-08 §5). */
+export const FRAME_COUNT = 24;
+/** A new name, so rooms searched under the old furniture labels are searched again. */
+export const DETECTIONS_FILE = 'detections-v2.json';
+const LABEL_THRESHOLDS: Record<string, number> = { whiteboard: 0.15, tv: 0.15 }; // the Plan 8 spike: these score low even when right
 const NMS_IOU = 0.5;
 /** Model files live outside the repo (OneDrive) and outside node_modules, so a reinstall keeps them. */
 export const MODEL_CACHE = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.cache'), 'RoomRemix', 'models');
@@ -37,18 +36,19 @@ function iou(a: Detection['box'], b: Detection['box']): number {
 }
 
 const CONTAINED = 0.8;
-/** A whiteboard and a television are the same flat rectangle to the detector; every other label is its own group. */
-const group = (label: string) => (label === 'whiteboard' || label === 'television' ? 'screen' : label);
+/** A whiteboard and a TV are the same flat rectangle to the detector; every other name is its own group. */
+const group = (label: string) => (label === 'whiteboard' || label === 'tv' ? 'screen' : label);
 /** The share of `a` that lies inside `b`. */
 function covered(a: Detection['box'], b: Detection['box']): number {
   return area([Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])]) / (area(a) || 1);
 }
 
-/** The pipeline gives every label above its threshold per box: keep the best label per box, threshold, then class-agnostic NMS. */
+/** The pipeline gives every prompt above its threshold per box: map prompts to names, keep the best per box, threshold, then class-agnostic NMS. */
 export function cleanDetections(raw: Detection[]): Detection[] {
   const bestPerBox = new Map<string, Detection>();
   for (const d of raw) {
-    const label = d.label === 'desk' ? 'table' : d.label;
+    const label = PROMPT_TO_NAME.get(d.label);
+    if (!label) continue; // not one of our prompts
     const key = d.box.map((v) => Math.round(v * 2)).join(',');
     const seen = bestPerBox.get(key);
     if (!seen || d.score > seen.score) bestPerBox.set(key, { ...d, label });
@@ -66,7 +66,7 @@ export function cleanDetections(raw: Detection[]): Detection[] {
 }
 
 /**
- * Detections for a job folder: read from detections.json, or computed once and saved. Concurrent calls share one run;
+ * Detections for a job folder: read from detections-v2.json, or computed once and saved. Concurrent calls share one run;
  * a failed run rejects and leaves nothing behind, so the next call tries again.
  */
 export function createObjectFinder(detectFrame: DetectFrame): (dir: string) => Promise<DetectionsFile> {
@@ -111,7 +111,7 @@ export function transformersDetector(): DetectFrame {
     });
     const { detector, RawImage } = await loading;
     const image = await RawImage.read(file);
-    const output = await detector(image, DETECT_LABELS.map((l) => PROMPT + l), { threshold: PIPELINE_THRESHOLD });
+    const output = await detector(image, DETECT_PROMPTS.map((p) => PROMPT + p), { threshold: PIPELINE_THRESHOLD });
     const raw = output.map((o) => ({
       label: o.label.startsWith(PROMPT) ? o.label.slice(PROMPT.length) : o.label,
       score: o.score,
