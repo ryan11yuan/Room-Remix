@@ -14,9 +14,9 @@ const CLICK_SLOP_PX = 5; // a press that moved further than this was a drag (spi
 
 /** The splat viewer (spec 2026-10-07 §4), Memento-style: spin and zoom, W/A/S/D and Q/E, click to look around. Browser only. */
 export class ViewerScene {
-  /** Things drawn in the room (speaker, heat map, labels), in world coordinates. */
+  /** Things drawn in the room (the object labels), in world coordinates. */
   readonly overlay = new THREE.Group();
-  /** Called every frame before rendering (the sound follows the camera). */
+  /** Called every frame before rendering (explore mode's pulse). */
   onFrame: (() => void) | null = null;
   private readonly labels = new CSS2DRenderer();
   private placing: { floorY: number; onPlace: (world: THREE.Vector3) => void } | null = null;
@@ -33,6 +33,7 @@ export class ViewerScene {
   private frame = 0;
   private last = 0;
   private disposed = false;
+  private exploring = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -77,6 +78,23 @@ export class ViewerScene {
     this.placing = { floorY, onPlace };
     if (this.locked) document.exitPointerLock();
     this.canvas.style.cursor = 'crosshair';
+  }
+
+  /** Explore mode (spec 2026-10-08 §7.1): the viewer's own controls stop, and the camera follows setPose. */
+  setExploring(on: boolean): void {
+    this.exploring = on;
+    this.keys.clear();
+    this.placing = null;
+    this.canvas.style.cursor = '';
+    if (on && this.locked) document.exitPointerLock();
+    this.controls.enabled = !on && !this.locked;
+  }
+
+  /** Stand the camera at `position`, looking along `forward` (world coordinates). */
+  setPose(position: THREE.Vector3, forward: THREE.Vector3): void {
+    this.camera.position.copy(position);
+    this.controls.target.copy(position).addScaledVector(forward, this.targetDistance);
+    this.camera.lookAt(this.controls.target);
   }
 
   /** Show a room: its splat, turned upright and seen from where the video began (or Memento's view without cameras). */
@@ -149,6 +167,7 @@ export class ViewerScene {
 
   /** A click (not the end of a spin drag) locks the pointer for looking around; Esc releases it (the browser's). */
   private readonly click = (event: MouseEvent) => {
+    if (this.exploring) return;
     const from = this.pressedAt;
     this.pressedAt = null;
     if (this.placing && from && Math.hypot(event.clientX - from.x, event.clientY - from.y) <= CLICK_SLOP_PX) {
@@ -173,7 +192,7 @@ export class ViewerScene {
 
   private readonly lockChanged = () => {
     const locked = this.locked;
-    this.controls.enabled = !locked; // no spinning while looking around
+    this.controls.enabled = !locked && !this.exploring; // no spinning while looking around or exploring
     if (locked) {
       this.angles = anglesOf(this.camera.getWorldDirection(new THREE.Vector3()));
       this.targetDistance = this.camera.position.distanceTo(this.controls.target) || this.targetDistance;
@@ -189,7 +208,7 @@ export class ViewerScene {
   };
 
   private readonly keyDown = (event: KeyboardEvent) => {
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (this.exploring || event.ctrlKey || event.metaKey || event.altKey) return;
     if (!(event.code in MOVE_KEYS) && event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return;
     this.keys.add(event.code);
     event.preventDefault();
