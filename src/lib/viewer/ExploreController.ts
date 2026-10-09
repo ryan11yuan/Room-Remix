@@ -141,14 +141,18 @@ export class ExploreController {
     this.set({ mode: 'starting', voicesFailed: false, adding: false });
     let audio: SpatialAudio;
     try {
-      audio = await SpatialAudio.create(this.fit.dims, CLIPS.keys()); // its AudioContext starts inside this click
+      if (this.audio) {
+        audio = this.audio; // one context for the viewer's lifetime (spec §8.1)
+        await audio.resume();
+      } else audio = await SpatialAudio.create(this.fit.dims, CLIPS.keys()); // its AudioContext starts inside this click
     } catch (error) {
       console.error(error);
       return this.set({ mode: 'check', voicesFailed: true });
     }
     const view = this.scene.startView;
-    if (this.disposed || this.getState().mode !== 'starting' || !view) return audio.dispose();
+    if (this.disposed) return audio.dispose();
     this.audio = audio;
+    if (this.getState().mode !== 'starting' || !view) return;
     const p = toRoom(this.fit, vec(view.position));
     const start = startSession(this.fit.dims, this.objects, { x: p.x, z: p.z, heading: roomYaw(this.fit, vec(view.forward)) });
     this.session = start.session;
@@ -172,8 +176,7 @@ export class ExploreController {
     this.runToken++;
     this.scanToken++;
     this.narrator.stop();
-    this.audio?.dispose();
-    this.audio = null;
+    this.audio?.stopAll();
     this.session = null;
     this.scene.setExploring(false);
     this.overlay.setHighlight(null);
@@ -186,6 +189,7 @@ export class ExploreController {
     this.disposed = true;
     if (this.scene.onFrame === this.frame) this.scene.onFrame = null;
     this.audio?.dispose();
+    this.audio = null;
     this.overlay.dispose();
     this.listeners.clear();
   }
@@ -241,7 +245,7 @@ export class ExploreController {
   private async run(effects: Effect[], token: number): Promise<void> {
     for (const e of effects) {
       const audio = this.audio;
-      if (!audio || token !== this.runToken) return;
+      if (!audio || !this.session || token !== this.runToken) return;
       if (e.kind === 'say') {
         this.narrator.say(e.text);
         this.set({ caption: e.text });
@@ -258,7 +262,7 @@ export class ExploreController {
     const token = ++this.scanToken;
     const said: string[] = [];
     for (const item of items) {
-      if (token !== this.scanToken || !this.audio) return;
+      if (token !== this.scanToken || !this.audio || !this.session) return;
       said.push(item.caption);
       this.set({ caption: said.join(' · ') });
       await this.audio.playClip(item.clip, item.at);

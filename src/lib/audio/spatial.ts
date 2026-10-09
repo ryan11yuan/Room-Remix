@@ -104,6 +104,11 @@ export class SpatialAudio {
   playFootstep = (): Promise<void> => this.play(this.sounds.footstep, null);
   playChime = (): Promise<void> => this.play(this.sounds.chime, null);
 
+  /** Browsers can suspend an idle context; call this inside the click that starts a session. */
+  resume(): Promise<void> {
+    return this.ctx.resume();
+  }
+
   stopAll(): void {
     for (const source of [...this.playing]) source.stop();
   }
