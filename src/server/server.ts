@@ -1,9 +1,10 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { CHECKED_FILE, readChecked } from '@/lib/explore/checked';
 import { isQuality, MAX_VIDEO_BYTES, type DetectionsFile, type JobView, type PipelineHealth, type Quality, type RoomSummary } from '@/lib/splatJobs/protocol';
 
 /** What the server needs from the job queue (JobQueue satisfies it). */
@@ -60,6 +61,22 @@ type Res = http.ServerResponse;
 function sendJson(res: Res, status: number, body: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(body));
+}
+
+const MAX_CHECKED_BYTES = 64 * 1024;
+
+/** A request body as text, or null once it passes `limit` bytes (the rest is still read, so the client gets its answer). */
+function readBody(req: Req, limit: number): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size <= limit) chunks.push(chunk);
+    });
+    req.on('end', () => resolve(size > limit ? null : Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
 }
 
 /** The demo server (spec 2026-10-06 §3, §5): the static export plus the /api/splat jobs API. */
@@ -138,6 +155,41 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     }
   }
 
+  /** The helper's checked list (spec 2026-10-08 §10). A missing or unreadable file is "not checked yet". */
+  async function sendChecked(res: Res, id: string): Promise<void> {
+    const dir = jobs.jobDir(id);
+    if (!dir) return sendJson(res, 404, { error: 'not-found' });
+    let objects = null;
+    try {
+      objects = readChecked(JSON.parse(await readFile(path.join(dir, CHECKED_FILE), 'utf8')));
+    } catch {
+      // not saved yet, or not JSON
+    }
+    return objects ? sendJson(res, 200, { objects }) : sendJson(res, 404, { error: 'not-checked' });
+  }
+
+  async function saveChecked(req: Req, res: Res, id: string): Promise<void> {
+    const dir = jobs.jobDir(id);
+    if (!dir) {
+      req.resume();
+      return sendJson(res, 404, { error: 'not-found' });
+    }
+    const text = await readBody(req, MAX_CHECKED_BYTES);
+    if (text === null) return sendJson(res, 413, { error: 'too-large' });
+    let objects = null;
+    try {
+      objects = readChecked(JSON.parse(text));
+    } catch {
+      // not JSON
+    }
+    if (!objects) return sendJson(res, 400, { error: 'bad-objects' });
+    const file = path.join(dir, CHECKED_FILE);
+    await writeFile(`${file}.tmp`, JSON.stringify({ objects }));
+    await rename(`${file}.tmp`, file); // never a half-written file
+    res.writeHead(204, { 'Cache-Control': 'no-store' });
+    res.end();
+  }
+
   async function api(req: Req, res: Res, url: URL, parts: string[]): Promise<void> {
     const [, resource, id, sub] = parts; // parts[0] is 'splat'
     const method = req.method ?? 'GET';
@@ -155,6 +207,8 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     if (resource === 'rooms' && !id && method === 'GET') return sendJson(res, 200, jobs.rooms());
     if (resource === 'jobs' && id && sub === 'cameras' && method === 'GET') return sendCameras(res, id);
     if (resource === 'jobs' && id && sub === 'objects' && method === 'GET') return sendObjects(res, id);
+    if (resource === 'jobs' && id && sub === 'checked' && method === 'GET') return sendChecked(res, id);
+    if (resource === 'jobs' && id && sub === 'checked' && method === 'PUT') return saveChecked(req, res, id);
     req.resume();
     return sendJson(res, 404, { error: 'not-found' });
   }

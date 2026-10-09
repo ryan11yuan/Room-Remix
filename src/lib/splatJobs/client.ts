@@ -1,4 +1,6 @@
 import { isQuality, MAX_VIDEO_BYTES, readDetections, type CameraPose, type DetectionsFile, type Health, type JobView, type Quality, type RoomSummary } from './protocol';
+import { readChecked } from '@/lib/explore/checked';
+import type { RoomObject } from '@/lib/room/types';
 
 /** Same origin: the demo server serves both the app and this API (spec 2026-10-06 §5). */
 export const API = '/api/splat';
@@ -156,5 +158,30 @@ export async function fetchDetections(id: string, fetchFn: Fetch = browserFetch)
     return readDetections(await res.json());
   } catch {
     return null;
+  }
+}
+
+/** The helper's checked list for a room, or null when there isn't a valid one (spec 2026-10-08 §6). */
+export async function fetchChecked(id: string, fetchFn: Fetch = browserFetch): Promise<RoomObject[] | null> {
+  try {
+    const res = await fetchFn(`${jobUrl(id)}/checked`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return readChecked(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+/** Save the whole checked list; false if the laptop didn't take it. */
+export async function saveChecked(id: string, objects: RoomObject[], fetchFn: Fetch = browserFetch): Promise<boolean> {
+  try {
+    const res = await fetchFn(`${jobUrl(id)}/checked`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objects }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

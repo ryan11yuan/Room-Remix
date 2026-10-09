@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cancelJob, downloadSplat, fetchCameras, fetchHealth, fetchJob, fetchRooms, readCameras, readRooms, uploadVideo, type Xhr } from './client';
+import { cancelJob, downloadSplat, fetchCameras, fetchChecked, fetchHealth, fetchJob, fetchRooms, readCameras, readRooms, saveChecked, uploadVideo, type Xhr } from './client';
 import { MAX_VIDEO_BYTES, type JobView } from './protocol';
 
 const json = (body: unknown, status = 200) =>
@@ -182,5 +182,25 @@ describe('cameras', () => {
     expect(await fetchCameras('j1', async () => json({ error: 'no-cameras' }, 404))).toBeNull();
     expect(await fetchCameras('j1', async () => Promise.reject(new TypeError('Failed to fetch')))).toBeNull();
     expect(await fetchCameras('j1', async () => json([cameraJson({ rotation: 'x' })]))).toBeNull();
+  });
+});
+
+describe('checked list', () => {
+  const door = { label: 'door', min: { x: 0, y: 0, z: 1 }, max: { x: 0.1, y: 2, z: 2 } };
+  it('fetches a valid list, and gives null for none, a network error or a bad list', async () => {
+    const fetchFn = vi.fn(async () => json({ objects: [door] }));
+    expect(await fetchChecked('j 1', fetchFn)).toEqual([door]);
+    expect(fetchFn).toHaveBeenCalledWith('/api/splat/jobs/j%201/checked', expect.objectContaining({ cache: 'no-store' }));
+    expect(await fetchChecked('j1', async () => json({ error: 'not-checked' }, 404))).toBeNull();
+    expect(await fetchChecked('j1', async () => Promise.reject(new TypeError('Failed to fetch')))).toBeNull();
+    expect(await fetchChecked('j1', async () => json({ objects: [{ label: 'lamp' }] }))).toBeNull();
+  });
+
+  it('saves with a PUT and reports whether it worked', async () => {
+    const fetchFn = vi.fn(async () => new Response(null, { status: 204 }));
+    expect(await saveChecked('j1', [door] as never, fetchFn)).toBe(true);
+    expect(fetchFn).toHaveBeenCalledWith('/api/splat/jobs/j1/checked', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ objects: [door] }) }));
+    expect(await saveChecked('j1', [], async () => json({ error: 'bad-objects' }, 400))).toBe(false);
+    expect(await saveChecked('j1', [], async () => Promise.reject(new TypeError('Failed to fetch')))).toBe(false);
   });
 });

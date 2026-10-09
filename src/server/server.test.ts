@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHECKED_FILE } from '@/lib/explore/checked';
 import type { DetectionsFile, JobView, Quality, RoomSummary } from '@/lib/splatJobs/protocol';
 import { createServer, type Jobs } from './server';
 
@@ -248,6 +249,51 @@ describe('jobs API', () => {
     quiet.mockRestore();
     expect(bad.status).toBe(500);
     expect(await bad.json()).toEqual({ error: 'detect-failed' });
+  });
+
+  it('saves a checked list and serves it back; 404 before saving and for unknown jobs', async () => {
+    fake.state.ready.add('r1');
+    await mkdir(path.join(tmp, 'jobs', 'r1'), { recursive: true });
+    const url = `${base}/api/splat/jobs/r1/checked`;
+    expect((await fetch(url)).status).toBe(404);
+    const objects = [{ label: 'door', min: { x: 0, y: 0, z: 1 }, max: { x: 0.1, y: 2, z: 2 } }];
+    const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ objects }) });
+    expect(put.status).toBe(204);
+    const got = await fetch(url);
+    expect(got.status).toBe(200);
+    expect(await got.json()).toEqual({ objects });
+    expect(JSON.parse(await readFile(path.join(tmp, 'jobs', 'r1', CHECKED_FILE), 'utf8'))).toEqual({ objects });
+    expect((await fetch(`${base}/api/splat/jobs/nope/checked`)).status).toBe(404);
+    expect((await fetch(`${base}/api/splat/jobs/nope/checked`, { method: 'PUT', body: '{"objects":[]}' })).status).toBe(404);
+  });
+
+  it('refuses a bad checked list with 400 and an oversized one with 413', async () => {
+    fake.state.ready.add('r1');
+    await mkdir(path.join(tmp, 'jobs', 'r1'), { recursive: true });
+    const put = (body: string) => fetch(`${base}/api/splat/jobs/r1/checked`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+    const door = { label: 'door', min: { x: 0, y: 0, z: 1 }, max: { x: 0.1, y: 2, z: 2 } };
+    for (const body of [
+      'not json',
+      '{}',
+      JSON.stringify({ objects: [{ ...door, label: 'lamp' }] }),
+      JSON.stringify({ objects: [{ ...door, min: { x: 1, y: 0, z: 1 } }] }),
+      JSON.stringify({ objects: Array.from({ length: 201 }, () => door) }),
+    ]) {
+      const res = await put(body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'bad-objects' });
+    }
+    const big = await put(JSON.stringify({ objects: [], pad: 'x'.repeat(70_000) }));
+    expect(big.status).toBe(413);
+  });
+
+  it('treats a corrupt checked file as no checked list', async () => {
+    fake.state.ready.add('r1');
+    await mkdir(path.join(tmp, 'jobs', 'r1'), { recursive: true });
+    await writeFile(path.join(tmp, 'jobs', 'r1', CHECKED_FILE), 'garbage');
+    expect((await fetch(`${base}/api/splat/jobs/r1/checked`)).status).toBe(404);
+    await writeFile(path.join(tmp, 'jobs', 'r1', CHECKED_FILE), JSON.stringify({ objects: [{ label: 'lamp' }] }));
+    expect((await fetch(`${base}/api/splat/jobs/r1/checked`)).status).toBe(404);
   });
 
   it('answers unknown API paths and methods with 404 JSON', async () => {
