@@ -199,7 +199,7 @@ A restrained warm monochrome: a ladder of browns from walnut to cream, one fille
 
 **The Driftwood Is Structure Rule.** Driftwood draws lines and never sets type; at 3.2:1 on walnut it fails text contrast. Secondary text is cream at 70%.
 
-**The Data-Only Hue Rule.** Teal marks the highlighted object in the viewer. It never colors chrome, buttons or headings, and never appear on the home page.
+**The Data-Only Hue Rule.** Teal marks the highlighted object in the viewer. It never colors chrome, buttons or headings, and never appears on the home page.
 
 ## Typography
 
@@ -332,9 +332,8 @@ The newest room, live, pinned behind the hero and the reveal while they scroll o
 - **Don't** use box-shadow, drop-shadow or glow anywhere; step to bark or add a cork line instead.
 - **Don't** use ember for anything but a credit line.
 - **Don't** set text in driftwood (3.2:1 on walnut) or cork; they are structure only.
-- **Don't** bring the sound overlay's teal, amber or green into chrome or onto the home page.
+- **Don't** bring the viewer's one teal highlight into chrome or onto the home page.
 - **Don't** track uppercase labels or bold them; the system has one weight for labels and one for the voice.
 - **Don't** add icons beyond the hairline arrow, and don't pull in an icon library.
 - **Don't** set type below the 10px micro step or in a system face; Inter is the only face on darkroom surfaces. The one exception is the footer's 8px Arial legal line, the brief's compliance voice: "this is not design, this is compliance."
 - **Don't** use Tailwind's grey or neutral palette on darkroom surfaces; every tone is a walnut-to-cream token or one of them at reduced opacity.
-- **Don't** restyle the hidden acoustics pages (/room, /setup, /about) as part of darkroom work; they are out of scope.
