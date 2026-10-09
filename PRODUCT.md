@@ -8,29 +8,31 @@ web
 
 ## Users
 
-Hackathon judges watching the maker demo Room Remix live on a laptop (confirmed 2026-10-07). The maker drives: imports a phone video of a room, waits for the build, then walks around the finished room in 3D while the judges look on. First impressions and the room itself matter most.
+Hackathon judges watching the maker demo Room Remix live on a laptop. The story has two people: a sighted helper who films a place, and a blind or low-vision explorer who rehearses it by sound before going. In the demo, a blindfolded judge plays the explorer.
 
 ## Product Purpose
 
-Import a video of your room and walk around it in 3D. A phone films one slow lap of a room; the laptop turns that video into a Gaussian splat that the browser shows full screen. Success: the judges see a real room, made from one video, that they can walk through.
+Rehearse a place by sound. A helper films one slow lap of a room on a phone; the laptop turns the video into a 3D room and finds what matters for getting around: doors, stairs, chairs, tables and the rest. The helper checks the list. The explorer then walks the room on headphones and the keyboard: each object says its name from where it really is, Space sweeps the room clockwise, and Tab and Enter choose a place and lead there with a pulse. Success: a blindfolded judge explores for two minutes, then walks to the real door.
 
 ## Positioning
 
-The room is built entirely on the maker's own laptop from a single video, with free, open-source tools: ffmpeg, COLMAP, OpenSplat, then Spark in the browser (Memento's pipeline). No paid service and no cloud capture app.
+Built entirely on the maker's laptop from one video, with free, open-source tools: ffmpeg, COLMAP, OpenSplat, OWL-ViT and a free speech model, shown with Spark in the browser. No paid service and no cloud.
 
 ## Operating Context
 
-- Runs on the maker's laptop (`npm run demo`, port 8080); phones on the same Wi-Fi can film the room.
-- One page: `/` holds the import (Quick about 5 minutes, Best sharper and about half an hour), the build's progress, the list of finished rooms, and a full-screen viewer at `#room=<id>`.
-- Viewer: drag to spin, scroll to zoom, W/A/S/D to move, Q/E down and up, click to look around, Esc to stop.
-- Sound in the viewer (Plan 8: speaker placement, object detection, best-spot search) is being added by a parallel session.
+- Runs on the maker's laptop (`npm run demo`, port 8080).
+- One page: `/` holds the import (Quick about 5 minutes, Best about half an hour), the build's progress, the list of finished rooms, and a full-screen viewer at `#room=<id>`.
+- Viewer, check mode: the found objects, with rename, remove and add; Start exploring.
+- Viewer, explore mode: W/S step, A/D turn, Space scan, Tab choose, Enter go, Esc stop, H help. Headphones.
 
 ## Capabilities and Constraints
 
-- Input is video only; the pipeline cannot use a single photo.
+- Input is video only; the pipeline can't use a single photo.
 - Free and open-source only: never a paid tool, font or service.
-- The acoustics pages (/room, /setup, /about) stay in the code but nothing links to them.
-- Desktop browser on the laptop is the main surface; the page must still work at phone width.
+- Distances are approximate: the scale assumes the phone was held 1.5 m up.
+- For rehearsal before a visit, not navigation on the day. It doesn't replace a cane or a guide.
+- No blind person has tried it yet. Don't claim it helps blind people until one has.
+- The desktop browser on the laptop is the main surface.
 
 ## Brand Commitments
 
@@ -40,10 +42,11 @@ The room is built entirely on the maker's own laptop from a single video, with f
 ## Evidence on Hand
 
 - The rooms the maker has built on this laptop (served by the local server at `/api/splat/rooms`).
-- No testimonials, metrics, customers or press exist. Do not invent any.
+- No testimonials, metrics, users or press exist. Do not invent any.
 
 ## Product Principles
 
-- The room is the hero: show the real splat, not a picture of an interface.
+- Sound first: everything the explorer needs is heard; the screen is for onlookers.
 - Every claim is true of this laptop and this pipeline.
+- A wrong label misleads someone who can't see it, so the helper checks the list.
 - The demo must read in seconds to someone watching over the maker's shoulder.

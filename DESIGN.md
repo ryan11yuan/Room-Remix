@@ -1,6 +1,6 @@
 ---
 name: Room Remix
-description: Import a video of your room and walk around it in 3D.
+description: Film a place once. Someone who can't see it can explore it by sound.
 colors:
   walnut: "#100904"
   bark: "#382416"
@@ -8,9 +8,7 @@ colors:
   driftwood: "#6c5f51"
   cream: "#ffedd7"
   ember: "#dc5000"
-  data-absorbs: "#5fd4c4"
-  data-reflects: "#f0a540"
-  data-best: "#3ddc84"
+  data-target: "#5fd4c4"
 typography:
   wordmark:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
@@ -166,7 +164,7 @@ The room the maker filmed is the object on display, and the interface is the gal
 
 The world is the ORYZO darkroom product-editorial reference the user pinned, adapted for a live 3D subject and a free-tools-only rule. Inter (self-hosted variable) stands in for the paid Halyard Display. A mixed-case "voice" at 18px carries instructions alongside the 29px description. Walnut scrims and the vignette keep cream type legible over a moving, sometimes bright room. Secondary text is cream at 70%, because driftwood fails contrast for text. Depth is tonal and never shadowed, and all motion follows one metaphor: things develop out of the dark like a print in the tray.
 
-Scope: the system covers every surface under the darkroom root, meaning the home page sections, the full-screen viewer and its sound panel. The hidden acoustics pages (/room, /setup, /about) are out of scope and keep their older look on purpose.
+Scope: the system covers every surface under the darkroom root, meaning the home page sections, the full-screen viewer, its explore panel and its captions.
 
 **Key Characteristics:**
 - Warm near-monochrome: walnut canvas, cream ink, bark for the one filled action, ember rationed to credit lines.
@@ -187,24 +185,21 @@ A restrained warm monochrome: a ladder of browns from walnut to cream, one fille
 - **Ember Credit** (#dc5000): credit lines only. That means the pipeline tool names in the reveal (ffmpeg, COLMAP, OpenSplat, Spark) and the "Built with ... after Memento" line in the rooms footer and on the builder-not-running page. At 4.9:1 on walnut it is only ever set at label size as a short credit.
 
 ### Neutral
-- **Walnut Void** (#100904): the page canvas, the clear color of both 3D scenes (hero and viewer), the browser theme color, and every scrim. Over the live room it is translucent: 75% for hero cards, 80% for the sound panel and 3D chips, 90% for the drop target, and 40 to 88% in the gradients.
+- **Walnut Void** (#100904): the page canvas, the clear color of both 3D scenes (hero and viewer), the browser theme color, and every scrim. Over the live room it is translucent: 75% for hero cards, 80% for the explore panel and 3D chips, 90% for the drop target, and 40 to 88% in the gradients.
 - **Darkroom Cream** (#ffedd7): all type (17.3:1 on walnut), the ghost button line, the current and checked borders, the progress fill, the focus ring, and the hover fill of both button kinds. It is also the warm grade laid over the 3D room in multiply.
 - **Cream at 70%** (renders near #b7a998, 8.6:1 on walnut): the secondary text tone for dates, serial numbers, quality names, counts, help lines and the viewer's room title. A single 60% step (6.5:1) marks upcoming build steps.
 - **Cork Hairline** (#40372e): dashed rules, card and option borders, the progress track and the scrollbar thumb. Structure only (1.7:1).
 - **Driftwood** (#6c5f51): structure only: the walls of the room sketch and the hover border of an unchecked quality option.
 
-### Data (viewer sound overlay only)
-- **Absorb Teal** (#5fd4c4): objects that absorb sound, on their 3D chips and on the sound panel's "Absorbs sound" key.
-- **Reflect Amber** (#f0a540): objects that reflect sound, on the same two surfaces.
-- **Best-Spot Green** (#3ddc84): the best-spot pin, its floor halo and its chip.
-- The floor heat map is computed, not tokenized: red (worst on this map) through yellow to green (best), at about 59% alpha so the room shows through.
+### Data (viewer labels only)
+- **Target Teal** (#5fd4c4): the one highlighted 3D chip: the row the helper points at in check mode, or the explorer's current target.
 
 ### Named Rules
 **The Ember Credit Rule.** Ember is the color of a name being credited. If the text is not crediting a tool or a source, it is not ember: never an action, a state, a heading or a paragraph.
 
 **The Driftwood Is Structure Rule.** Driftwood draws lines and never sets type; at 3.2:1 on walnut it fails text contrast. Secondary text is cream at 70%.
 
-**The Data-Only Hues Rule.** Teal, amber and green encode acoustic data in the viewer. They never color chrome, buttons or headings, and never appear on the home page.
+**The Data-Only Hue Rule.** Teal marks the highlighted object in the viewer. It never colors chrome, buttons or headings, and never appear on the home page.
 
 ## Typography
 
@@ -218,17 +213,17 @@ A restrained warm monochrome: a ladder of browns from walnut to cream, one fille
 - **Wordmark** (500, clamp(64px, min(13.5vw, 21svh), 208px), 0.9): the stacked ROOM / REMIX in the hero. The one size off the scale; there is only one of it.
 - **Display** (500, 51px, 0.9, tabular): the upload and build percentage. From lg it grows to 96px, an off-scale value used only for that counter.
 - **Headline** (500, 41px, 0.9): section headings ("Import a video.", "Your rooms.", "It isn't just a video."), the drop target, the builder-not-running heading.
-- **Title** (500, 24px, 1.09): card headings, build status lines, room times in the list, the viewer's loading message, the sound panel's heading.
+- **Title** (500, 24px, 1.09): card headings, build status lines, room times in the list, the viewer's loading message, the explore panel's headings.
 - **Body** (400, 29px, 1.26, mixed case): the one description per section, held to 11em in the hero and 24ch in the import.
 - **Voice** (400, 18px, 1.3, mixed case): instructions people follow: the filming tips, the quality details, the fix and retry hints, the empty-state line.
 - **UI** (500, 14px, 1.1, uppercase): pill text, the brand mark in the nav and viewer, small sub-headings ("How to film"), loading lines.
-- **Label** (500, 12px, 1.2, uppercase): nav items, ghost buttons, metadata, day headers, credits, key hints, the sound panel's section names and readouts.
+- **Label** (500, 12px, 1.2, uppercase): nav items, ghost buttons, metadata, day headers, credits, key hints, the explore panel's section names and readouts.
 - **Micro** (500, 10px, 1.2, uppercase): the vertical serial on the right edge, keycaps, the "Done" mark on a build step, the 3D chips.
 
 ### Named Rules
 **The Museum Label Rule.** Every darkroom string is uppercase at weight 500 with no tracking (letter-spacing normal). Buttons, inputs and selects inherit the case instead of resetting it.
 
-**The Voice Rule.** Mixed case at weight 400 is reserved for sentences a person reads rather than scans: one description per section at 29px, and instructions at 18px. The sound panel's terse help lines drop it to 12px. Labels, buttons and headings never use it.
+**The Voice Rule.** Mixed case at weight 400 is reserved for sentences a person reads rather than scans: one description per section at 29px, and instructions at 18px. The explore panel's terse help lines drop it to 12px; the explore captions use it at body size. Labels, buttons and headings never use it.
 
 **The Tabular Numbers Rule.** Serials, times and percentages use tabular figures so lists and counters do not jitter. Serials are two digits, zero-padded (01, 02), and the oldest room is 01.
 
@@ -238,14 +233,14 @@ The home page is one long scroll of full-height sections (each at least the smal
 
 Page gutters are 16px, 24px from sm. From md every section keeps a 56px right rail, which clears the vertical serial (micro type, vertical writing mode, fixed 12px from the right edge, centred, hidden below md). Sections open 112px from the top to clear the fixed nav (the hero 96px). Inside components the rhythm runs on a 4px base, mostly 12px stacks, 16 to 24px between groups, and 40px between a heading and its controls. Density is low: a viewport carries one heading, one description and at most one card or list.
 
-The top nav is fixed and pointer-transparent except for its links: the brand at UI size on the left, three section links at label size on the right (20px apart, 32px from sm), over a walnut gradient that fades from 80% to clear. The viewer is a fixed full-screen layer with chrome pinned to its corners: the Back ghost and room title top left, key hints bottom left (capped at 62% width from lg), and the 300px sound panel top right. Every control keeps a 44px minimum target. The portrait breakpoint (aspect ratio 1:1 or narrower) reshapes the vignette, the drop hint appears only with a fine pointer, and below lg the page keeps a 12rem bottom scroll padding.
+The top nav is fixed and pointer-transparent except for its links: the brand at UI size on the left, three section links at label size on the right (20px apart, 32px from sm), over a walnut gradient that fades from 80% to clear. The viewer is a fixed full-screen layer with chrome pinned to its corners: the Back ghost and room title top left, key hints bottom left (capped at 62% width from lg), the 300px explore panel top right, and the captions bottom centre while exploring. Every control keeps a 44px minimum target. The portrait breakpoint (aspect ratio 1:1 or narrower) reshapes the vignette, the drop hint appears only with a fine pointer, and below lg the page keeps a 12rem bottom scroll padding.
 
 ## Elevation & Depth
 
 The system is flat: nothing casts a shadow. Depth comes from a two-step surface stack (walnut, then bark), from translucent walnut over the live room, and from light itself: the room is graded and vignetted so it reads as the only lit object in the void.
 
 ### Depth Vocabulary
-- **Panel over the room** (walnut at 75 to 80%, 1px cork border): the hero's cards, the sound panel, the 3D chips.
+- **Panel over the room** (walnut at 75 to 80%, 1px cork border): the hero's cards, the explore panel, the 3D chips.
 - **Nav scrim** (walnut 80% to clear, top down): under the fixed nav.
 - **Viewer shades** (walnut 85% to clear, a 144px band at the top and a 160px band at the bottom): where the viewer's labels sit.
 - **Hero side scrim** (from md: walnut 85% at the right edge, 40% at 28%, clear by 45%): under the hero description.
@@ -276,15 +271,15 @@ Every line is 1px. Solid lines are borders of things: cork around cards and opti
 ### Buttons
 Quiet until touched; touch develops them to cream.
 - **Shape:** stadium (36px pill, 22.5px ghost), 44px minimum height.
-- **Primary (pill):** bark fill, cream UI-size type, 14px by 24px padding, 10px gap to a trailing arrow. One per section or panel: the hero card's "Enter the room", the import's "Import a video", "Try again" after a failure. The sound panel moves its single pill to whichever step comes next (Place speaker, then Play).
+- **Primary (pill):** bark fill, cream UI-size type, 14px by 24px padding, 10px gap to a trailing arrow. One per section or panel: the hero card's "Enter the room", the import's "Import a video", "Try again" after a failure. The explore panel's single pill is Start exploring.
 - **Hover / Focus:** both kinds fill with cream and turn their type walnut over 240ms on the develop ease. Focus is a 1px cream outline 3px out, on every control; a file input or radio wrapped in a label shows the ring on the label.
-- **Secondary (ghost):** a 1px cream line, no fill, label-size type, 7.5px by 18px padding: Cancel, Close, Back, Move speaker, Find the best spot. In a toggle group (the sound panel's music choice) the pressed ghost stays filled cream with walnut type.
+- **Secondary (ghost):** a 1px cream line, no fill, label-size type, 7.5px by 18px padding: Cancel, Close, Back, Add an object, Remove, Stop exploring.
 - **Disabled:** 40% opacity, no hover change.
 - **Text link:** cream, underlined 1px at a 4px offset, for an inline action inside a sentence.
 
 ### Cards / Containers
 - **Corner Style:** 12px.
-- **Background:** walnut at 75% over the room (80% for the sound panel); none on a solid walnut section.
+- **Background:** walnut at 75% over the room (80% for the explore panel); none on a solid walnut section.
 - **Shadow Strategy:** none (see Elevation & Depth).
 - **Border:** 1px cork. A card that is itself a link turns its border cream on hover over 200ms.
 - **Internal Padding:** 20px; state panels (failure, builder not ready) use 24px and the hero's import link card 16px.
@@ -313,8 +308,9 @@ Quiet until touched; touch develops them to cream.
 ### Viewer Chrome
 - **Corners:** the Back ghost with a left arrow and the brand plus room title top left; key hints bottom left.
 - **Key hints:** each a keycap (fully round ends, 1px cream at 60%, micro type, 6px by 10px padding) followed by what it does at label size.
-- **Sound panel:** a 300px card at walnut 80% pinned top right, scrolling within the screen height. Sections (Speaker, Listen, Objects) are separated by dashed rules and named at label size. Readouts and help are label size in cream 70%; the absorb and reflect keys use the data hues.
-- **3D chips:** labels pinned in the room: fully round ends, walnut at 80%, a 1px border and text in the data hue, micro type, 4px by 10px padding, on one line.
+- **Explore panel:** a 300px card at walnut 80% pinned top right, scrolling within the screen height. In check mode: Room, Objects (one row per object: its number, a name select, Remove) and the Start exploring pill, separated by dashed rules. In explore mode: the heading, a one-line key reminder in cream 70%, and Stop exploring. Key hints bottom left hide while exploring.
+- **Captions:** while exploring, what the narrator says (or the scan's names as they play) bottom centre in the voice style at body size, in a polite live region.
+- **3D chips:** labels pinned in the room: fully round ends, walnut at 80%, a 1px cream border at 60% with cream text, or teal when highlighted, micro type, 4px by 10px padding, on one line.
 
 ### The Plinth (signature)
 The newest room, live, pinned behind the hero and the reveal while they scroll over it. The room sketch holds the centre at up to 560px wide until the splat is ready, then fades out over 1.4s while the room develops in over 2.4s, from 18px blur and 60% brightness to sharp. The viewer develops its room over 1.8s. The camera sways 4.5 degrees either side over 24 seconds like an object on a slow turntable; scrolling to the reveal turns it a further 26 degrees and steps it back, and the pointer adds up to 2.5 degrees of turn and 1.5 degrees of tilt. Camera moves ease toward their target rather than snapping. Under reduced motion the room holds the video's first view and appears without developing. The scene stops drawing while it is off screen.
