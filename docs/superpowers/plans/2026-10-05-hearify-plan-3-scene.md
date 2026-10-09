@@ -1,4 +1,4 @@
-# Room Remix — Plan 3: 3D Scene and Sound Rays Implementation Plan
+# Hearify — Plan 3: 3D Scene and Sound Rays Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, three.js 0.186 (+ `@types/three`), zustand, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md` (§6 audio, §8 3D scene, §11 errors). Follow-ups this plan picks up: `docs/superpowers/plans/2026-10-04-room-remix-plan-1-followups.md` ("Open issue that changes what you hear" and "Before Plan 3").
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md` (§6 audio, §8 3D scene, §11 errors). Follow-ups this plan picks up: `docs/superpowers/plans/2026-10-04-hearify-plan-1-followups.md` ("Open issue that changes what you hear" and "Before Plan 3").
 
 **Deviations from the spec, decided here:**
 - **§6 loudness:** IRs are normalised by their *pink-weighted* gain (1/f over 50 Hz–16 kHz), not their flat energy. Flat energy left the room modes ~8 dB louder than Dry on real music. Pink weighting is what "matched perceived loudness" needs. Normalisation moves into the worker, so the main thread doesn't run large FFTs.

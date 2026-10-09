@@ -1,4 +1,4 @@
-# Room Remix Plan 4: follow-ups for Plans 4b–5
+# Hearify Plan 4: follow-ups for Plans 4b–5
 
 Plan 4 (the splat room scan) is on `master` (414edf5..7c3ff25). It passed:
 - per-task reviews;

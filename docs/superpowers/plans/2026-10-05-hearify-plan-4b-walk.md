@@ -1,4 +1,4 @@
-# Room Remix: Plan 4b, Walk Mode Implementation Plan
+# Hearify: Plan 4b, Walk Mode Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -16,7 +16,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, three.js 0.186, zustand, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md`: §8 "Walk mode" and §12 "walk". Builds on Plan 4's `RoomScene` at `0381635`. See `docs/superpowers/plans/2026-10-05-room-remix-plan-4-followups.md`, "For Plan 4b".
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md`: §8 "Walk mode" and §12 "walk". Builds on Plan 4's `RoomScene` at `0381635`. See `docs/superpowers/plans/2026-10-05-hearify-plan-4-followups.md`, "For Plan 4b".
 
 **Already checked:** before this plan was written, its code was applied to a scratch copy of `0381635`. There it passed type-check, lint and all 340 tests, and built. It was then tried in Chrome: entering walk mode, tap to walk, WASD, a key typed into a field, arrow keys not scrolling, and a camera button ending walk mode, with no console errors. Not tried yet: touch and pinch on a phone, a loaded scan, audio. Those are in Task 2's browser check.
 

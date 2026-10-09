@@ -1,4 +1,4 @@
-# Room Remix — Plan 1: Core "Hear Your Room" Implementation Plan
+# Hearify — Plan 1: Core "Hear Your Room" Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js (App Router, `output: 'export'`), React, TypeScript, Tailwind CSS, zustand, Vitest. Python + pyroomacoustics only for a one-off fixture script.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md`
 
 **Roadmap (this is Plan 1 of 5; each later plan gets its own document):**
 1. **Core (this plan):** scaffold, room model, acoustics engine, worker, audio engine, URL sharing, form-based setup + player.
@@ -102,21 +102,21 @@ Tests sit next to their modules as `*.test.ts`.
 
 - [ ] **Step 1: Generate the app in a temporary subfolder**
 
-The folder name "Room Remix" is not a valid npm package name, so scaffold into `room-remix/` and move the files up.
+The folder name "Hearify" is not a valid npm package name, so scaffold into `hearify/` and move the files up.
 
 Run:
 ```powershell
-npx create-next-app@latest room-remix --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --skip-install --yes
+npx create-next-app@latest hearify --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm --skip-install --yes
 ```
-Expected: "Success! Created room-remix".
+Expected: "Success! Created hearify".
 
 - [ ] **Step 2: Move the generated files to the repo root**
 
 Run:
 ```powershell
-if (Test-Path room-remix\.git) { Remove-Item -Recurse -Force room-remix\.git }
-Get-ChildItem -Force room-remix | Move-Item -Destination .
-Remove-Item room-remix
+if (Test-Path hearify\.git) { Remove-Item -Recurse -Force hearify\.git }
+Get-ChildItem -Force hearify | Move-Item -Destination .
+Remove-Item hearify
 Get-ChildItem -Force
 ```
 Expected: `package.json`, `src`, `next.config.ts`, `docs`, `.git` at the root.
@@ -2819,7 +2819,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Room Remix',
+  title: 'Hearify',
   description: 'Hear how your room sounds, and what a rug would fix, before you buy anything.',
 };
 
@@ -2841,7 +2841,7 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center gap-6 px-4">
-      <h1 className="text-4xl font-bold">Room Remix</h1>
+      <h1 className="text-4xl font-bold">Hearify</h1>
       <p className="text-lg text-neutral-300">
         Hear your music the way it sounds in your room, then hear what a rug or a few panels would fix, before you
         buy anything.

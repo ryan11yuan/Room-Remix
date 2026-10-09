@@ -103,7 +103,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
           Back
         </button>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="text-ui">Room Remix</span>
+          <span className="text-ui">Hearify</span>
           {title && <span className="truncate text-label text-cream/70">{title}</span>}
         </div>
       </header>

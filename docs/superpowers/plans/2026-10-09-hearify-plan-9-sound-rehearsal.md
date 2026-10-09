@@ -1,4 +1,4 @@
-# Room Remix Plan 9: Rehearse a Place by Sound — Implementation Plan
+# Hearify Plan 9: Rehearse a Place by Sound — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, three.js with Spark, Web Audio (PannerNode HRTF, ConvolverNode), the browser's `speechSynthesis`, transformers.js (OWL-ViT) in the Node demo server, Kokoro (`kokoro-js`) or Windows' built-in voice for the clips, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-08-room-remix-sound-rehearsal-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-08-hearify-sound-rehearsal-design.md`
 
 ## Global Constraints
 
@@ -150,11 +150,11 @@ npm uninstall zustand fake-indexeddb
 
 Replace everything in `README.md` above the line `## Hackathon demo: rooms from video` with:
 ```markdown
-# Room Remix
+# Hearify
 
 A helper films a place once on a phone. The laptop turns the video into a 3D room and finds what matters for getting
 around. Someone who can't see it can then explore it by sound, on headphones (design:
-`docs/superpowers/specs/2026-10-08-room-remix-sound-rehearsal-design.md`).
+`docs/superpowers/specs/2026-10-08-hearify-sound-rehearsal-design.md`).
 
 ```
 Keep the `## Hackathon demo: rooms from video` section and everything under it unchanged.
@@ -3393,7 +3393,7 @@ export function SplatViewer({ roomId, title, onBack }: { roomId: string; title?:
           Back
         </button>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="text-ui">Room Remix</span>
+          <span className="text-ui">Hearify</span>
           {title && <span className="truncate text-label text-cream/70">{title}</span>}
         </div>
       </header>
@@ -3470,7 +3470,7 @@ The controller runs this task: subagents can't drive the browser here.
 
 **Files:**
 - Modify: `PRODUCT.md`, `DESIGN.md`, possibly `src/server/detect.ts` (the door threshold)
-- Create: `docs/superpowers/plans/2026-10-09-room-remix-plan-9-followups.md`
+- Create: `docs/superpowers/plans/2026-10-09-hearify-plan-9-followups.md`
 
 - [ ] **Step 1: Rewrite `PRODUCT.md`**
 
@@ -3485,7 +3485,7 @@ web
 
 ## Users
 
-Hackathon judges watching the maker demo Room Remix live on a laptop. The story has two people: a sighted helper who films a place, and a blind or low-vision explorer who rehearses it by sound before going. In the demo, a blindfolded judge plays the explorer.
+Hackathon judges watching the maker demo Hearify live on a laptop. The story has two people: a sighted helper who films a place, and a blind or low-vision explorer who rehearses it by sound before going. In the demo, a blindfolded judge plays the explorer.
 
 ## Product Purpose
 
@@ -3513,7 +3513,7 @@ Built entirely on the maker's laptop from one video, with free, open-source tool
 
 ## Brand Commitments
 
-- Name: Room Remix.
+- Name: Hearify.
 - Visual world pinned by the user on 2026-10-07: the ORYZO darkroom product-editorial style (warm dark canvas, cream uppercase type, one ember accent for credit lines only). See DESIGN.md.
 
 ## Evidence on Hand
@@ -3587,7 +3587,7 @@ Build and start a test server on a spare port (Start-Process with a PID, per the
 
 - [ ] **Step 5: Write the follow-ups**
 
-Create `docs/superpowers/plans/2026-10-09-room-remix-plan-9-followups.md` in the style of the Plan 8 follow-ups, with:
+Create `docs/superpowers/plans/2026-10-09-hearify-plan-9-followups.md` in the style of the Plan 8 follow-ups, with:
 - **Before the demo (the user):** restart the demo server (`npm run demo`) so it has the new routes; the headphone check from spec §13 (scan from the start, turn 90°, then go to the door blindfolded), and whether the rolloff (0.6) and echo (−10 dB) need changing in `src/lib/audio/spatial.ts`; which voice engine recorded the clips, and how to re-record (`npm run voices`); the demo script (open the pre-built room, check the list, Start exploring, blindfold, scan, Tab to the door, walk, take the blindfold off, point at the real door).
 - **Verified (controller):** what the real check found, room by room, including the room fit and object counts.
 - **Rulings made during execution:** each with what was decided, why, and the cost if wrong.
@@ -3598,11 +3598,11 @@ Create `docs/superpowers/plans/2026-10-09-room-remix-plan-9-followups.md` in the
 Run: `npx vitest run`, `npx tsc --noEmit`, `npm run lint`, `npx next build` — Expected: all clean.
 ```bash
 git status --short
-git add docs/superpowers/plans/2026-10-09-room-remix-plan-9-followups.md
+git add docs/superpowers/plans/2026-10-09-hearify-plan-9-followups.md
 git commit -q -m "$(cat <<'EOF'
 docs: Plan 9 follow-ups: the headphone check, the demo script, rulings and limits
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
-)" -- docs/superpowers/plans/2026-10-09-room-remix-plan-9-followups.md
+)" -- docs/superpowers/plans/2026-10-09-hearify-plan-9-followups.md
 ```

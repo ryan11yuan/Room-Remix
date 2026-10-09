@@ -1,4 +1,4 @@
-# Room Remix's splat pipeline (spec 2026-10-06 §3-§4).
+# Hearify's splat pipeline (spec 2026-10-06 §3-§4).
 # OpenSplat v1.2.2 is built the way its own Dockerfile builds it (Ubuntu 22.04, CUDA 12.1.1, libtorch 2.2.1), for the
 # RTX 4060 (sm_89), with one difference: that Dockerfile runs plain `ninja`, one compile per CPU, and on the demo laptop
 # those libtorch compiles filled Docker Desktop's 7.8 GB VM until Docker stopped answering. BUILD_JOBS caps them.

@@ -1,5 +1,5 @@
 /** The build each room is waiting for, kept in localStorage so a reload (or coming back to the room) picks it up again. */
-const key = (roomId: string) => `room-remix:video-scan:${roomId}`;
+const key = (roomId: string) => `hearify:video-scan:${roomId}`;
 
 export function rememberJob(roomId: string, jobId: string): void {
   try {

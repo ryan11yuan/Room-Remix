@@ -1,5 +1,5 @@
 ---
-name: Room Remix
+name: Hearify
 description: Film a place once. Someone who can't see it can explore it by sound.
 colors:
   walnut: "#100904"
@@ -154,7 +154,7 @@ components:
     padding: "4px 10px"
 ---
 
-# Design System: Room Remix
+# Design System: Hearify
 
 ## Overview
 

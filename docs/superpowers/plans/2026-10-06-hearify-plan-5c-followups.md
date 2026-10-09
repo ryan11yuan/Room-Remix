@@ -1,4 +1,4 @@
-# Room Remix Plan 5c: follow-ups for Plan 5d and later
+# Hearify Plan 5c: follow-ups for Plan 5d and later
 
 Plan 5c (setup wizard, player layout, top view, accessibility) is on `main` (dc84c29..eb71d51). It passed:
 - per-task reviews of all seven tasks, with no fix rounds needed;

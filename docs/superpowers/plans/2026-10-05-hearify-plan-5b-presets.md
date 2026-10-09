@@ -1,4 +1,4 @@
-# Room Remix: Plan 5b, Presets and Landing Page Implementation Plan
+# Hearify: Plan 5b, Presets and Landing Page Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,7 +13,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, Web Audio, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md`: §2 (presets, demo room), §6 (demo clip, presets through the same graph), §8 ("Presets: no geometry…"), §10 (Landing; About / Privacy), §13 (licensing). Also `docs/superpowers/plans/2026-10-05-room-remix-plan-5a-followups.md` ("For Plan 5b") and the Plan 1 and 3 follow-ups on presets.
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md`: §2 (presets, demo room), §6 (demo clip, presets through the same graph), §8 ("Presets: no geometry…"), §10 (Landing; About / Privacy), §13 (licensing). Also `docs/superpowers/plans/2026-10-05-hearify-plan-5a-followups.md` ("For Plan 5b") and the Plan 1 and 3 follow-ups on presets.
 
 **Decided here (where the spec left room, or this plan differs):**
 - **Cathedral:** York Minster, from OpenAIR, CC BY 4.0 (Audiolab, University of York; Damian T. Murphy). The original stereo WAV ships as it is (2.9 MB, loaded only when that tab is played).
@@ -736,12 +736,12 @@ Create `src/components/ListenDemo.tsx`, a client component (`'use client'`). Wha
 - [ ] **Step 2: The pages**
 
 Replace `src/app/page.tsx` with a server component that renders:
-- the heading "Room Remix" and the existing intro sentence;
+- the heading "Hearify" and the existing intro sentence;
 - `<ListenDemo />`;
 - the **Try your room** link to `/room` (keep its current look);
 - a footer with a link to `/about` ("About and privacy").
 
-Create `src/app/about/page.tsx`, a server component, with `export const metadata = { title: 'About · Room Remix' }` and these sections:
+Create `src/app/about/page.tsx`, a server component, with `export const metadata = { title: 'About · Hearify' }` and these sections:
 - **What this is:** two or three sentences from the spec's §1: hear how your room sounds and what fixes would change, before you spend money.
 - **Privacy:** "Nothing you add leaves your device. Songs, room scans and your rooms stay in this browser. There are no accounts and nothing is uploaded."
 - **Credits:** one paragraph per `PRESETS` entry: its `credit.text`, the licence as a link to `licenceUrl`, and a "Source" link to `sourceUrl`. Then: "The built-in drum loop and guitar riff are generated in your browser."

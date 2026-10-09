@@ -1,14 +1,14 @@
-# Room Remix — Rehearse a Place by Sound (Plan 9)
+# Hearify — Rehearse a Place by Sound (Plan 9)
 
 **Date:** 2026-10-08
 **Status:** Design approved in chat, pending spec review
-**Builds on:** `2026-10-06-room-remix-video-splats-design.md` (pipeline, jobs API, demo server), `2026-10-07-room-remix-splat-viewer-design.md` (the viewer) and `2026-10-07-room-remix-splat-sound-design.md` §2–3 (fitting the room box, finding and placing objects), all reused.
-**Replaces:** the sound spec's §4–8 (speaker, best spot, walking music, panel) and everything in `2026-10-04-room-remix-design.md` that only the hidden pages used. Where this spec disagrees with an earlier one, this spec wins.
+**Builds on:** `2026-10-06-hearify-video-splats-design.md` (pipeline, jobs API, demo server), `2026-10-07-hearify-splat-viewer-design.md` (the viewer) and `2026-10-07-hearify-splat-sound-design.md` §2–3 (fitting the room box, finding and placing objects), all reused.
+**Replaces:** the sound spec's §4–8 (speaker, best spot, walking music, panel) and everything in `2026-10-04-hearify-design.md` that only the hidden pages used. Where this spec disagrees with an earlier one, this spec wins.
 **Scope rule:** build only what the demo needs, and delete everything else.
 
 ## 1. Purpose
 
-Blind and low-vision people often learn a new place before they go: a new school, a clinic, a first day at work. Usually a sighted guide walks it with them. Room Remix lets them rehearse it from home by sound:
+Blind and low-vision people often learn a new place before they go: a new school, a clinic, a first day at work. Usually a sighted guide walks it with them. Hearify lets them rehearse it from home by sound:
 
 1. **A helper films the place.** A sighted friend films one slow lap. The laptop builds the 3D room with the existing pipeline, finds the objects that matter for getting around, and the helper checks the list.
 2. **The explorer listens.** On headphones and the keyboard, they walk through the room. Each object says its name from its real direction and distance. They can ask what's around them, choose a place, and follow a sound to it.
@@ -88,7 +88,7 @@ Stage 1 lands before any new feature, so stage 2 starts on a clean base. After s
 - **`PRODUCT.md`** is rewritten for the new purpose (stage 2).
 - **`README.md`:** the leftover create-next-app text goes; the hackathon run steps stay (stage 1).
 - **The home page line** under the heading becomes "Film a place once. Someone who can't see it can explore it by sound." (stage 2).
-- **Older specs and plans** stay as history. The name stays Room Remix.
+- **Older specs and plans** stay as history. The name stays Hearify.
 
 ## 4. The names
 
@@ -204,7 +204,7 @@ Explore mode listens on the window and prevents the browser's default for these 
 All of this is in room metres, on the floor plane.
 
 - **Walls:** a step is blocked if it would end closer than 0.3 m to a fitted wall.
-- **Objects:** a step is blocked if it would end inside the footprint of a blocking object (§4), grown by 0.25 m on every side for the body.
+- **Objects:** a step is blocked if it would end inside the footprint of a blocking object (§4), grown by 0.1 m on every side for the body. (Revised 2026-10-09 from 0.25 m, which left the conference room's floor in three disconnected pieces.)
 - **Already inside:** a box the explorer is already inside doesn't block, so a move out of it is always allowed.
 - **When blocked:**
   - the explorer doesn't move;

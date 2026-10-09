@@ -1,4 +1,4 @@
-# Room Remix: Plan 5a, Rooms That Persist Implementation Plan
+# Hearify: Plan 5a, Rooms That Persist Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,7 +13,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, zustand, Vitest, fake-indexeddb.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md`: §9 "State, sharing and saving", §8 "Splat layer" (scans keyed by room id), §11 (storage errors). Also the "Fix with Plan 5" lists in `docs/superpowers/plans/*-followups.md`.
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md`: §9 "State, sharing and saving", §8 "Splat layer" (scans keyed by room id), §11 (storage errors). Also the "Fix with Plan 5" lists in `docs/superpowers/plans/*-followups.md`.
 
 **Where this sits:** Plan 5 is split into four plans, run in order. This is the first.
 - **5a (this plan):** rooms that persist.
@@ -40,7 +40,7 @@
   - Spark is imported only by `src/lib/scene/SplatLayer.ts`. Lint enforces this; never value-import `SplatLayer`.
 - React (lint enforces these): no synchronous `setState` in effect bodies; no ref reads during render; no browser APIs during render or prerender.
 - Next.js 16 may differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing Next-specific code.
-- The `localStorage` key for rooms is `room-remix:rooms`. The existing key `room-remix:restoring` stays.
+- The `localStorage` key for rooms is `hearify:rooms`. The existing key `hearify:restoring` stays.
 - Shell is Windows PowerShell. Every commit message ends with the line `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`, passed as a second `-m`.
 
 ## Review Focus
@@ -91,7 +91,7 @@ src/app/room/
   type SavedRoom = { id: string; updatedAt: number; state: RoomState };
   type RoomsFile = { rooms: SavedRoom[]; currentId: string | null };
   type RoomsStorage = Pick<Storage, 'getItem' | 'setItem'> | null;
-  ROOMS_KEY = 'room-remix:rooms'; MAX_ROOMS = 50; EMPTY_ROOMS: RoomsFile
+  ROOMS_KEY = 'hearify:rooms'; MAX_ROOMS = 50; EMPTY_ROOMS: RoomsFile
   parseRooms(json: string | null): RoomsFile
   serializeRooms(file): string
   sortedRooms(file): SavedRoom[]                 // newest first
@@ -370,7 +370,7 @@ export type RoomsFile = { rooms: SavedRoom[]; currentId: string | null };
 /** The part of `localStorage` this module needs. Null where the browser has none or blocks it. */
 export type RoomsStorage = Pick<Storage, 'getItem' | 'setItem'> | null;
 
-export const ROOMS_KEY = 'room-remix:rooms';
+export const ROOMS_KEY = 'hearify:rooms';
 export const MAX_ROOMS = 50;
 export const EMPTY_ROOMS: RoomsFile = { rooms: [], currentId: null };
 
@@ -1370,7 +1370,7 @@ git commit -m "feat: rooms are saved as you edit and reopen after a reload; shar
     - `constructor(scene, report, key: string)`.
     - `get roomKey(): string`.
     - `switchRoom(key: string, room: RoomState): Promise<void>`: takes this room's scan off the screen (it stays stored), ends any alignment, and restores the other room's scan. Switching to the same key does nothing.
-    - The restore marker (`room-remix:restoring`) holds the room's key, so a crash while opening one room's scan only stops that room's scan from reopening.
+    - The restore marker (`hearify:restoring`) holds the room's key, so a crash while opening one room's scan only stops that room's scan from reopening.
   - `SessionEnv` gains `dropScan(roomId: string): void` and `pruneScans(roomIds: string[]): void`. The session calls `dropScan` when a room is deleted, and `pruneScans` after each start, with the ids of every saved room.
 
 - [ ] **Step 1: Write the failing tests**

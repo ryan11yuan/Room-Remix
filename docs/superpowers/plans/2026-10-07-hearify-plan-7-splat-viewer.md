@@ -1,4 +1,4 @@
-# Room Remix: Plan 7, Splat Viewer Implementation Plan
+# Hearify: Plan 7, Splat Viewer Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,14 +12,14 @@
 
 **Tech Stack:** Next.js 16 static export, React 19, TypeScript, three 0.186 (`OrbitControls`), Spark 2.3 via `SplatLayer`, Vitest, the Plan 6 demo server and Docker pipeline.
 
-**Spec:** `docs/superpowers/specs/2026-10-07-room-remix-splat-viewer-design.md`. Background: `docs/superpowers/specs/2026-10-06-room-remix-video-splats-design.md`.
+**Spec:** `docs/superpowers/specs/2026-10-07-hearify-splat-viewer-design.md`. Background: `docs/superpowers/specs/2026-10-06-hearify-video-splats-design.md`.
 
 ## Global Constraints
 
 - **Computer only.** No touch walking, no phone-specific UI, no Wi-Fi addresses on the page.
 - **Spark** is reached only through `src/lib/scene/SplatLayer.ts` by dynamic `import()`. A value import of `SplatLayer` or `@sparkjsdev/spark` anywhere else fails lint (`eslint.config.mjs`). `import type` is fine.
 - **Copy, verbatim from the spec:**
-  - heading `Room Remix`;
+  - heading `Hearify`;
   - subline `Import a video of your room and walk around it in 3D.`;
   - button `Import a video`;
   - list heading `Your rooms`;
@@ -1168,7 +1168,7 @@ export function RoomsHome() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-8 px-4 py-10">
       <header className="flex flex-col gap-2">
-        <h1 className="text-4xl font-bold">Room Remix</h1>
+        <h1 className="text-4xl font-bold">Hearify</h1>
         <p className="text-lg text-neutral-300">Import a video of your room and walk around it in 3D.</p>
       </header>
       {health === null && (
@@ -1265,7 +1265,7 @@ Keep `$p.Id` and stop it with `Stop-Process -Id` at the end. Docker Desktop must
 
 - [ ] **Step 2: Build one room with the new pipeline**
 
-In Chrome at 1280×800, open `http://localhost:8080`. Import the 25 s sample: `e2e.mp4` remade under the repo's `.superpowers/` (a path the browser tool may read), or any South Building video from `%LOCALAPPDATA%\RoomRemix\samples`. Choose Quick and wait for the viewer to open.
+In Chrome at 1280×800, open `http://localhost:8080`. Import the 25 s sample: `e2e.mp4` remade under the repo's `.superpowers/` (a path the browser tool may read), or any South Building video from `%LOCALAPPDATA%\Hearify\samples`. Choose Quick and wait for the viewer to open.
 
 - [ ] **Step 3: Pin the camera conventions**
 

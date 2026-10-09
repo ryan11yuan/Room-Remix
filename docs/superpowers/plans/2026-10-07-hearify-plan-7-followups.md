@@ -1,4 +1,4 @@
-# Room Remix Plan 7: follow-ups
+# Hearify Plan 7: follow-ups
 
 Plan 7 (the desktop splat viewer) is on `main` (1091d0b..82ce3b7). It passed:
 - per-task reviews, with fix rounds on Task 3 (tests for tilted videos) and Task 5 (a finished build no longer pulls you out of the room you're in);

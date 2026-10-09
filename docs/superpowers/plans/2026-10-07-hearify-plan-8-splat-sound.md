@@ -18,7 +18,7 @@
 
 **Tech stack:** Next 16 static export, React 19, three 0.186 (`CSS2DRenderer`), Spark (via `SplatLayer` only), `@huggingface/transformers` 4.3.1 (Node, CPU, `Xenova/owlvit-base-patch32` fp32), Vitest 5, and the demo server (`tsx src/server/main.ts`).
 
-**Spec:** `docs/superpowers/specs/2026-10-07-room-remix-splat-sound-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-07-hearify-splat-sound-design.md`
 
 ## Global Constraints
 
@@ -100,9 +100,9 @@ The tasks are written in dependency order. Run them in parallel where the files 
 
 ```bash
 npm install @huggingface/transformers@4.3.1
-mkdir -p "$LOCALAPPDATA/RoomRemix/models"
-cp -r "C:/Users/ryany/AppData/Local/Temp/claude/c--Users-ryany-OneDrive-Desktop-Room-Remix/f7fd7940-c64c-4fef-aede-e9e430ff3389/scratchpad/detect-spike/.hf-cache/." "$LOCALAPPDATA/RoomRemix/models/"
-ls "$LOCALAPPDATA/RoomRemix/models/Xenova/owlvit-base-patch32/onnx"
+mkdir -p "$LOCALAPPDATA/Hearify/models"
+cp -r "C:/Users/ryany/AppData/Local/Temp/claude/c--Users-ryany-OneDrive-Desktop-Room-Remix/f7fd7940-c64c-4fef-aede-e9e430ff3389/scratchpad/detect-spike/.hf-cache/." "$LOCALAPPDATA/Hearify/models/"
+ls "$LOCALAPPDATA/Hearify/models/Xenova/owlvit-base-patch32/onnx"
 ```
 Expected: `model.onnx` is listed (about 612 MB). If the layout differs, find `model.onnx` under the scratch `.hf-cache` and mirror its folder path under `models/`.
 
@@ -278,7 +278,7 @@ const DEFAULT_THRESHOLD = 0.3;
 const LABEL_THRESHOLDS: Record<string, number> = { whiteboard: 0.15, television: 0.15 }; // the spike: these score low even when right
 const NMS_IOU = 0.5;
 /** Model files live outside the repo (OneDrive) and outside node_modules, so a reinstall keeps them. */
-export const MODEL_CACHE = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.cache'), 'RoomRemix', 'models');
+export const MODEL_CACHE = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.cache'), 'Hearify', 'models');
 
 /** One image in, its detections out (in that image's pixels). */
 export type DetectFrame = (file: string) => Promise<{ width: number; height: number; detections: Detection[] }>;
@@ -416,7 +416,7 @@ Run this check script from the scratchpad, not the repo. It uses the real detect
 ```bash
 cat > "$TMPDIR/rr-detect-check.mts" <<'EOF'
 import { createObjectFinder, transformersDetector } from 'C:/Users/ryany/OneDrive/Desktop/Room Remix/src/server/detect.ts';
-const dir = process.env.LOCALAPPDATA + '/RoomRemix/jobs/1c59fe0f-02bb-4ddd-97c6-118bb432c93d';
+const dir = process.env.LOCALAPPDATA + '/Hearify/jobs/1c59fe0f-02bb-4ddd-97c6-118bb432c93d';
 const t = Date.now();
 const file = await createObjectFinder(transformersDetector())(dir);
 console.log(((Date.now() - t) / 1000).toFixed(1) + ' s', JSON.stringify(file.frames.map((f) => [f.img_name, f.detections.map((d) => d.label + ' ' + d.score.toFixed(2))])));
@@ -2545,4 +2545,4 @@ Do this yourself; it isn't dispatched.
   - the best spot isn't in a corner and isn't behind the whiteboard.
 - [ ] **If something is off**, tune it before the demo: `EYE_HEIGHT` for size, `WEIGHTS` for the best spot, or the per-label thresholds in `detect.ts`. Record each change as a ruling.
 - [ ] **Leave the headphone check to the user:** walking toward, away from and behind the whiteboard, and turning the head.
-- [ ] **Write `docs/superpowers/plans/2026-10-07-room-remix-plan-8-followups.md`.** It holds the rulings, what was cut, and what the user must check. Stop the server by its PID, and commit the doc by path.
+- [ ] **Write `docs/superpowers/plans/2026-10-07-hearify-plan-8-followups.md`.** It holds the rulings, what was cut, and what the user must check. Stop the server by its PID, and commit the doc by path.

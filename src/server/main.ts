@@ -8,7 +8,7 @@ import { createServer } from './server';
 
 /** Spec 2026-10-06 §3: job folders live outside the repo, which is in OneDrive. */
 const JOBS_DIR = path.resolve(
-  process.env.ROOM_REMIX_JOBS_DIR ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local', 'share'), 'RoomRemix', 'jobs'),
+  process.env.HEARIFY_JOBS_DIR ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local', 'share'), 'Hearify', 'jobs'),
 );
 const PORT = Number(process.env.PORT ?? 8080);
 const STATIC_DIR = path.resolve('out');
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   if (removed > 0) console.log(`Removed ${removed} leftover pipeline container${removed === 1 ? '' : 's'}.`);
   const server = createServer({ jobs: queue, health: pipelineHealth, busy: () => queue.busy, staticDir: STATIC_DIR, findObjects: createObjectFinder(transformersDetector()) });
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Room Remix demo server. Job folders: ${JOBS_DIR}`);
+    console.log(`Hearify demo server. Job folders: ${JOBS_DIR}`);
     for (const { address, name } of lanAddresses()) console.log(`  On a phone on this Wi-Fi: http://${address}:${PORT}  (${name})`);
     console.log(`  On this laptop:           http://localhost:${PORT}`);
     void pipelineHealth().then((health) =>

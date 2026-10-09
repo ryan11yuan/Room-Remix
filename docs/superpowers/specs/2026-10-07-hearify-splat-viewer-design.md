@@ -1,8 +1,8 @@
-# Room Remix — Splat Viewer Design Spec (computer only)
+# Hearify — Splat Viewer Design Spec (computer only)
 
 **Date:** 2026-10-07
 **Status:** Approved design, pending spec review
-**Builds on:** `2026-10-06-room-remix-video-splats-design.md`. The pipeline, jobs API and demo server stay as built. This spec replaces what the user sees.
+**Builds on:** `2026-10-06-hearify-video-splats-design.md`. The pipeline, jobs API and demo server stay as built. This spec replaces what the user sees.
 
 ## 1. Purpose
 
@@ -29,7 +29,7 @@ They can reopen any earlier room from the list.
 
 ## 3. The page (`/`)
 
-- **Heading:** "Room Remix", with one line under it: "Import a video of your room and walk around it in 3D."
+- **Heading:** "Hearify", with one line under it: "Import a video of your room and walk around it in 3D."
 - **Import:**
   - The filming tips (the existing text).
   - The Quick / Best choice, with the existing labels ("Quick: about 5 minutes", "Best: sharper, about half an hour").

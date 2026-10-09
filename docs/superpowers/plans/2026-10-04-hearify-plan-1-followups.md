@@ -1,4 +1,4 @@
-# Room Remix Plan 1: follow-ups for Plans 2–5
+# Hearify Plan 1: follow-ups for Plans 2–5
 
 Plan 1 (core "hear your room") is implemented on `master` (20150c1..29895ff). It passed per-task reviews, a final whole-branch review, and one final fix wave. This file keeps what is still open so the next plans can pick it up.
 

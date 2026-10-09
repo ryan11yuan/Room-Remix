@@ -1,15 +1,15 @@
 # Plan 9 Follow-ups: Rehearse a Place by Sound
 
 **Date:** 2026-10-09
-**Plan:** `2026-10-09-room-remix-plan-9-sound-rehearsal.md`
-**Spec:** `2026-10-08-room-remix-sound-rehearsal-design.md`
+**Plan:** `2026-10-09-hearify-plan-9-sound-rehearsal.md`
+**Spec:** `2026-10-08-hearify-sound-rehearsal-design.md`
 **Commits:** f74ba97 to 41490fb.
 - Each task had a spec-and-quality review.
 - Then came a final whole-branch review on the most capable model, one fix wave (73c6f7a, 9d77312, 41490fb) and a scoped re-review.
 
 ## Before the demo (the user)
 
-1. **Decide the body margin (recommended: change it).** This is the one open issue that can break the demo.
+1. **The body margin: done (2026-10-09).** At your OK, `BODY_M` went from 0.25 m to 0.1 m. This was the one open issue that could break the demo.
    - **The problem.** Walking treats every blocking object as 0.25 m bigger on every side (`BODY_M` in `src/lib/explore/walk.ts`). In the conference room that leaves only 23% of the floor walkable, split into three areas that don't connect.
    - **What the live check saw.** The explorer couldn't reach a door placed 2 m ahead of the start: every step bumped a chair.
    - **Measured options** (0.1 m grid, conference room):
@@ -21,7 +21,7 @@
      | 0.10 m | block | 44% | 1 |
      | 0.25 m | don't block | 46% | 1 |
 
-   - **Recommendation:** `BODY_M = 0.1`. Chairs still stop you and say "chair", and the room stays one connected space. Update the walk and session tests that assume 0.25 m.
+   - **Chosen:** `BODY_M = 0.1`. Chairs still stop you and say "chair", and the room stays one connected space.
 2. **Restart the demo server with `npm run demo`, not `demo:serve`.** The server on :8080 predates this plan, so it has no `/checked` route. `npm run demo` also rebuilds `out/`, which now holds the voice clips.
 3. **Plug the headphones in before the first Start exploring.** One audio context lasts as long as the viewer is open.
 4. **Listen on headphones.** About five minutes; nobody has heard it yet.

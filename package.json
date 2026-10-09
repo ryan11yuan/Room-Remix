@@ -1,5 +1,5 @@
 {
-  "name": "room-remix",
+  "name": "hearify",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,11 +9,11 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "pipeline:build": "docker build -t room-remix-splat pipeline",
+    "pipeline:build": "docker build -t hearify-splat pipeline",
     "demo": "next build && tsx src/server/main.ts",
     "demo:serve": "tsx src/server/main.ts",
     "voices": "tsx scripts/make-voices.ts",
-    "pipeline:check": "docker run --rm --gpus all room-remix-splat rr-check"
+    "pipeline:check": "docker run --rm --gpus all hearify-splat rr-check"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",

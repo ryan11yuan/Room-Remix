@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Hackathon judges watching the maker demo Room Remix live on a laptop. The story has two people: a sighted helper who films a place, and a blind or low-vision explorer who rehearses it by sound before going. In the demo, a blindfolded judge plays the explorer.
+Hackathon judges watching the maker demo Hearify live on a laptop. The story has two people: a sighted helper who films a place, and a blind or low-vision explorer who rehearses it by sound before going. In the demo, a blindfolded judge plays the explorer.
 
 ## Product Purpose
 
@@ -36,7 +36,7 @@ Built entirely on the maker's laptop from one video, with free, open-source tool
 
 ## Brand Commitments
 
-- Name: Room Remix.
+- Name: Hearify.
 - Visual world pinned by the user on 2026-10-07: the ORYZO darkroom product-editorial style (warm dark canvas, cream uppercase type, one ember accent for credit lines only). See DESIGN.md.
 
 ## Evidence on Hand

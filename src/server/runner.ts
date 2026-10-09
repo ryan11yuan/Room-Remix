@@ -6,7 +6,7 @@ import type { PipelineStep } from '@/lib/splatJobs/settings';
 import type { StepRunner } from './jobs';
 
 /** Built by `npm run pipeline:build` from pipeline/Dockerfile. */
-export const IMAGE = 'room-remix-splat';
+export const IMAGE = 'hearify-splat';
 
 /** The per-job Docker volume that holds COLMAP's database (mounted at /db). Docker creates it on first use. */
 export const jobVolume = (jobId: string) => `rr-${jobId}-db`;

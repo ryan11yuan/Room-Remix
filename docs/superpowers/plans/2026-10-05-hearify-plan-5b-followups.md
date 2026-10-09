@@ -1,4 +1,4 @@
-# Room Remix Plan 5b: follow-ups for Plans 5c–5d
+# Hearify Plan 5b: follow-ups for Plans 5c–5d
 
 Plan 5b (preset spaces, built-in clips, landing page) is on `master` (b6c5225..0732e36). It passed:
 - per-task reviews, with a tests-only fix round on Task 1 and a fix round on Task 4;

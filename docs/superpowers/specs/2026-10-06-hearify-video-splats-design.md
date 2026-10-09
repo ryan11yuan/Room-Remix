@@ -1,12 +1,12 @@
-# Room Remix — Video Splats Design Spec (hackathon demo)
+# Hearify — Video Splats Design Spec (hackathon demo)
 
 **Date:** 2026-10-06
 **Status:** Approved and built (Plan 6). Revised 2026-10-07 with what the build changed: §3 Dockerfile and job folders, §4 database volume and measured times, §6 progress.
-**Builds on:** `2026-10-04-room-remix-design.md`. Where the two disagree, this spec wins for the hackathon demo.
+**Builds on:** `2026-10-04-hearify-design.md`. Where the two disagree, this spec wins for the hackathon demo.
 
 ## 1. Purpose
 
-At a hackathon demo, anyone can film their room on a phone and see it as a Gaussian splat in Room Remix's 3D view, with the speaker, listener, rug, panels and sound rays on top.
+At a hackathon demo, anyone can film their room on a phone and see it as a Gaussian splat in Hearify's 3D view, with the speaker, listener, rug, panels and sound rays on top.
 
 **Success criterion:** on the demo laptop's Wi-Fi, someone films a room on their phone, uploads it with **Quick**, and the splat is in their room's 3D view, ready to line up, within about 10 minutes. A room made beforehand with **Best** is also shown.
 
@@ -30,17 +30,17 @@ Single photos · MASt3R-SfM · Memento's moments, orbs, memory graph and messagi
 ```
  Phone (same Wi-Fi)                         Laptop
 ┌──────────────────────┐   http (LAN)   ┌───────────────────────────────────────────┐
-│ Room Remix app       │ ─────────────→ │ Demo server (Node, src/server/)           │
+│ Hearify app       │ ─────────────→ │ Demo server (Node, src/server/)           │
 │  RoomView            │  GET app files │  • serves the static export (out/)        │
 │   "Make from a video"│  /api/splat/*  │  • /api/splat/* jobs API                  │
 │  splat job client    │ ←───────────── │  • job queue, one build at a time         │
 │  ScanController.open │   .spz bytes   │  • runs each step: docker run --gpus all  │
-└──────────────────────┘                │        room-remix-splat <step command>    │
+└──────────────────────┘                │        hearify-splat <step command>    │
                                         │  • job folders outside OneDrive           │
                                         └───────────────────────────────────────────┘
 ```
 
-**One command:** `npm run demo` builds the app and starts the demo server on `0.0.0.0`, port `8080` (or `PORT`). On start it prints the laptop's LAN addresses (for example `http://192.168.1.20:8080`) and checks that Docker is running and the `room-remix-splat` image exists, printing a clear message in the terminal if not.
+**One command:** `npm run demo` builds the app and starts the demo server on `0.0.0.0`, port `8080` (or `PORT`). On start it prints the laptop's LAN addresses (for example `http://192.168.1.20:8080`) and checks that Docker is running and the `hearify-splat` image exists, printing a clear message in the terminal if not.
 
 **Units:**
 
@@ -61,11 +61,11 @@ The server runs with `tsx` (a free dev dependency) so it can import `src/lib` wi
 
 **npm scripts:** `pipeline:build` (builds the image), `pipeline:check` (the GPU check: runs `rr-check` inside the image with `--gpus all`, which fails unless `nvidia-smi`, `opensplat --version`, `colmap`, `ffmpeg` and `ffprobe` all work), `demo` (build and serve).
 
-**Job folders:** `%LOCALAPPDATA%\RoomRemix\jobs\<id>\` by default, or `ROOM_REMIX_JOBS_DIR`. They must stay outside the repo because the repo is inside OneDrive, which would try to sync hundreds of frames per job. Each folder holds `video.<ext>`, `images/`, `sparse/0/`, `splat.spz`, `job.json` and `logs/<step>.log`. Folders are never deleted automatically. COLMAP's `database.db` lives on a per-job Docker volume, `rr-<id>-db`, mounted at `/db`, because SQLite through Docker Desktop's Windows bind mount was about 6× slower. That volume is removed when the job ends, and any left behind are swept when the server starts, along with leftover `rr-` containers.
+**Job folders:** `%LOCALAPPDATA%\Hearify\jobs\<id>\` by default, or `HEARIFY_JOBS_DIR`. They must stay outside the repo because the repo is inside OneDrive, which would try to sync hundreds of frames per job. Each folder holds `video.<ext>`, `images/`, `sparse/0/`, `splat.spz`, `job.json` and `logs/<step>.log`. Folders are never deleted automatically. COLMAP's `database.db` lives on a per-job Docker volume, `rr-<id>-db`, mounted at `/db`, because SQLite through Docker Desktop's Windows bind mount was about 6× slower. That volume is removed when the job ends, and any left behind are swept when the server starts, along with leftover `rr-` containers.
 
 ## 4. Pipeline
 
-Steps run in order, each as its own `docker run --rm --gpus all -v <job folder>:/job room-remix-splat …`, with the container named `rr-<job id>-<step>` so Cancel can stop it.
+Steps run in order, each as its own `docker run --rm --gpus all -v <job folder>:/job hearify-splat …`, with the container named `rr-<job id>-<step>` so Cancel can stop it.
 
 1. **Check the video:** `ffprobe`. Longer than 2 minutes, or no video stream → fail with a specific message.
 2. **Frames:** `ffmpeg -i video -vf "fps=<fps>,scale=…" images/%04d.jpg`, scaling so the frame's longer side is at most `<size>` px (never enlarging), whether the video is portrait or landscape.

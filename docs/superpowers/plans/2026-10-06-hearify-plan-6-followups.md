@@ -1,4 +1,4 @@
-# Room Remix Plan 6: follow-ups
+# Hearify Plan 6: follow-ups
 
 Plan 6 (video splats on the demo laptop) is on `main` (281d498 onwards). It passed:
 - per-task reviews of Tasks 1–7, with fix rounds on Task 1 (`check.sh` exit codes) and Task 7 (line-up only in the scan's own room);
@@ -21,7 +21,7 @@ Samples were made from COLMAP's South Building photos (128 images): a 42.7 s lan
 
 - **Portrait handling works.** The rotation-tagged portrait video gave upright 750×1000 frames. Best's frames were 1600×1200.
 - **Memory fits.** Best peaked at 5.7 of 7.6 GB in Docker's VM during feature extraction, then about 2 GB during GPU training. The Quick and Best settings stayed at their starting values.
-- **The image build needs care.** OpenSplat's own Dockerfile compiles with one job per CPU, and that wedged Docker Desktop: the VM's memory and swap filled up and Docker stopped answering. `pipeline/Dockerfile` now builds with 2 jobs. If even that stalls, use `docker build --build-arg BUILD_JOBS=1 -t room-remix-splat pipeline` (it's in the README).
+- **The image build needs care.** OpenSplat's own Dockerfile compiles with one job per CPU, and that wedged Docker Desktop: the VM's memory and swap filled up and Docker stopped answering. `pipeline/Dockerfile` now builds with 2 jobs. If even that stalls, use `docker build --build-arg BUILD_JOBS=1 -t hearify-splat pipeline` (it's in the README).
 
 ## What the browser check confirmed
 
@@ -51,8 +51,8 @@ At 390×844 with touch, against the demo server:
 
 - **The test servers are stopped.** Ports 8080 and 8081 are free, so `npm run demo` can start.
 - **Disk space:**
-  - Test videos and photos are in `%LOCALAPPDATA%\RoomRemix\samples` (about 600 MB).
-  - Test jobs are in `%LOCALAPPDATA%\RoomRemix\jobs`. Folders are never deleted automatically, so delete old ones by hand.
+  - Test videos and photos are in `%LOCALAPPDATA%\Hearify\samples` (about 600 MB).
+  - Test jobs are in `%LOCALAPPDATA%\Hearify\jobs`. Folders are never deleted automatically, so delete old ones by hand.
   - The Docker image is 23.6 GB, and the abandoned first build left build cache. `docker builder prune` frees it.
 - **Git:** `main` is many commits ahead of GitHub and still has the earlier divergence (one renamed commit on `origin`). You push, so the pull-or-force-push decision is still yours.
 

@@ -11,7 +11,7 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'Room Remix',
+  title: 'Hearify',
   description: "Film a place once. Someone who can't see it can explore it by sound.",
 };
 

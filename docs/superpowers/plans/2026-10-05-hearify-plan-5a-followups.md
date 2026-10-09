@@ -1,4 +1,4 @@
-# Room Remix Plan 5a: follow-ups for Plans 5b–5d
+# Hearify Plan 5a: follow-ups for Plans 5b–5d
 
 Plan 5a (rooms that persist) is on `master` (7bac8fa..6967383). It passed:
 - per-task reviews, with fix rounds on Tasks 1–3;
@@ -50,7 +50,7 @@ Plan 5a (rooms that persist) is on `master` (7bac8fa..6967383). It passed:
 ## Fix when the saved format next changes
 - **File version:** bump the file version (`v`) whenever `RoomState` gains a field. An older build's open tab keeps only what it understands, and would silently strip a new field from every room it saves.
 - **Backup:**
-  - Once a backup of unreadable rooms exists (`room-remix:rooms:backup`), scans are never pruned in that browser again.
+  - Once a backup of unreadable rooms exists (`hearify:rooms:backup`), scans are never pruned in that browser again.
   - Nothing reads or clears the backup yet. A build that can read it should import it and remove it.
   - There is one backup slot.
 

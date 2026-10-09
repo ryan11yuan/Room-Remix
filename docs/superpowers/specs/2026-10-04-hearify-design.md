@@ -1,4 +1,4 @@
-# Room Remix — Design Spec (v1 public release)
+# Hearify — Design Spec (v1 public release)
 
 **Date:** 2026-10-04
 **Status:** Approved design, pending spec review
@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-Room Remix lets people hear how their room will sound, and how fixes would change it, before they spend money. A visitor enters their room's size and materials, plays a song, and hears it "in their room" on headphones, then adds a rug or acoustic panels or moves the speaker and A/Bs the difference.
+Hearify lets people hear how their room will sound, and how fixes would change it, before they spend money. A visitor enters their room's size and materials, plays a song, and hears it "in their room" on headphones, then adds a rug or acoustic panels or moves the speaker and A/Bs the difference.
 
 **Primary user:** home listeners setting up a music or home-theater space.
 

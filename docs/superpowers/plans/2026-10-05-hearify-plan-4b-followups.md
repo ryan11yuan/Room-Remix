@@ -1,4 +1,4 @@
-# Room Remix Plan 4b: follow-ups for Plan 5
+# Hearify Plan 4b: follow-ups for Plan 5
 
 Plan 4b (walk mode) is on `master` (4b6b470..0a56b19). It passed:
 - per-task reviews, each with one fix round;

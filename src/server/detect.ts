@@ -15,7 +15,7 @@ export const DETECTIONS_FILE = 'detections-v2.json';
 const LABEL_THRESHOLDS: Record<string, number> = { whiteboard: 0.15, tv: 0.15 }; // the Plan 8 spike: these score low even when right
 const NMS_IOU = 0.5;
 /** Model files live outside the repo (OneDrive) and outside node_modules, so a reinstall keeps them. */
-export const MODEL_CACHE = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.cache'), 'RoomRemix', 'models');
+export const MODEL_CACHE = path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.cache'), 'Hearify', 'models');
 
 /** One image in, its detections out (in that image's pixels). */
 export type DetectFrame = (file: string) => Promise<{ width: number; height: number; detections: Detection[] }>;

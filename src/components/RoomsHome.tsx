@@ -83,7 +83,7 @@ function TopNav() {
     <header className="pointer-events-none fixed inset-x-0 top-0 z-30 bg-linear-to-b from-walnut/80 to-transparent">
       <div className="flex items-center justify-between gap-6 px-4 py-5 sm:px-6">
         <a href="#intro" onClick={(e) => goTo(e, 'intro')} className="pointer-events-auto text-ui">
-          Room Remix
+          Hearify
         </a>
         <nav aria-label="Sections" className="pointer-events-auto">
           <ul className="flex gap-5 text-label sm:gap-8">
@@ -148,7 +148,7 @@ function NewestCard({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined
 function Hero({ rooms, onOpen }: { rooms: RoomSummary[] | null | undefined; onOpen: (id: string) => void }) {
   return (
     <section
-      aria-label="Room Remix"
+      aria-label="Hearify"
       className="relative flex min-h-svh flex-col px-4 pb-6 pt-24 sm:px-6 md:bg-[linear-gradient(to_left,rgb(16_9_4/0.85),rgb(16_9_4/0.4)_28%,transparent_45%)] md:pr-14"
     >
       <p className="text-label">Made from one video. Built on this laptop.</p>
@@ -327,7 +327,7 @@ export function RoomsHome() {
   if (health === null && rooms === null) {
     return (
       <main className="darkroom flex min-h-dvh flex-col justify-between px-4 py-6 sm:px-6">
-        <p className="text-ui">Room Remix</p>
+        <p className="text-ui">Hearify</p>
         <div className="flex max-w-3xl flex-col gap-8">
           <h1 className="text-heading">The room builder isn&apos;t running.</h1>
           <p className="voice text-body">
@@ -348,7 +348,7 @@ export function RoomsHome() {
         aria-hidden
         className="pointer-events-none fixed right-3 top-1/2 z-20 hidden -translate-y-1/2 text-micro [writing-mode:vertical-rl] md:block"
       >
-        {newest && rooms ? `Room Remix · No. ${pad(rooms.length)} · ${dateOf(newest)}` : 'Room Remix · Video to 3D'}
+        {newest && rooms ? `Hearify · No. ${pad(rooms.length)} · ${dateOf(newest)}` : 'Hearify · Video to 3D'}
       </p>
       <main>
         {/* The hero and the reveal share the plinth, so the nav calls both of them Intro. */}

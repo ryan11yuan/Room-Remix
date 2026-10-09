@@ -1,8 +1,8 @@
-# Room Remix — Sound in the Splat Viewer (Plan 8)
+# Hearify — Sound in the Splat Viewer (Plan 8)
 
 **Date:** 2026-10-07
 **Status:** Design approved in chat, pending spec review
-**Builds on:** `2026-10-07-room-remix-splat-viewer-design.md` (the viewer) and `2026-10-04-room-remix-design.md` §5–6 (the acoustics engine and audio player, reused as they are).
+**Builds on:** `2026-10-07-hearify-splat-viewer-design.md` (the viewer) and `2026-10-04-hearify-design.md` §5–6 (the acoustics engine and audio player, reused as they are).
 **Deadline:** the demo is tonight. Happy path only; everything in §9 is cut.
 
 ## 1. Purpose

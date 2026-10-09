@@ -1,8 +1,8 @@
 # Plan 8 Follow-ups: Sound in the Splat Viewer
 
 **Date:** 2026-10-07
-**Plan:** `2026-10-07-room-remix-plan-8-splat-sound.md`
-**Spec:** `2026-10-07-room-remix-splat-sound-design.md`
+**Plan:** `2026-10-07-hearify-plan-8-splat-sound.md`
+**Spec:** `2026-10-07-hearify-splat-sound-design.md`
 **Commits:** 1bd0d91 to 88c51c2, plus 5529077 (the speaker-stand tweak). Each task had a spec-and-quality review, then a final whole-branch review on the most capable model, one fix wave, and a scoped re-review.
 
 ## Before the demo (the user)
@@ -38,7 +38,7 @@
 
 **Server**
 - `GET /api/splat/jobs/:id/objects` answers in 0.2 s from the cached `detections.json`.
-- A fresh detection takes about 8 s on the CPU and downloads nothing; the model is cached in `%LOCALAPPDATA%\RoomRemix\models`.
+- A fresh detection takes about 8 s on the CPU and downloads nothing; the model is cached in `%LOCALAPPDATA%\Hearify\models`.
 
 **Tests:** 767 pass. tsc and ESLint are clean (2 existing warnings in test files). `next build` succeeds.
 

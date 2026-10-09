@@ -1,4 +1,4 @@
-# Room Remix: Plan 4, Splat View Implementation Plan
+# Hearify: Plan 4, Splat View Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,7 +13,7 @@
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, three.js 0.186, Spark 2.3, zustand, Vitest, fake-indexeddb.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md` (§8 "Splat layer", §9 "Splats: IndexedDB", §11 splat errors). Follow-ups this plan picks up: `docs/superpowers/plans/2026-10-05-room-remix-plan-3-followups.md` ("Fix before or with Plan 4").
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md` (§8 "Splat layer", §9 "Splats: IndexedDB", §11 splat errors). Follow-ups this plan picks up: `docs/superpowers/plans/2026-10-05-hearify-plan-3-followups.md` ("Fix before or with Plan 4").
 
 **Decided here:**
 - **No demo bedroom yet:** the pre-aligned demo bedroom needs the author's own scan, room size and materials. Until those arrive it ships with Plan 5's landing page; this plan builds everything a demo would load through.
@@ -422,7 +422,7 @@ import type { Alignment } from './alignment';
 export type StoredScan = { fileName: string; bytes: ArrayBuffer; alignment: Alignment | null; savedAt: number };
 
 export const CURRENT_SCAN = 'current';
-const DB_NAME = 'room-remix';
+const DB_NAME = 'hearify';
 const DB_VERSION = 1;
 const STORE = 'scans';
 

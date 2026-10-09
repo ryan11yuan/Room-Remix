@@ -1,25 +1,25 @@
-# Room Remix: Plan 6, Video Splats Implementation Plan
+# Hearify: Plan 6, Video Splats Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** At a hackathon demo, someone films a room on their phone, uploads it to the author's laptop over Wi-Fi, and the laptop builds a Gaussian splat with Memento's pipeline (ffmpeg → COLMAP → OpenSplat) that drops into Room Remix's existing scan flow.
+**Goal:** At a hackathon demo, someone films a room on their phone, uploads it to the author's laptop over Wi-Fi, and the laptop builds a Gaussian splat with Memento's pipeline (ffmpeg → COLMAP → OpenSplat) that drops into Hearify's existing scan flow.
 
 **Architecture:**
-- **Pipeline:** the tools run in one Docker image (`room-remix-splat`), built from OpenSplat's own Dockerfile plus Ubuntu's COLMAP and ffmpeg.
+- **Pipeline:** the tools run in one Docker image (`hearify-splat`), built from OpenSplat's own Dockerfile plus Ubuntu's COLMAP and ffmpeg.
 - **Server:** a small Node/TypeScript server in this repo (`src/server/`, run with `tsx`). It serves the static export and a jobs API on the laptop's LAN address, and runs each pipeline step as its own `docker run`, one job at a time.
 - **Phone:** shared, pure job code in `src/lib/splatJobs/`. The phone uploads with `XMLHttpRequest`, polls the job, downloads the `.spz`, and hands it to the existing `pendingScan` → `ScanController.open` path. Line-up then starts at once.
 
 **Tech Stack:** Next.js 16 (static export), React 19, TypeScript, Node 22 `http`, tsx, Vitest, Docker Desktop (WSL2, `--gpus all`), OpenSplat v1.2.2 (CUDA 12.1, sm_89), COLMAP 3.7 (Ubuntu 22.04, CPU SIFT), ffmpeg 4.4.
 
-**Spec:** `docs/superpowers/specs/2026-10-06-room-remix-video-splats-design.md` (and, for everything it doesn't change, `docs/superpowers/specs/2026-10-04-room-remix-design.md`).
+**Spec:** `docs/superpowers/specs/2026-10-06-hearify-video-splats-design.md` (and, for everything it doesn't change, `docs/superpowers/specs/2026-10-04-hearify-design.md`).
 
 ## Global Constraints
 
 - **Nothing paid:** no paid tools, services, binaries or tiers. Free and open-source only.
 - **Hackathon demo:** it runs on the author's laptop. No Cloudflare, tunnels or hosting. Licences (MASt3R is out anyway, OpenSplat is AGPL) don't constrain this plan.
 - **Server binding:** port `8080` (or `PORT`), on `0.0.0.0`.
-- **Job folders:** `%LOCALAPPDATA%\RoomRemix\jobs\<id>\` (or `ROOM_REMIX_JOBS_DIR`). Never inside the repo, which lives in OneDrive.
-- **Docker images:** the pipeline image is `room-remix-splat`; its OpenSplat base is `room-remix-opensplat`.
+- **Job folders:** `%LOCALAPPDATA%\Hearify\jobs\<id>\` (or `HEARIFY_JOBS_DIR`). Never inside the repo, which lives in OneDrive.
+- **Docker images:** the pipeline image is `hearify-splat`; its OpenSplat base is `hearify-opensplat`.
 - **Containers:** each step's container is named `rr-<job id>-<step>`, with the job folder mounted at `/job`.
 - **Limits:** videos up to 2 minutes and 1 GB. Splats are capped at 1,500,000 gaussians. COLMAP must register at least 10 frames.
 - **Starting settings:**
@@ -48,7 +48,7 @@
 
 ```
 pipeline/
-  Dockerfile            NEW  FROM room-remix-opensplat + colmap + ffmpeg + rr-check
+  Dockerfile            NEW  FROM hearify-opensplat + colmap + ffmpeg + rr-check
   check.sh              NEW  GPU and tool check run by `npm run pipeline:check`
 .gitattributes          NEW  *.sh text eol=lf
 src/lib/splatJobs/
@@ -88,7 +88,7 @@ Task order: 1 (starts the long image build in the background) → 2 → 3 → 4 
 - Modify: `package.json` (scripts)
 
 **Interfaces:**
-- Produces: the Docker image `room-remix-splat`, with `ffprobe`, `ffmpeg`, `colmap`, `opensplat` and `rr-check` on `PATH` and `WORKDIR /job`. npm scripts `pipeline:build` and `pipeline:check`.
+- Produces: the Docker image `hearify-splat`, with `ffprobe`, `ffmpeg`, `colmap`, `opensplat` and `rr-check` on `PATH` and `WORKDIR /job`. npm scripts `pipeline:build` and `pipeline:check`.
 
 - [ ] **Step 1: Start Docker Desktop and wait for it**
 
@@ -123,10 +123,10 @@ ffprobe -hide_banner -version | head -n 1
 - [ ] **Step 4: Write `pipeline/Dockerfile`**
 
 ```dockerfile
-# Room Remix's splat pipeline (spec 2026-10-06 §3-§4). The base, room-remix-opensplat, is OpenSplat's own Dockerfile at
+# Hearify's splat pipeline (spec 2026-10-06 §3-§4). The base, hearify-opensplat, is OpenSplat's own Dockerfile at
 # v1.2.2 built for the RTX 4060 (sm_89) by `npm run pipeline:build`. COLMAP and ffmpeg come from Ubuntu 22.04's
 # packages; Ubuntu's COLMAP has no CUDA, so SIFT runs on the CPU (the pipeline passes use_gpu 0).
-FROM room-remix-opensplat
+FROM hearify-opensplat
 RUN apt-get update && \
     apt-get install -y --no-install-recommends colmap ffmpeg && \
     rm -rf /var/lib/apt/lists/*
@@ -150,8 +150,8 @@ WORKDIR /job
 In `"scripts"`, after `"test:watch"`, add:
 
 ```json
-    "pipeline:build": "docker build -t room-remix-opensplat --build-arg CMAKE_CUDA_ARCHITECTURES=89 https://github.com/pierotofy/OpenSplat.git#v1.2.2 && docker build -t room-remix-splat pipeline",
-    "pipeline:check": "docker run --rm --gpus all room-remix-splat rr-check"
+    "pipeline:build": "docker build -t hearify-opensplat --build-arg CMAKE_CUDA_ARCHITECTURES=89 https://github.com/pierotofy/OpenSplat.git#v1.2.2 && docker build -t hearify-splat pipeline",
+    "pipeline:check": "docker run --rm --gpus all hearify-splat rr-check"
 ```
 
 - [ ] **Step 7: Commit**
@@ -1105,7 +1105,7 @@ git commit -m "feat: the laptop's build queue: one video at a time through the p
 - Consumes: `StepRunner` (Task 3), `PipelineStep` and `pipelineSteps` (Task 2), `PipelineHealth` (Task 2).
 - Produces:
   ```ts
-  IMAGE = 'room-remix-splat'
+  IMAGE = 'hearify-splat'
   dockerArgs(jobId: string, dir: string, step: PipelineStep): string[]
   lineSplitter(onLine: (line: string) => void): { push(chunk: string): void; end(): void }
   dockerRunner(spawnFn?: (command: string, args: string[]) => ChildProcess): StepRunner
@@ -1235,7 +1235,7 @@ import type { PipelineStep } from '@/lib/splatJobs/settings';
 import type { StepRunner } from './jobs';
 
 /** Built by `npm run pipeline:build` from pipeline/Dockerfile. */
-export const IMAGE = 'room-remix-splat';
+export const IMAGE = 'hearify-splat';
 
 const containerName = (jobId: string, step: PipelineStep) => `rr-${jobId}-${step.name}`;
 
@@ -1777,7 +1777,7 @@ import { createServer } from './server';
 
 /** Spec 2026-10-06 §3: job folders live outside the repo, which is in OneDrive. */
 const JOBS_DIR =
-  process.env.ROOM_REMIX_JOBS_DIR ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local', 'share'), 'RoomRemix', 'jobs');
+  process.env.HEARIFY_JOBS_DIR ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local', 'share'), 'Hearify', 'jobs');
 const PORT = Number(process.env.PORT ?? 8080);
 const STATIC_DIR = path.resolve('out');
 
@@ -1803,7 +1803,7 @@ async function main(): Promise<void> {
   await queue.init();
   const server = createServer({ jobs: queue, health: pipelineHealth, staticDir: STATIC_DIR });
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Room Remix demo server. Job folders: ${JOBS_DIR}`);
+    console.log(`Hearify demo server. Job folders: ${JOBS_DIR}`);
     for (const address of lanAddresses()) console.log(`  On a phone on this Wi-Fi: http://${address}:${PORT}`);
     console.log(`  On this laptop:           http://localhost:${PORT}`);
     void pipelineHealth().then((health) =>
@@ -1834,7 +1834,7 @@ Append to `README.md`:
 ## Hackathon demo: rooms from video
 
 Phones on the laptop's Wi-Fi can film a room and get it back as a Gaussian splat in the 3D view. The laptop builds it
-with ffmpeg, COLMAP and OpenSplat in Docker (design: `docs/superpowers/specs/2026-10-06-room-remix-video-splats-design.md`).
+with ffmpeg, COLMAP and OpenSplat in Docker (design: `docs/superpowers/specs/2026-10-06-hearify-video-splats-design.md`).
 
 1. Start Docker Desktop.
 2. `npm run pipeline:build` (first time only; roughly 30–60 minutes).
@@ -1844,7 +1844,7 @@ with ffmpeg, COLMAP and OpenSplat in Docker (design: `docs/superpowers/specs/202
 5. Open the printed `http://<laptop address>:8080` on the phone.
 
 `npm run demo:serve` restarts the server without rebuilding the app. Job folders (video, frames, COLMAP model, splat,
-logs) are kept in `%LOCALAPPDATA%\RoomRemix\jobs`; set `ROOM_REMIX_JOBS_DIR` or `PORT` to change where and which port.
+logs) are kept in `%LOCALAPPDATA%\Hearify\jobs`; set `HEARIFY_JOBS_DIR` or `PORT` to change where and which port.
 ```
 
 - [ ] **Step 8: Smoke test the server**
@@ -2071,7 +2071,7 @@ describe('remembered builds', () => {
     rememberJob('room-a', 'job-1');
     rememberJob('room-b', 'job-2');
     expect(recallJob('room-a')).toBe('job-1');
-    expect(store.get('room-remix:video-scan:room-b')).toBe('job-2');
+    expect(store.get('hearify:video-scan:room-b')).toBe('job-2');
     forgetJob('room-a');
     expect(recallJob('room-a')).toBeNull();
     expect(recallJob('room-b')).toBe('job-2');
@@ -2261,7 +2261,7 @@ export async function downloadSplat(id: string, fetchFn: Fetch = browserFetch): 
 
 ```ts
 /** The build each room is waiting for, kept in localStorage so a reload (or coming back to the room) picks it up again. */
-const key = (roomId: string) => `room-remix:video-scan:${roomId}`;
+const key = (roomId: string) => `hearify:video-scan:${roomId}`;
 
 export function rememberJob(roomId: string, jobId: string): void {
   try {
@@ -2839,7 +2839,7 @@ git commit -m "feat: Make from a video: film or pick a video, follow the laptop'
 - [ ] **Step 1: Make sample videos from COLMAP's South Building photos**
 
 ```powershell
-$samples = "$env:LOCALAPPDATA\RoomRemix\samples"
+$samples = "$env:LOCALAPPDATA\Hearify\samples"
 New-Item -ItemType Directory -Force $samples | Out-Null
 curl.exe -L -o "$samples\south-building.zip" https://github.com/colmap/colmap/releases/download/3.11.1/south-building.zip
 Expand-Archive -Force "$samples\south-building.zip" $samples
@@ -2850,8 +2850,8 @@ Expected: 128 images. If the folder layout differs, find the `images` folder wit
 Make a landscape video (3 photos per second, about 43 s), and a portrait one carrying a rotation tag like an iPhone `.mov`:
 
 ```powershell
-docker run --rm -v "${samples}:/s" room-remix-splat ffmpeg -y -framerate 3 -pattern_type glob -i "/s/south-building/images/*.JPG" -vf "scale=1920:-2" -c:v libx264 -pix_fmt yuv420p /s/south-landscape.mp4
-docker run --rm -v "${samples}:/s" room-remix-splat ffmpeg -y -i /s/south-landscape.mp4 -c copy -metadata:s:v:0 rotate=90 /s/south-portrait.mp4
+docker run --rm -v "${samples}:/s" hearify-splat ffmpeg -y -framerate 3 -pattern_type glob -i "/s/south-building/images/*.JPG" -vf "scale=1920:-2" -c:v libx264 -pix_fmt yuv420p /s/south-landscape.mp4
+docker run --rm -v "${samples}:/s" hearify-splat ffmpeg -y -i /s/south-landscape.mp4 -c copy -metadata:s:v:0 rotate=90 /s/south-portrait.mp4
 ```
 If the glob finds nothing, check the images' extension case (`*.jpg`).
 
@@ -2866,10 +2866,10 @@ $job.id
 Poll `curl.exe -s http://localhost:8080/api/splat/jobs/$($job.id)` about once a minute until `state` is `ready` or `failed`. Then read the timings and check the frames:
 
 ```powershell
-$dir = "$env:LOCALAPPDATA\RoomRemix\jobs\$($job.id)"
+$dir = "$env:LOCALAPPDATA\Hearify\jobs\$($job.id)"
 Get-ChildItem "$dir\logs" | Select-Object Name, CreationTime, LastWriteTime
 Select-String -Path "$dir\logs\training.log" -Pattern "Using CUDA"
-docker run --rm -v "${dir}:/job" room-remix-splat ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 /job/images/0001.jpg
+docker run --rm -v "${dir}:/job" hearify-splat ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 /job/images/0001.jpg
 ```
 Expected:
 - `ready`.

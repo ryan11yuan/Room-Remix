@@ -16,7 +16,7 @@ describe('remembered builds', () => {
     rememberJob('room-a', 'job-1');
     rememberJob('room-b', 'job-2');
     expect(recallJob('room-a')).toBe('job-1');
-    expect(store.get('room-remix:video-scan:room-b')).toBe('job-2');
+    expect(store.get('hearify:video-scan:room-b')).toBe('job-2');
     forgetJob('room-a');
     expect(recallJob('room-a')).toBeNull();
     expect(recallJob('room-b')).toBe('job-2');

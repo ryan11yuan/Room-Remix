@@ -1,4 +1,4 @@
-# Room Remix Plan 3: follow-ups for Plans 4–5
+# Hearify Plan 3: follow-ups for Plans 4–5
 
 Plan 3 (3D scene and sound rays) is implemented on `master` (4d7eb92..1e849f5). It passed per-task reviews, a final whole-branch review and one final fix wave, and was walked through in Chrome. 146 tests pass. This file keeps what is still open.
 

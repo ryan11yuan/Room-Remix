@@ -1,4 +1,4 @@
-# Room Remix: Plan 5c, Setup Wizard, Player Layout and Accessibility Implementation Plan
+# Hearify: Plan 5c, Setup Wizard, Player Layout and Accessibility Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,7 +13,7 @@
 
 **Tech Stack:** Next.js 16.3 (App Router, `output: 'export'`), React 19.2, TypeScript 5.9, Tailwind 4, zustand 5, Vitest 5 (Node environment), three.js 0.186.
 
-**Spec:** `docs/superpowers/specs/2026-10-04-room-remix-design.md`: §10.2 (room setup wizard), §10.3 (player), §11 (the "No WebGL" and "Dimensions out of range" rows), §4 (validation), §9 (share links). Also the Plan 5c items in `docs/superpowers/plans/2026-10-05-room-remix-plan-5a-followups.md` and `…-plan-5b-followups.md`.
+**Spec:** `docs/superpowers/specs/2026-10-04-hearify-design.md`: §10.2 (room setup wizard), §10.3 (player), §11 (the "No WebGL" and "Dimensions out of range" rows), §4 (validation), §9 (share links). Also the Plan 5c items in `docs/superpowers/plans/2026-10-05-hearify-plan-5a-followups.md` and `…-plan-5b-followups.md`.
 
 **Where this sits:** Plan 5 runs as four plans, in order.
 - **5a (done):** rooms that persist.
@@ -54,7 +54,7 @@
 - Shell is Windows PowerShell; the repo path has a space. Commit by path (another session may share the working tree).
 - Copy: plain, short and concrete; British spelling ("metres", "colour"); no exclamation marks.
 - Every button, tab, toggle, link-button and form field is at least 44 px tall on phones (`min-h-11`; `min-w-11` for icon-only).
-- localStorage keys: `room-remix:rooms` (5a), `room-remix:units` (new, 'm' or 'ft').
+- localStorage keys: `hearify:rooms` (5a), `hearify:units` (new, 'm' or 'ft').
 
 ## Review Focus
 
@@ -135,7 +135,7 @@ src/app/
   ```ts
   // src/lib/room/units.ts
   type Unit = 'm' | 'ft';
-  FOOT = 0.3048; UNITS_KEY = 'room-remix:units';
+  FOOT = 0.3048; UNITS_KEY = 'hearify:units';
   toUnit(m: number, unit: Unit): number
   fromUnit(value: number, unit: Unit): number
   formatNumber(value: number, unit: Unit): string      // a number already in `unit`
@@ -157,7 +157,7 @@ What it does:
 - **Storage stays in metres, unrounded.** A field only writes back when its own text changes, so switching units or tabbing through never rounds a room.
 - **Feet are typed as decimals** ("12.5"), shown to one decimal. Metres are shown to at most two decimals, with trailing zeros dropped.
 - **Limits are rounded inward,** so a value typed at a shown limit is valid: 5.0–98.4 ft for length and width, 6.6–49.2 ft for height.
-- **The choice is remembered** under `room-remix:units`. It defaults to feet when `navigator.language` is `en-US`, else metres, and to metres while prerendering.
+- **The choice is remembered** under `hearify:units`. It defaults to feet when `navigator.language` is `en-US`, else metres, and to metres while prerendering.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -317,7 +317,7 @@ export type Unit = 'm' | 'ft';
 /** One foot, in metres (exact by definition). */
 export const FOOT = 0.3048;
 /** The localStorage key for the visitor's choice. */
-export const UNITS_KEY = 'room-remix:units';
+export const UNITS_KEY = 'hearify:units';
 
 /** A length in metres, in `unit`. */
 export function toUnit(m: number, unit: Unit): number {
@@ -2428,7 +2428,7 @@ export default function SetupPage() {
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 px-4 py-6">
       <header className="flex items-center justify-between gap-3 text-sm">
         <Link href="/" className="inline-flex min-h-11 items-center underline">
-          Room Remix
+          Hearify
         </Link>
         <p className="text-neutral-400">
           Step {stepNumber(step)} of {WIZARD_STEPS.length}
@@ -4245,4 +4245,4 @@ Then check:
   - the bar, the card, What if… and Edit room;
   - share the room and open the link in a second fresh profile;
   - My rooms → New room → the second room.
-- Then write `docs/superpowers/plans/2026-10-06-room-remix-plan-5c-followups.md` in the 5a/5b follow-ups format: what the browser checks confirmed, what wasn't checked by machine (screen readers, iOS Safari's safe area and fixed bar, a real touch drag on the top view), the items for 5d, and the decisions taken during execution.
+- Then write `docs/superpowers/plans/2026-10-06-hearify-plan-5c-followups.md` in the 5a/5b follow-ups format: what the browser checks confirmed, what wasn't checked by machine (screen readers, iOS Safari's safe area and fixed bar, a real touch drag on the top view), the items for 5d, and the decisions taken during execution.
