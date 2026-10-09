@@ -6,7 +6,8 @@ import { nameInfo, type NameId } from './names';
 export const STEP_M = 0.5;
 export const TURN = Math.PI / 6; // one clock hour
 export const WALL_GAP_M = 0.3;
-export const BODY_M = 0.25;
+/** 0.25 m left a furnished room in disconnected pieces (Plan 9 follow-ups); 0.1 m keeps chairs solid and the floor connected. */
+export const BODY_M = 0.1;
 export const CONTACT_HEIGHT_M = 1;
 
 export type Blocker = { label: NameId | 'wall'; at: Vec3 };
@@ -27,7 +28,7 @@ const inside = (p: { x: number; z: number }, o: RoomObject, grow: number) =>
 
 /**
  * One step forward (1) or back (−1). Blocked by a wall closer than 0.3 m, or by a blocking object's footprint grown by
- * 0.25 m for the body, unless you're already inside it. A blocker comes back with its nearest point to you, at 1 m.
+ * BODY_M for the body, unless you're already inside it. A blocker comes back with its nearest point to you, at 1 m.
  */
 export function step(dims: Dims, objects: RoomObject[], pose: Pose, direction: 1 | -1): StepResult {
   const to = { x: pose.x + direction * STEP_M * Math.cos(pose.heading), z: pose.z + direction * STEP_M * Math.sin(pose.heading) };

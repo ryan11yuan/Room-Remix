@@ -28,9 +28,9 @@ describe('step', () => {
     expect(step(room, [], { x: 2, z: 0.6, heading: -Math.PI / 2 }, 1)).toEqual({ ok: false, blocker: { label: 'wall', at: { x: 2, y: 1, z: 0 } } });
   });
 
-  it('bumps into furniture grown by 0.25 m and reports its name and nearest point', () => {
-    expect(step(room, [table], { x: 2.4, z: 2, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'table', at: { x: 3, y: 1, z: 2 } } });
-    expect(step(room, [table], { x: 2.0, z: 2, heading: 0 }, 1).ok).toBe(true); // ends at 2.5, outside 2.75
+  it('bumps into furniture grown by 0.1 m and reports its name and nearest point', () => {
+    expect(step(room, [table], { x: 2.5, z: 2, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'table', at: { x: 3, y: 1, z: 2 } } });
+    expect(step(room, [table], { x: 2.3, z: 2, heading: 0 }, 1).ok).toBe(true); // ends at 2.8, outside 2.9
   });
 
   it('walks through doors, windows, TVs and whiteboards', () => {
@@ -38,8 +38,8 @@ describe('step', () => {
   });
 
   it('never traps you inside a box you are already in', () => {
-    expect(step(room, [table], { x: 2.9, z: 2, heading: 0 }, 1).ok).toBe(true);
-    expect(step(room, [table], { x: 2.9, z: 2, heading: Math.PI }, 1).ok).toBe(true);
+    expect(step(room, [table], { x: 2.95, z: 2, heading: 0 }, 1).ok).toBe(true);
+    expect(step(room, [table], { x: 2.95, z: 2, heading: Math.PI }, 1).ok).toBe(true);
   });
 });
 

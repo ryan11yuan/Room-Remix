@@ -29,8 +29,8 @@ describe('walking', () => {
   });
 
   it('bumps with a thud, then the blocker\'s name from the same point', () => {
-    const bump = act(start([table], 2.4), 'forward');
-    expect(bump.session.pose.x).toBe(2.4);
+    const bump = act(start([table], 2.5), 'forward');
+    expect(bump.session.pose.x).toBe(2.5);
     expect(bump.effects).toEqual([{ kind: 'thud', at: { x: 3, y: 1, z: 2 } }, { kind: 'clip', clip: 'table', at: { x: 3, y: 1, z: 2 } }]);
     const wall = act(start([], 4.5), 'forward');
     expect(wall.effects).toEqual([{ kind: 'thud', at: { x: 5, y: 1, z: 2 } }, { kind: 'clip', clip: 'wall', at: { x: 5, y: 1, z: 2 } }]);
