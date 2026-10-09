@@ -76,26 +76,6 @@ export function gaussian(rng: () => number): number {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-/** 2nd-order Butterworth high-pass (RBJ cookbook), in place. Same design as a Web Audio 'highpass' BiquadFilterNode. */
-export function highPass(signal: Float32Array | Float64Array, sampleRate: number, cutoffHz: number): void {
-  const w = (2 * Math.PI * cutoffHz) / sampleRate;
-  const alpha = Math.sin(w) / (2 * Math.SQRT1_2); // Q = 1/√2
-  const cos = Math.cos(w);
-  const a0 = 1 + alpha;
-  const b0 = (1 + cos) / 2 / a0;
-  const b1 = -(1 + cos) / a0;
-  const b2 = b0;
-  const a1 = (-2 * cos) / a0;
-  const a2 = (1 - alpha) / a0;
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let i = 0; i < signal.length; i++) {
-    const x = signal[i];
-    const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1; x1 = x; y2 = y1; y1 = y;
-    signal[i] = y;
-  }
-}
-
 /** Fade the last `seconds` of a signal to silence with a raised cosine, in place, so a cut-off tail doesn't click. */
 export function fadeTail(signal: Float32Array, sampleRate: number, seconds: number): void {
   const n = Math.min(signal.length, Math.round(seconds * sampleRate));
@@ -129,28 +109,6 @@ export function bandMasks(fftSize: number, sampleRate: number): Float64Array[] {
     masks[NUM_BANDS - 1][k] = 1 - below;
   }
   return masks;
-}
-
-export function applyBandMasks(bands: Float64Array[], masks: Float64Array[]): Float64Array {
-  const n = bands[0].length;
-  const half = n / 2;
-  const sumRe = new Float64Array(n);
-  const sumIm = new Float64Array(n);
-  const re = new Float64Array(n);
-  const im = new Float64Array(n);
-  bands.forEach((signal, b) => {
-    re.set(signal);
-    im.fill(0);
-    fft(re, im);
-    const mask = masks[b];
-    for (let k = 0; k < n; k++) {
-      const g = mask[k <= half ? k : n - k];
-      sumRe[k] += re[k] * g;
-      sumIm[k] += im[k] * g;
-    }
-  });
-  fft(sumRe, sumIm, true);
-  return sumRe;
 }
 
 const noiseCache = new Map<string, Float32Array[]>();
