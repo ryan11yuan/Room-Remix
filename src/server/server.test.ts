@@ -278,6 +278,7 @@ describe('jobs API', () => {
       JSON.stringify({ objects: [{ ...door, label: 'lamp' }] }),
       JSON.stringify({ objects: [{ ...door, min: { x: 1, y: 0, z: 1 } }] }),
       JSON.stringify({ objects: Array.from({ length: 201 }, () => door) }),
+      JSON.stringify({ objects: [door] }).replace('"z":2}', '"z":1e999}'), // parses to Infinity
     ]) {
       const res = await put(body);
       expect(res.status).toBe(400);

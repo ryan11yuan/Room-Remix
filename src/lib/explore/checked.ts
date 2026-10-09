@@ -1,4 +1,4 @@
-import type { RoomObject, Vec3 } from '@/lib/room/types';
+import type { Dims, RoomObject, Vec3 } from '@/lib/room/types';
 import { isNameId, nameInfo, NAMES, type NameId } from './names';
 
 /** The helper's checked list (spec 2026-10-08 §6, §10). No DOM or Node imports: the server and the viewer share it. */
@@ -45,8 +45,10 @@ export function defaultBox(label: NameId, at: { x: number; z: number }): RoomObj
   return { label, min: { x: at.x - w / 2, y: bottom, z: at.z - d / 2 }, max: { x: at.x + w / 2, y: bottom + h, z: at.z + d / 2 } };
 }
 
-export function addObject(objects: RoomObject[], label: NameId, at: { x: number; z: number }): { objects: RoomObject[]; index: number } {
-  const added = defaultBox(label, at);
+/** A click on the floor plane can land past a wall (a door clicked above its base), so the centre is held inside the room (spec 2026-10-08 §6). */
+export function addObject(objects: RoomObject[], label: NameId, at: { x: number; z: number }, room: Dims): { objects: RoomObject[]; index: number } {
+  const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), max);
+  const added = defaultBox(label, { x: clamp(at.x, room.length), z: clamp(at.z, room.width) });
   const sorted = sortObjects([...objects, added]);
   return { objects: sorted, index: sorted.indexOf(added) };
 }

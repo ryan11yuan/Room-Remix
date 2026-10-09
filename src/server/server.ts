@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import http from 'node:http';
@@ -184,8 +185,9 @@ export function createServer({ jobs, health, busy, staticDir, maxBytes = MAX_VID
     }
     if (!objects) return sendJson(res, 400, { error: 'bad-objects' });
     const file = path.join(dir, CHECKED_FILE);
-    await writeFile(`${file}.tmp`, JSON.stringify({ objects }));
-    await rename(`${file}.tmp`, file); // never a half-written file
+    const tmp = `${file}.${randomUUID()}.tmp`; // its own temp file, so overlapping saves can't trample each other
+    await writeFile(tmp, JSON.stringify({ objects }));
+    await rename(tmp, file); // never a half-written file
     res.writeHead(204, { 'Cache-Control': 'no-store' });
     res.end();
   }
