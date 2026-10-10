@@ -3,7 +3,11 @@
 **Rehearse a place by sound.** A friend films a room once on a phone. Hearify turns the video into a 3D model, finds the
 door, tables, chairs and stairs, and lets someone who can't see the room walk through it on headphones before they visit.
 
-<!-- Add the demo video link and a screenshot of the 3D room here. -->
+<a href="https://youtu.be/IxJW1tRHwAg">
+  <img src="https://img.youtube.com/vi/IxJW1tRHwAg/maxresdefault.jpg" alt="Watch the Hearify demo on YouTube" width="640">
+</a>
+
+**[▶ Watch the demo on YouTube](https://youtu.be/IxJW1tRHwAg)**. Use headphones if you can: the sound is 3D.
 
 | | |
 |---|---|
