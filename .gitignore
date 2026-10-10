@@ -44,5 +44,9 @@ next-env.d.ts
 __pycache__/
 .venv/
 
-# Impeccable review captures (screenshots from design reviews)
-.impeccable/review/
+# AI coding tool files, kept on this machine only (`next dev` re-creates AGENTS.md and CLAUDE.md)
+/AGENTS.md
+/CLAUDE.md
+/DESIGN.md
+/PRODUCT.md
+/.impeccable/
