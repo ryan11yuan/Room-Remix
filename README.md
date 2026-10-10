@@ -10,7 +10,7 @@ Use headphones if you can: the sound is 3D. The same demo is [on YouTube in full
 | | |
 |---|---|
 | **What** | A hackathon project that joins 3D reconstruction, computer vision and spatial audio, for accessibility |
-| **Built** | Solo, in 7 days (October 2026), in over 190 commits |
+| **Built** | Solo, in over 190 commits |
 | **Stack** | TypeScript, Next.js, React, three.js, Web Audio, Node.js, Docker, COLMAP, OpenSplat, OWL-ViT |
 | **Tests** | 282 automated tests, all passing |
 | **Runs on** | One laptop. No cloud and no paid services: every tool is free and open source |
