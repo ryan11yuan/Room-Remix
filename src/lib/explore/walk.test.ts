@@ -28,6 +28,14 @@ describe('step', () => {
     expect(step(room, [], { x: 2, z: 0.6, heading: -Math.PI / 2 }, 1)).toEqual({ ok: false, blocker: { label: 'wall', at: { x: 2, y: 1, z: 0 } } });
   });
 
+  it('says door, not wall, when the wall you bump is within half a metre of a door', () => {
+    const door = box('door', 4.95, 2.5, 5.05, 3.4);
+    expect(step(room, [door], { x: 4.5, z: 2.8, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'door', at: { x: 5, y: 1, z: 2.8 } } });
+    expect(step(room, [door], { x: 4.5, z: 2, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'door', at: { x: 5, y: 1, z: 2 } } });
+    expect(step(room, [door], { x: 4.5, z: 1.9, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'wall', at: { x: 5, y: 1, z: 1.9 } } });
+    expect(step(room, [door], { x: 0.5, z: 2.8, heading: Math.PI }, 1)).toEqual({ ok: false, blocker: { label: 'wall', at: { x: 0, y: 1, z: 2.8 } } });
+  });
+
   it('bumps into furniture grown by 0.1 m and reports its name and nearest point', () => {
     expect(step(room, [table], { x: 2.5, z: 2, heading: 0 }, 1)).toEqual({ ok: false, blocker: { label: 'table', at: { x: 3, y: 1, z: 2 } } });
     expect(step(room, [table], { x: 2.3, z: 2, heading: 0 }, 1).ok).toBe(true); // ends at 2.8, outside 2.9

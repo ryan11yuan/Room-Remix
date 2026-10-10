@@ -9,6 +9,8 @@ export const WALL_GAP_M = 0.3;
 /** 0.25 m left a furnished room in disconnected pieces (Plan 9 follow-ups); 0.1 m keeps chairs solid and the floor connected. */
 export const BODY_M = 0.1;
 export const CONTACT_HEIGHT_M = 1;
+/** A wall bump this close to a door's footprint says "door": a door sits in its wall, and a hand-added one is a little off it. */
+export const DOOR_REACH_M = 0.5;
 
 export type Blocker = { label: NameId | 'wall'; at: Vec3 };
 export type StepResult = { ok: true; pose: Pose } | { ok: false; blocker: Blocker };
@@ -28,7 +30,8 @@ const inside = (p: { x: number; z: number }, o: RoomObject, grow: number) =>
 
 /**
  * One step forward (1) or back (−1). Blocked by a wall closer than 0.3 m, or by a blocking object's footprint grown by
- * BODY_M for the body, unless you're already inside it. A blocker comes back with its nearest point to you, at 1 m.
+ * BODY_M for the body, unless you're already inside it. A blocker comes back with its nearest point to you, at 1 m; a
+ * wall at a door comes back as the door.
  */
 export function step(dims: Dims, objects: RoomObject[], pose: Pose, direction: 1 | -1): StepResult {
   const to = { x: pose.x + direction * STEP_M * Math.cos(pose.heading), z: pose.z + direction * STEP_M * Math.sin(pose.heading) };
@@ -42,7 +45,8 @@ export function step(dims: Dims, objects: RoomObject[], pose: Pose, direction: 1
     .sort((a, b) => b.depth - a.depth)[0];
   if (wall) {
     const at = { x: clamp(wall.at.x, 0, dims.length), y: CONTACT_HEIGHT_M, z: clamp(wall.at.z, 0, dims.width) };
-    return { ok: false, blocker: { label: 'wall', at } };
+    const door = objects.some((o) => o.label === 'door' && footprintDistance(at, o) <= DOOR_REACH_M);
+    return { ok: false, blocker: { label: door ? 'door' : 'wall', at } };
   }
   let hit: RoomObject | null = null;
   let nearest = Infinity;
